@@ -1,0 +1,11 @@
+server:
+  port: 19003
+
+spring:
+  application:
+    name: hub-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

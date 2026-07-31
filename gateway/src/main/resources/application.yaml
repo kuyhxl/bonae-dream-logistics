@@ -1,0 +1,45 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            - id: user-service
+              uri: lb://user-service
+              predicates:
+                - Path=/api/auth/**,/api/users/**
+
+            - id: message-service
+              uri: lb://message-service
+              predicates:
+                - Path=/api/slack-messages/**
+
+            - id: hub-service
+              uri: lb://hub-service
+              predicates:
+                - Path=/api/hubs/**,/api/hub-routes/**
+
+            - id: company-service
+              uri: lb://company-service
+              predicates:
+                - Path=/api/companies/**,/api/products/**,/api/inventories/**
+
+            - id: order-service
+              uri: lb://order-service
+              predicates:
+                - Path=/api/orders/**
+
+            - id: delivery-service
+              uri: lb://delivery-service
+              predicates:
+                - Path=/api/deliveries/**,/api/delivery-routes/**,/api/delivery-managers/**
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/ureka/

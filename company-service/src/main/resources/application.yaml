@@ -1,0 +1,11 @@
+server:
+  port: 19004
+
+spring:
+  application:
+    name: company-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/

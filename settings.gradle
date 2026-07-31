@@ -1,0 +1,11 @@
+rootProject.name = 'bonae-dream-logistics'
+
+include 'common'
+include 'eureka-server'
+include 'user-service'
+include 'gateway'
+include 'hub-service'
+include 'message-service'
+include 'delivery-service'
+include 'order-service'
+include 'company-service'
