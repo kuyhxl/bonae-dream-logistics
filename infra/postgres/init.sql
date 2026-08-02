@@ -1,0 +1,6 @@
+CREATE SCHEMA IF NOT EXISTS user_service;
+CREATE SCHEMA IF NOT EXISTS message_service;
+CREATE SCHEMA IF NOT EXISTS hub_service;
+CREATE SCHEMA IF NOT EXISTS company_service;
+CREATE SCHEMA IF NOT EXISTS order_service;
+CREATE SCHEMA IF NOT EXISTS delivery_service;
