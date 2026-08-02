@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PingController {
 
-    @GetMapping("/api/messages/ping")
+    @GetMapping("/api/slack-messages/ping")
     public String ping() {
         return "message-service OK";
     }
