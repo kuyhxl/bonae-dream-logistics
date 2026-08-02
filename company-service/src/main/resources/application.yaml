@@ -4,8 +4,35 @@ server:
 spring:
   application:
     name: company-service
+  # 로컬 개발 전용 DB 계정입니다(더미값). 환경변수가 있으면 그 값이 우선.
+  datasource:
+    url: jdbc:postgresql://localhost:15432/${POSTGRES_DB:bonae}?currentSchema=company_service
+    username: ${POSTGRES_USER:bonae}
+    password: ${POSTGRES_PASSWORD:local1234}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        default_schema: company_service
+    open-in-view: false
+    show-sql: true
+
+  jackson:
+    time-zone: Asia/Seoul
 
 eureka:
   client:
     service-url:
       defaultZone: http://localhost:8761/eureka/
+
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: http://localhost:9411/api/v2/spans
