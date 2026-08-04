@@ -9,6 +9,7 @@ spring:
       server:
         webflux:
           routes:
+            # API Route
             - id: user-service
               uri: lb://user-service
               predicates:
@@ -38,6 +39,67 @@ spring:
               uri: lb://delivery-service
               predicates:
                 - Path=/api/deliveries/**,/api/delivery-routes/**,/api/delivery-managers/**
+
+            # API Docs Route
+            - id: user-service-docs
+              uri: lb://user-service
+              predicates:
+                - Path=/user-service/v3/api-docs
+              filters:
+                - RewritePath=/user-service/v3/api-docs, /v3/api-docs
+
+            - id: message-service-docs
+              uri: lb://message-service
+              predicates:
+                - Path=/message-service/v3/api-docs
+              filters:
+                - RewritePath=/message-service/v3/api-docs, /v3/api-docs
+
+            - id: hub-service-docs
+              uri: lb://hub-service
+              predicates:
+                - Path=/hub-service/v3/api-docs
+              filters:
+                - RewritePath=/hub-service/v3/api-docs, /v3/api-docs
+
+            - id: company-service-docs
+              uri: lb://company-service
+              predicates:
+                - Path=/company-service/v3/api-docs
+              filters:
+                - RewritePath=/company-service/v3/api-docs, /v3/api-docs
+
+            - id: order-service-docs
+              uri: lb://order-service
+              predicates:
+                - Path=/order-service/v3/api-docs
+              filters:
+                - RewritePath=/order-service/v3/api-docs, /v3/api-docs
+
+            - id: delivery-service-docs
+              uri: lb://delivery-service
+              predicates:
+                - Path=/delivery-service/v3/api-docs
+              filters:
+                - RewritePath=/delivery-service/v3/api-docs, /v3/api-docs
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    config-url: /v3/api-docs/swagger-config
+    urls:
+      - name: 1. 유저 서비스
+        url: /user-service/v3/api-docs
+      - name: 2. 메시지 서비스
+        url: /message-service/v3/api-docs
+      - name: 3. 허브 서비스
+        url: /hub-service/v3/api-docs
+      - name: 4. 업체·상품 서비스
+        url: /company-service/v3/api-docs
+      - name: 5. 주문 서비스
+        url: /order-service/v3/api-docs
+      - name: 6. 배송 서비스
+        url: /delivery-service/v3/api-docs
 
 eureka:
   client:
