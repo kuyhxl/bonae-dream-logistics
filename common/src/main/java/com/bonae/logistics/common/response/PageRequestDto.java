@@ -37,7 +37,7 @@ public class PageRequestDto {
             page = 1;
         }
         if (!ALLOWED_SIZES.contains(size)) {
-            throw new BusinessException(ErrorCode.INVALID_PAGE_SIZE);
+            size = 10; // 수정!
         }
         if (!ALLOWED_SORTS.contains(sort)) {
             throw new BusinessException(ErrorCode.INVALID_SORT_FIELD);

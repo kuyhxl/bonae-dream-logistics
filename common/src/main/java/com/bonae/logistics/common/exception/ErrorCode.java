@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode{
     // 공통
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
-    INVALID_PAGE_SIZE(HttpStatus.BAD_REQUEST, "페이지 크기는 10/30/50 만 가능합니다. " ),
     INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "정렬 기준은 createdAt, updatedAT만 가능함"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "해당 작업을 수행할 권한이 없습니다. "),
