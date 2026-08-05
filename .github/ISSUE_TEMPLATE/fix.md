@@ -1,5 +1,5 @@
 ---
-name: Bug
+name: Fix
 about: 버그 수정
 title: '[Fix] 도메인 - 버그 내용'
 labels: bug
