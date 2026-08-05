@@ -1,0 +1,24 @@
+
+# 여기에 등록된 경로가 변경되면 해당 소유자의 리뷰 승인이 필요합니다.
+# 공통 모듈·인프라 설정은 전 서비스에 영향을 주므로 인프라 담당이 검토하도록
+# 각 서비스 디렉토리는 담당자가 자유롭게 작업하며 별도 지정하지 않았습니다.
+
+# 공통 모듈
+/common/                        @kuyhxl
+
+# 인프라 컴포넌트
+/gateway/                       @kuyhxl
+/eureka-server/                 @kuyhxl
+
+# 빌드 설정
+/build.gradle                   @kuyhxl
+/settings.gradle                @kuyhxl
+/gradle/                        @kuyhxl
+
+# 실행 환경
+/docker-compose.yml             @kuyhxl
+/infra/                         @kuyhxl
+/.env.template                  @kuyhxl
+
+# 저장소 설정
+/.github/                       @kuyhxl
