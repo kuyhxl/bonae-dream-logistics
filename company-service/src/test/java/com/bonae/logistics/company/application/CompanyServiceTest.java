@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.UUID;
 
@@ -33,7 +34,7 @@ class CompanyServiceTest {
     private CompanyService companyService;
 
     @Test
-    @DisplayName("createCompany_중복된업체가없을때_업체생성성공")
+    @DisplayName("createCompany_중복된 업체가 없을 때_업체생성성공")
     void createCompany_중복된업체가없을때_업체생성성공() {
         ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
                 .name("배송센터A")
@@ -47,7 +48,7 @@ class CompanyServiceTest {
 
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
-        when(companyRepository.save(any(Company.class))).thenReturn(savedCompany);
+        when(companyRepository.saveAndFlush(any(Company.class))).thenReturn(savedCompany);
 
         ResCreateCompanyDto resDto = companyService.createCompany(reqDto);
 
@@ -55,11 +56,11 @@ class CompanyServiceTest {
         assertThat(resDto.getType()).isEqualTo(reqDto.getType());
         assertThat(resDto.getHubId()).isEqualTo(reqDto.getHubId());
         assertThat(resDto.getAddress()).isEqualTo(reqDto.getAddress());
-        verify(companyRepository).save(any(Company.class));
+        verify(companyRepository).saveAndFlush(any(Company.class));
     }
 
     @Test
-    @DisplayName("createCompany_동일한이름과주소의업체가이미존재할때_예외발생")
+    @DisplayName("createCompany_동일한 이름과 주소의 업체가 이미 존재할 때_예외발생")
     void createCompany_동일한이름과주소업체가이미존재할때_예외발생() {
         ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
                 .name("배송센터A")
@@ -76,6 +77,30 @@ class CompanyServiceTest {
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANY_DUPLICATED);
 
-        verify(companyRepository, never()).save(any(Company.class));
+        verify(companyRepository, never()).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    @DisplayName("createCompany_사전검증 통과 후 저장시점에 유니크 제약조건 위반이 발생할때_예외발생")
+    void createCompany_사전검증통과후저장시점에유니크제약조건위반이발생할때_예외발생() {
+        ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
+                .name("배송센터A")
+                .type(CompanyType.PRODUCER)
+                .hubId(UUID.randomUUID())
+                .address("서울시 강남구 테헤란로 1")
+                .build();
+
+        // 동시 요청 등으로 existsBy 체크는 통과했지만, 저장 시점에 DB 부분 유니크 인덱스에 걸리는 경우
+        when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
+                .thenReturn(false);
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+
+        assertThatThrownBy(() -> companyService.createCompany(reqDto))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_DUPLICATED);
+
+        verify(companyRepository).saveAndFlush(any(Company.class));
     }
 }
