@@ -1,6 +1,8 @@
 package com.bonae.logistics.hub.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -84,23 +86,22 @@ public class HubRoute extends BaseEntity {
 
     private static void validateHubs(Hub departureHub, Hub arrivalHub) {
         if (departureHub == null || arrivalHub == null) {
-            throw new IllegalArgumentException("출발 허브와 도착 허브는 필수입니다.");
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
-
         if (departureHub.getId().equals(arrivalHub.getId())) {
-            throw new IllegalArgumentException("출발 허브와 도착 허브는 달라야 합니다.");
+            throw new BusinessException(ErrorCode.SAME_HUB_ROUTE_ENDPOINTS);
         }
     }
 
     private static void validateDistance(Integer distanceMeters) {
         if (distanceMeters == null || distanceMeters <= 0) {
-            throw new IllegalArgumentException("이동 거리는 0보다 커야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_HUB_ROUTE_DISTANCE);
         }
     }
 
     private static void validateDuration(Integer durationSeconds) {
         if (durationSeconds == null || durationSeconds <= 0) {
-            throw new IllegalArgumentException("소요 시간은 0보다 커야 합니다.");
+            throw new BusinessException(ErrorCode.INVALID_HUB_ROUTE_DURATION);
         }
     }
 }
