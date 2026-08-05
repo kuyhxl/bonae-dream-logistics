@@ -50,12 +50,12 @@
 
 | 담당 | 이름 | GitHub | 역할 |
 |:---:|:---:|:---:|---|
-| 1 | 황찬혁 | [@kuyhxl](https://github.com/kuyhxl) | 인프라·공통 — Eureka, Gateway, docker-compose, Zipkin, common 모듈, 배포 |
-| 2 | 진혜림 | [@Jinhyelim](https://github.com/Jinhyelim) | 유저 서비스 (가입·로그인·JWT), Gateway 인증 필터 · 메시지 서비스 (AI 발송시한, Slack 알림) |
-| 3 | 송국희 | [@ssongcookie](https://github.com/ssongcookie) | 허브 서비스 (허브·이동경로, Redis 캐싱) |
+| 1 | 황찬혁 | [@kuyhxl](https://github.com/kuyhxl) | 인프라·공통 (Eureka, Gateway, Zipkin) |
+| 2 | 진혜림 | [@Jinhyelim](https://github.com/Jinhyelim) | 유저·메시지 서비스 (JWT, AI 알림) |
+| 3 | 송국희 | [@ssongcookie](https://github.com/ssongcookie) | 허브 서비스 (이동경로, 캐싱) |
 | 4 | 황지호 | [@jiho0107](https://github.com/jiho0107) | 업체·상품 서비스 (재고 관리) |
-| 5 | 문은서 | [@kosy00](https://github.com/kosy00) | 주문 서비스 (오케스트레이션, 보상 트랜잭션) |
-| 6 | 송채영 | [@buddle031](https://github.com/buddle031) | 배송 서비스 (배송경로, 담당자 배정) |
+| 5 | 문은서 | [@kosy00](https://github.com/kosy00) | 주문 서비스 (오케스트레이션) |
+| 6 | 송채영 | [@buddle031](https://github.com/buddle031) | 배송 서비스 (담당자 배정) |
 
 ---
 
