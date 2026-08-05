@@ -22,7 +22,7 @@ public class BaseEntity {
     private LocalDateTime createdAt;
 
     @CreatedBy
-    @Column(name = "created_by", nullable = false, updatable = false, length = 100)
+    @Column(name = "created_by", nullable = false, updatable = false, length = 10)
     private String createdBy;
 
     @LastModifiedDate
@@ -30,13 +30,13 @@ public class BaseEntity {
     private LocalDateTime updatedAt;
 
     @LastModifiedBy
-    @Column(name = "updated_by", length = 100)
+    @Column(name = "updated_by", length = 10)
     private String updatedBy;
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    @Column(name = "deleted_by", length = 100)
+    @Column(name = "deleted_by", length = 10)
     private String deletedBy;
 
     // 논리 삭제 처리
