@@ -34,11 +34,10 @@ public enum ErrorCode{
     HUB_NAME_DUPLICATED(HttpStatus.CONFLICT, "중복된 허브명입니다."),
     HUB_ADDRESS_DUPLICATED(HttpStatus.CONFLICT, "중복된 허브 주소입니다."),
 
-    // 업체/상품/인벤토리
+    // 업체/상품/재고
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "업체를 찾을 수 없습니다. "),
-    INVALID_COMPANY_TYPE(HttpStatus.BAD_REQUEST, "허용되지 않는 업체 유형입니다."),
-    COMPANY_DUPLICATED(HttpStatus.CONFLICT, "이미 동일 명의 업체가 존재합니다."),
-    COMPANY_ADDRESS_DUPLICATED(HttpStatus.CONFLICT, "등록된 주소에 이미 업체가 존재합니다."),
+    INVALID_COMPANY_TYPE(HttpStatus.BAD_REQUEST, "유효하지 않은 업체 유형입니다."),
+    COMPANY_DUPLICATED(HttpStatus.CONFLICT, "이미 동일한 업체명과 주소로 등록된 업체가 존재합니다."),
 
     // 상품
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다. "),
