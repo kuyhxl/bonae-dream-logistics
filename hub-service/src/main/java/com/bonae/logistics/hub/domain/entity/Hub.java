@@ -21,7 +21,7 @@ public class Hub extends BaseEntity {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "name", nullable = false, length = 100)
+    @Column(name = "name", nullable = false, length = 10)
     private String name;
 
     @Column(name = "address", nullable = false, length = 255)
