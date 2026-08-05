@@ -1,9 +1,9 @@
 package com.bonae.logistics.company.application;
 
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.company.domain.Company;
 import com.bonae.logistics.company.domain.CompanyType;
-import com.bonae.logistics.company.exception.CompanyErrorCode;
-import com.bonae.logistics.company.exception.CompanyException;
 import com.bonae.logistics.company.infrastructure.CompanyRepository;
 import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
@@ -72,9 +72,9 @@ class CompanyServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> companyService.createCompany(reqDto))
-                .isInstanceOf(CompanyException.class)
-                .extracting(exception -> ((CompanyException) exception).getErrorCode())
-                .isEqualTo(CompanyErrorCode.COMPANY_DUPLICATED);
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_DUPLICATED);
 
         verify(companyRepository, never()).save(any(Company.class));
     }

@@ -1,7 +1,7 @@
 package com.bonae.logistics.company.auth;
 
-import com.bonae.logistics.company.exception.CompanyErrorCode;
-import com.bonae.logistics.company.exception.CompanyException;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.method.HandlerMethod;
@@ -28,7 +28,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 
         UserRole userRole = parseUserRole(request.getHeader(USER_ROLE_HEADER));
         if (!Arrays.asList(roleCheck.value()).contains(userRole)) {
-            throw new CompanyException(CompanyErrorCode.FORBIDDEN);
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         return true;
@@ -36,12 +36,12 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
 
     private UserRole parseUserRole(String headerValue) {
         if (headerValue == null) {
-            throw new CompanyException(CompanyErrorCode.FORBIDDEN);
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         try {
             return UserRole.valueOf(headerValue);
         } catch (IllegalArgumentException e) {
-            throw new CompanyException(CompanyErrorCode.FORBIDDEN);
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
     }
 }
