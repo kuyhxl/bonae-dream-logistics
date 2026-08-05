@@ -33,11 +33,11 @@ CREATE TABLE hub_service.p_hub_routes
     distance_meters     integer     NOT NULL,
     duration_seconds    integer     NOT NULL,
     created_at          timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by          varchar(100) NOT NULL,
+    created_by          varchar(10) NOT NULL,
     updated_at          timestamp   NULL,
-    updated_by          varchar(100) NULL,
+    updated_by          varchar(10) NULL,
     deleted_at          timestamp   NULL,
-    deleted_by          varchar(100) NULL,
+    deleted_by          varchar(10) NULL,
 
     CONSTRAINT pk_p_hub_routes
         PRIMARY KEY (id),
