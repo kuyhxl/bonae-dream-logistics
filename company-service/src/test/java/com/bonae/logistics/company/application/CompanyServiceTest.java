@@ -57,7 +57,7 @@ class CompanyServiceTest {
         Company savedCompany =
                 new Company(reqDto.getName(), reqDto.getType(), reqDto.getHubId(), reqDto.getAddress());
 
-        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
+        // TODO: hub-service 연동 활성화 후 hubClient 스텁 복구
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class))).thenReturn(savedCompany);
@@ -71,26 +71,27 @@ class CompanyServiceTest {
         verify(companyRepository).saveAndFlush(any(Company.class));
     }
 
-    @Test
-    @DisplayName("createCompany_존재하지 않는 허브일 때_예외발생")
-    void createCompany_존재하지않는허브일때_예외발생() {
-        ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
-                .name("배송센터A")
-                .type(CompanyType.PRODUCER)
-                .hubId(UUID.randomUUID())
-                .address("서울시 강남구 테헤란로 1")
-                .build();
-
-        when(hubClient.getHub(reqDto.getHubId())).thenThrow(hubNotFoundException(reqDto.getHubId()));
-
-        assertThatThrownBy(() -> companyService.createCompany(reqDto))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.HUB_NOT_FOUND);
-
-        verify(companyRepository, never()).existsByNameAndAddressAndDeletedAtIsNull(any(), any());
-        verify(companyRepository, never()).saveAndFlush(any(Company.class));
-    }
+    // TODO: hub-service 내부 API 구현 및 validateHubExists 호출 활성화 후 복구
+//    @Test
+//    @DisplayName("createCompany_존재하지 않는 허브일 때_예외발생")
+//    void createCompany_존재하지않는허브일때_예외발생() {
+//        ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
+//                .name("배송센터A")
+//                .type(CompanyType.PRODUCER)
+//                .hubId(UUID.randomUUID())
+//                .address("서울시 강남구 테헤란로 1")
+//                .build();
+//
+//        when(hubClient.getHub(reqDto.getHubId())).thenThrow(hubNotFoundException(reqDto.getHubId()));
+//
+//        assertThatThrownBy(() -> companyService.createCompany(reqDto))
+//                .isInstanceOf(BusinessException.class)
+//                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+//                .isEqualTo(ErrorCode.HUB_NOT_FOUND);
+//
+//        verify(companyRepository, never()).existsByNameAndAddressAndDeletedAtIsNull(any(), any());
+//        verify(companyRepository, never()).saveAndFlush(any(Company.class));
+//    }
 
     @Test
     @DisplayName("createCompany_동일한 이름과 주소의 업체가 이미 존재할 때_예외발생")
@@ -102,7 +103,6 @@ class CompanyServiceTest {
                 .address("서울시 강남구 테헤란로 1")
                 .build();
 
-        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(true);
 
@@ -125,7 +125,6 @@ class CompanyServiceTest {
                 .build();
 
         // 동시 요청 등으로 existsBy 체크는 통과했지만, 저장 시점에 DB 부분 유니크 인덱스에 걸리는 경우
-        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class)))
@@ -149,7 +148,6 @@ class CompanyServiceTest {
                 .address("서울시 강남구 테헤란로 1")
                 .build();
 
-        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class)))
@@ -171,15 +169,15 @@ class CompanyServiceTest {
         return new DataIntegrityViolationException("duplicate key", cause);
     }
 
-    private FeignException.NotFound hubNotFoundException(UUID hubId) {
-        Request request = Request.create(
-                Request.HttpMethod.GET,
-                "http://hub-service/api/internal/hubs/" + hubId,
-                Collections.emptyMap(),
-                null,
-                StandardCharsets.UTF_8,
-                null
-        );
-        return new FeignException.NotFound("hub not found", request, null, Collections.emptyMap());
-    }
+//    private FeignException.NotFound hubNotFoundException(UUID hubId) {
+//        Request request = Request.create(
+//                Request.HttpMethod.GET,
+//                "http://hub-service/api/internal/hubs/" + hubId,
+//                Collections.emptyMap(),
+//                null,
+//                StandardCharsets.UTF_8,
+//                null
+//        );
+//        return new FeignException.NotFound("hub not found", request, null, Collections.emptyMap());
+//    }
 }
