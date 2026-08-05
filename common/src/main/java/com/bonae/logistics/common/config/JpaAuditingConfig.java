@@ -11,6 +11,6 @@ public class JpaAuditingConfig {
 
     @Bean
     public AuditorAware<String> auditorAware(){
-        return new AuditorAwareImple();
+        return new AuditorAwareImpl();
     }
 }
