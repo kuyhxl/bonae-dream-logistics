@@ -5,8 +5,11 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.company.domain.Company;
 import com.bonae.logistics.company.domain.CompanyType;
 import com.bonae.logistics.company.infrastructure.CompanyRepository;
+import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
+import feign.FeignException;
+import feign.Request;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -15,8 +18,11 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.ResponseEntity;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -32,11 +38,14 @@ class CompanyServiceTest {
     @Mock
     private CompanyRepository companyRepository;
 
+    @Mock
+    private HubClient hubClient;
+
     @InjectMocks
     private CompanyService companyService;
 
     @Test
-    @DisplayName("createCompany_중복된 업체가 없을 때_업체생성성공")
+    @DisplayName("createCompany_존재하는 허브이고 중복된 업체가 없을 때_업체생성성공")
     void createCompany_중복된업체가없을때_업체생성성공() {
         ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
                 .name("배송센터A")
@@ -48,6 +57,7 @@ class CompanyServiceTest {
         Company savedCompany =
                 new Company(reqDto.getName(), reqDto.getType(), reqDto.getHubId(), reqDto.getAddress());
 
+        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class))).thenReturn(savedCompany);
@@ -62,6 +72,27 @@ class CompanyServiceTest {
     }
 
     @Test
+    @DisplayName("createCompany_존재하지 않는 허브일 때_예외발생")
+    void createCompany_존재하지않는허브일때_예외발생() {
+        ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
+                .name("배송센터A")
+                .type(CompanyType.PRODUCER)
+                .hubId(UUID.randomUUID())
+                .address("서울시 강남구 테헤란로 1")
+                .build();
+
+        when(hubClient.getHub(reqDto.getHubId())).thenThrow(hubNotFoundException(reqDto.getHubId()));
+
+        assertThatThrownBy(() -> companyService.createCompany(reqDto))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.HUB_NOT_FOUND);
+
+        verify(companyRepository, never()).existsByNameAndAddressAndDeletedAtIsNull(any(), any());
+        verify(companyRepository, never()).saveAndFlush(any(Company.class));
+    }
+
+    @Test
     @DisplayName("createCompany_동일한 이름과 주소의 업체가 이미 존재할 때_예외발생")
     void createCompany_동일한이름과주소업체가이미존재할때_예외발생() {
         ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
@@ -71,6 +102,7 @@ class CompanyServiceTest {
                 .address("서울시 강남구 테헤란로 1")
                 .build();
 
+        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(true);
 
@@ -93,6 +125,7 @@ class CompanyServiceTest {
                 .build();
 
         // 동시 요청 등으로 existsBy 체크는 통과했지만, 저장 시점에 DB 부분 유니크 인덱스에 걸리는 경우
+        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class)))
@@ -116,6 +149,7 @@ class CompanyServiceTest {
                 .address("서울시 강남구 테헤란로 1")
                 .build();
 
+        when(hubClient.getHub(reqDto.getHubId())).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class)))
@@ -135,5 +169,17 @@ class CompanyServiceTest {
                 constraintName
         );
         return new DataIntegrityViolationException("duplicate key", cause);
+    }
+
+    private FeignException.NotFound hubNotFoundException(UUID hubId) {
+        Request request = Request.create(
+                Request.HttpMethod.GET,
+                "http://hub-service/api/internal/hubs/" + hubId,
+                Collections.emptyMap(),
+                null,
+                StandardCharsets.UTF_8,
+                null
+        );
+        return new FeignException.NotFound("hub not found", request, null, Collections.emptyMap());
     }
 }
