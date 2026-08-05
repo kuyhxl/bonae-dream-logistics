@@ -4,8 +4,10 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.company.domain.Company;
 import com.bonae.logistics.company.infrastructure.CompanyRepository;
+import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
+import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -22,9 +24,12 @@ public class CompanyService {
     private static final String COMPANY_NAME_ADDRESS_UNIQUE_CONSTRAINT = "ux_p_companies_name_address_active";
 
     private final CompanyRepository companyRepository;
+    private final HubClient hubClient;
 
     @Transactional
     public ResCreateCompanyDto createCompany(ReqCreateCompanyDto reqDto) {
+        validateHubExists(reqDto.getHubId());
+
         //삭제되지 않은 업체 중 동일 업체명+주소가 있는지 검증
         if (companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress())) {
             throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
@@ -51,5 +56,14 @@ public class CompanyService {
     private boolean isCompanyNameAddressUniqueViolation(DataIntegrityViolationException e) {
         return e.getCause() instanceof ConstraintViolationException cve
                 && COMPANY_NAME_ADDRESS_UNIQUE_CONSTRAINT.equalsIgnoreCase(cve.getConstraintName());
+    }
+
+    // hub-service의 내부 API로 허브 존재 여부(삭제되지 않고 존재)를 확인한다. 200이면 존재, 404면 미존재.
+    private void validateHubExists(UUID hubId) {
+        try {
+            hubClient.getHub(hubId);
+        } catch (FeignException.NotFound e) {
+            throw new BusinessException(ErrorCode.HUB_NOT_FOUND);
+        }
     }
 }
