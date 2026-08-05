@@ -7,6 +7,7 @@ import com.bonae.logistics.company.infrastructure.CompanyRepository;
 import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,9 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class CompanyService {
+
+    // ux_p_companies_name_address_active: (name, address) where deleted_at is null 부분 유니크 인덱스
+    private static final String COMPANY_NAME_ADDRESS_UNIQUE_CONSTRAINT = "ux_p_companies_name_address_active";
 
     private final CompanyRepository companyRepository;
 
@@ -30,12 +34,22 @@ public class CompanyService {
 
         // 최종 방어선은 DB 부분 유니크 인덱스(name, address where deleted_at is null)이며,
         // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
+        // 그 외의 제약조건 위반은 예상치 못한 오류이므로 그대로 던져 공통 예외 처리기가 처리하도록 한다.
         try {
             companyRepository.saveAndFlush(company);
         } catch (DataIntegrityViolationException e) {
-            throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
+            if (isCompanyNameAddressUniqueViolation(e)) {
+                throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
+            }
+            throw e;
         }
 
         return ResCreateCompanyDto.from(company);
+    }
+
+    //ux_p_companies_name_address_active 부분 유니크 인덱스 제약조건 위반 여부 확인 메서드
+    private boolean isCompanyNameAddressUniqueViolation(DataIntegrityViolationException e) {
+        return e.getCause() instanceof ConstraintViolationException cve
+                && COMPANY_NAME_ADDRESS_UNIQUE_CONSTRAINT.equalsIgnoreCase(cve.getConstraintName());
     }
 }

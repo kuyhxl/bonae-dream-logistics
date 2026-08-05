@@ -7,6 +7,7 @@ import com.bonae.logistics.company.domain.CompanyType;
 import com.bonae.logistics.company.infrastructure.CompanyRepository;
 import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
+import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.sql.SQLException;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -81,7 +83,7 @@ class CompanyServiceTest {
     }
 
     @Test
-    @DisplayName("createCompany_사전검증 통과 후 저장시점에 유니크 제약조건 위반이 발생할때_예외발생")
+    @DisplayName("createCompany_사전검증 통과 후 저장시점에 이름+주소 유니크 제약조건 위반이 발생할때_예외발생")
     void createCompany_사전검증통과후저장시점에유니크제약조건위반이발생할때_예외발생() {
         ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
                 .name("배송센터A")
@@ -94,7 +96,7 @@ class CompanyServiceTest {
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
                 .thenReturn(false);
         when(companyRepository.saveAndFlush(any(Company.class)))
-                .thenThrow(new DataIntegrityViolationException("duplicate key"));
+                .thenThrow(duplicateKeyException("ux_p_companies_name_address_active"));
 
         assertThatThrownBy(() -> companyService.createCompany(reqDto))
                 .isInstanceOf(BusinessException.class)
@@ -102,5 +104,36 @@ class CompanyServiceTest {
                 .isEqualTo(ErrorCode.COMPANY_DUPLICATED);
 
         verify(companyRepository).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    @DisplayName("createCompany_저장시점에 이름+주소 유니크 제약조건이 아닌 다른 제약조건 위반이 발생할때_원본예외그대로전파")
+    void createCompany_다른제약조건위반이발생할때_원본예외그대로전파() {
+        ReqCreateCompanyDto reqDto = ReqCreateCompanyDto.builder()
+                .name("배송센터A")
+                .type(CompanyType.PRODUCER)
+                .hubId(UUID.randomUUID())
+                .address("서울시 강남구 테헤란로 1")
+                .build();
+
+        when(companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress()))
+                .thenReturn(false);
+        when(companyRepository.saveAndFlush(any(Company.class)))
+                .thenThrow(duplicateKeyException("pk_p_companies"));
+
+        assertThatThrownBy(() -> companyService.createCompany(reqDto))
+                .isInstanceOf(DataIntegrityViolationException.class)
+                .isNotInstanceOf(BusinessException.class);
+
+        verify(companyRepository).saveAndFlush(any(Company.class));
+    }
+
+    private DataIntegrityViolationException duplicateKeyException(String constraintName) {
+        ConstraintViolationException cause = new ConstraintViolationException(
+                "could not execute statement",
+                new SQLException("duplicate key value violates unique constraint \"" + constraintName + "\""),
+                constraintName
+        );
+        return new DataIntegrityViolationException("duplicate key", cause);
     }
 }
