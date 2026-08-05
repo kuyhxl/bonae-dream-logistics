@@ -35,4 +35,12 @@ management:
       probability: 1.0
   zipkin:
     tracing:
-      endpoint: http://localhost:9411/api/v2/spans
+      endpoint: http://localhost:9411/api/v2/spa
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+  paths-to-exclude:
+    - /api/internal/**  # 서비스 간 내부 API는 공개 문서에서 제외
