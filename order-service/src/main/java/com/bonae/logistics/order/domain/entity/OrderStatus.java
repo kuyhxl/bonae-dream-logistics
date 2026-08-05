@@ -1,4 +1,4 @@
-package com.bonae.logistics.order.domain;
+package com.bonae.logistics.order.domain.entity;
 
 public enum OrderStatus {
     PENDING,
