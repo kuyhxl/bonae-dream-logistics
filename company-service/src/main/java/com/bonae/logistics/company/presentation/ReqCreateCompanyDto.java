@@ -29,4 +29,13 @@ public class ReqCreateCompanyDto {
     @NotBlank(message = "주소는 필수입니다.")
     @Size(max = 255, message = "주소는 255자 이하로 입력해주세요.")
     private String address;
+
+    // 앞뒤 공백이 저장/중복 검증에 영향을 주지 않도록 조회 시점에 trim 처리
+    public String getName() {
+        return name == null ? null : name.trim();
+    }
+
+    public String getAddress() {
+        return address == null ? null : address.trim();
+    }
 }
