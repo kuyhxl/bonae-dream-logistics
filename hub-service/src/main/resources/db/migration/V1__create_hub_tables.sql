@@ -2,7 +2,7 @@
 CREATE TABLE hub_service.p_hubs
 (
     id          uuid             NOT NULL,
-    name        varchar(100)     NOT NULL,
+    name        varchar(10)     NOT NULL,
     address     varchar(255)     NOT NULL,
     latitude    double precision NOT NULL,
     longitude   double precision NOT NULL,
