@@ -9,11 +9,11 @@ import org.springframework.http.HttpStatus;
 public enum ErrorCode{
     // 공통
     INVALID_INPUT(HttpStatus.BAD_REQUEST, "입력값이 올바르지 않습니다."),
-    INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "정렬 기준은 createdAt, updatedAT만 가능함"),
+    INVALID_SORT_FIELD(HttpStatus.BAD_REQUEST, "정렬 기준은 createdAt, updatedAt만 가능함"),
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증이 필요합니다"),
     FORBIDDEN(HttpStatus.FORBIDDEN, "해당 작업을 수행할 권한이 없습니다. "),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다. "),
-    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 서비스를 사용할 수 업습니다. "),
+    SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 서비스를 사용할 수 없습니다. "),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다. "),
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "잘못된 상태 변경입니다."),
 
@@ -51,7 +51,7 @@ public enum ErrorCode{
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "허용되지 않는 수량입니다."),
     INVALID_INVENTORY_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 재고 유형입니다."),
     INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "동시 수정으로 데이터 충돌"),
-    DUPLICATE_INVENTORY_UPDATE(HttpStatus.CONFLICT, "동일한 재고 변경에 중보 처리"),
+    DUPLICATE_INVENTORY_UPDATE(HttpStatus.CONFLICT, "동일한 재고 변경에 중복 처리"),
 
     // 주문
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다."),
@@ -63,7 +63,7 @@ public enum ErrorCode{
     ORDER_ALREADY_DELIVERED(HttpStatus.CONFLICT, "이미 배송완료되어 주문을 취소할 수 없습니다."),
 
     // 배송
-    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송을 찾을 수 없스빈다. "),
+    DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송을 찾을 수 없습니다. "),
     DELIVERY_MANAGER_NOT_AVAILABLE(HttpStatus.CONFLICT, "배정 가능한 배송 담당자가 없습니다. "),
     DELIVERY_ALREADY_ASSIGNED(HttpStatus.CONFLICT, "이미 배송 담당자가 할당되었습니다."),
     DELIVERY_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 배송 완료되었습니다."),
