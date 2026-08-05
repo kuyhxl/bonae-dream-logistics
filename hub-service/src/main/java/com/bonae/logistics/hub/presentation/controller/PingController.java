@@ -1,4 +1,4 @@
-package com.bonae.logistics.hub;
+package com.bonae.logistics.hub.presentation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
