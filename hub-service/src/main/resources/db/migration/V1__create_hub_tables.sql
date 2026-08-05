@@ -2,16 +2,16 @@
 CREATE TABLE hub_service.p_hubs
 (
     id          uuid             NOT NULL,
-    name        varchar(100)     NOT NULL,
+    name        varchar(10)     NOT NULL,
     address     varchar(255)     NOT NULL,
     latitude    double precision NOT NULL,
     longitude   double precision NOT NULL,
     created_at  timestamp        NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by  varchar(100)      NOT NULL,
+    created_by  varchar(10)      NOT NULL,
     updated_at  timestamp        NULL,
-    updated_by  varchar(100)      NULL,
+    updated_by  varchar(10)      NULL,
     deleted_at  timestamp        NULL,
-    deleted_by  varchar(100)      NULL,
+    deleted_by  varchar(10)      NULL,
 
     CONSTRAINT pk_p_hubs
         PRIMARY KEY (id),
