@@ -7,6 +7,7 @@ import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -16,6 +17,7 @@ public class HubService {
 
     private final HubRepository hubRepository;
 
+    @Transactional(readOnly = true)
     public HubResponse getHub(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
