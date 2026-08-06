@@ -31,7 +31,7 @@ class CompanyRepositoryTest {
 
         Company savedCompany = companyRepository.save(company);
 
-        assertThat(savedCompany.getCompanyId()).isNotNull();
+        assertThat(savedCompany.getId()).isNotNull();
         assertThat(savedCompany.getName()).isEqualTo("배송센터A");
         assertThat(savedCompany.getType()).isEqualTo(CompanyType.PRODUCER);
         assertThat(savedCompany.getCreatedAt()).isNotNull();
@@ -45,7 +45,7 @@ class CompanyRepositoryTest {
                 new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
         );
 
-        var foundCompany = companyRepository.findById(savedCompany.getCompanyId());
+        var foundCompany = companyRepository.findById(savedCompany.getId());
 
         assertThat(foundCompany).isPresent();
         assertThat(foundCompany.get().getName()).isEqualTo("배송센터A");

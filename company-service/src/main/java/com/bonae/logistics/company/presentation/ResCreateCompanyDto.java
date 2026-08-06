@@ -21,7 +21,7 @@ public class ResCreateCompanyDto {
 
     public static ResCreateCompanyDto from(Company company) {
         return ResCreateCompanyDto.builder()
-                .companyId(company.getCompanyId())
+                .companyId(company.getId())
                 .name(company.getName())
                 .type(company.getType())
                 .hubId(company.getHubId())
