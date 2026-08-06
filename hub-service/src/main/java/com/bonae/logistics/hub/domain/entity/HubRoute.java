@@ -14,6 +14,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @Getter
@@ -85,9 +86,8 @@ public class HubRoute extends BaseEntity {
     }
 
     private static void validateHubs(Hub departureHub, Hub arrivalHub) {
-        if (departureHub == null || arrivalHub == null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
-        }
+        Objects.requireNonNull(departureHub, "출발 허브는 null일 수 없습니다");
+        Objects.requireNonNull(arrivalHub, "도착 허브는 null일 수 없습니다");
         if (departureHub.getId().equals(arrivalHub.getId())) {
             throw new BusinessException(ErrorCode.SAME_HUB_ROUTE_ENDPOINTS);
         }
