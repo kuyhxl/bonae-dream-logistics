@@ -58,10 +58,10 @@ public class DeliveryAssignment extends BaseEntity {
         this.id = requireNotNull(id, "배송 배정 ID는 필수입니다.");
         this.deliveryId = requireNotNull(deliveryId, "배송 ID는 필수입니다.");
         this.deliveryManagerId = requireNotNull(deliveryManagerId, "배송 담당자 ID는 필수입니다.");
-        this.sequenceNo = requirePositive(sequenceNo == null ? 1 : sequenceNo, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_SEQUENCE);
+        this.sequenceNo = requirePositive(sequenceNo, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_SEQUENCE);
         this.assignmentStatus = AssignmentStatus.ASSIGNED;
         this.assignedAt = LocalDateTime.now();
-        this.reason = requireText(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
+        this.reason = validateTextLength(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
     }
 
     public static DeliveryAssignment create(
@@ -93,7 +93,7 @@ public class DeliveryAssignment extends BaseEntity {
         return value;
     }
 
-    private static String requireText(String value, int maxLength, ErrorCode errorCode) {
+    private static String validateTextLength(String value, int maxLength, ErrorCode errorCode) {
         if (value != null && value.length() > maxLength) {
             throw new BusinessException(errorCode);
         }
