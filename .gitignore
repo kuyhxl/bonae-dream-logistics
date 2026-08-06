@@ -43,3 +43,14 @@ out/
 
 # OS
 .DS_Store
+
+# 로그
+*.log
+logs/
+
+# 인증서 / 키
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
