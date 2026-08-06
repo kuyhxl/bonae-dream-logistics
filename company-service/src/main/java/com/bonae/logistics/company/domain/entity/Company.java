@@ -1,4 +1,4 @@
-package com.bonae.logistics.company.domain;
+package com.bonae.logistics.company.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
 import jakarta.persistence.*;

@@ -2,11 +2,11 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
-import com.bonae.logistics.company.domain.Company;
-import com.bonae.logistics.company.infrastructure.CompanyRepository;
+import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
-import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
-import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
