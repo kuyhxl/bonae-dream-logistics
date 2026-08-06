@@ -1,7 +1,7 @@
-package com.bonae.logistics.company.presentation;
+package com.bonae.logistics.company.presentation.dto.response;
 
-import com.bonae.logistics.company.domain.Company;
-import com.bonae.logistics.company.domain.CompanyType;
+import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.entity.CompanyType;
 import lombok.Builder;
 import lombok.Getter;
 

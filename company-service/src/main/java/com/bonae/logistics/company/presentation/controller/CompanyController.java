@@ -1,8 +1,10 @@
-package com.bonae.logistics.company.presentation;
+package com.bonae.logistics.company.presentation.controller;
 
 import com.bonae.logistics.company.application.CompanyService;
 import com.bonae.logistics.company.auth.RoleCheck;
 import com.bonae.logistics.company.auth.UserRole;
+import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

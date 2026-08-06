@@ -2,14 +2,12 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
-import com.bonae.logistics.company.domain.Company;
-import com.bonae.logistics.company.domain.CompanyType;
-import com.bonae.logistics.company.infrastructure.CompanyRepository;
+import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.entity.CompanyType;
+import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
-import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
-import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
-import feign.FeignException;
-import feign.Request;
+import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,11 +16,8 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.ResponseEntity;
 
-import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.util.Collections;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;

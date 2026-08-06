@@ -1,6 +1,6 @@
-package com.bonae.logistics.company.presentation;
+package com.bonae.logistics.company.presentation.dto.request;
 
-import com.bonae.logistics.company.domain.CompanyType;
+import com.bonae.logistics.company.domain.entity.CompanyType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;

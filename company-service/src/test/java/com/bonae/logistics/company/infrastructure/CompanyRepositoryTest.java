@@ -1,8 +1,9 @@
 package com.bonae.logistics.company.infrastructure;
 
 import com.bonae.logistics.common.config.JpaAuditingConfig;
-import com.bonae.logistics.company.domain.Company;
-import com.bonae.logistics.company.domain.CompanyType;
+import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.entity.CompanyType;
+import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
