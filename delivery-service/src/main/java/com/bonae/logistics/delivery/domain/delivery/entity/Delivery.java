@@ -113,9 +113,23 @@ public class Delivery extends BaseEntity {
     }
 
     private static String requireText(String value, int maxLength, ErrorCode errorCode) {
-        if (value == null || value.isBlank() || value.length() > maxLength) {
+        String normalizedValue = normalizeRequiredText(value);
+        if (normalizedValue.length() > maxLength) {
             throw new BusinessException(errorCode);
         }
-        return value;
+        return normalizedValue;
+    }
+
+    private static String normalizeRequiredText(String value) {
+        if (value == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        String trimmedValue = value.trim();
+        if (trimmedValue.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        return trimmedValue;
     }
 }

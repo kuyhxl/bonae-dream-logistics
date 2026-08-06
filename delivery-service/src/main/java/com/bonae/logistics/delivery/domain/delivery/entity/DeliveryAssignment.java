@@ -61,7 +61,7 @@ public class DeliveryAssignment extends BaseEntity {
         this.sequenceNo = requirePositive(sequenceNo, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_SEQUENCE);
         this.assignmentStatus = AssignmentStatus.ASSIGNED;
         this.assignedAt = LocalDateTime.now();
-        this.reason = validateTextLength(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
+        this.reason = normalizeOptionalText(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
     }
 
     public static DeliveryAssignment create(
@@ -93,10 +93,19 @@ public class DeliveryAssignment extends BaseEntity {
         return value;
     }
 
-    private static String validateTextLength(String value, int maxLength, ErrorCode errorCode) {
-        if (value != null && value.length() > maxLength) {
+    private static String normalizeOptionalText(String value, int maxLength, ErrorCode errorCode) {
+        if (value == null) {
+            return null;
+        }
+
+        String trimmedValue = value.trim();
+        if (trimmedValue.isEmpty()) {
+            return null;
+        }
+
+        if (trimmedValue.length() > maxLength) {
             throw new BusinessException(errorCode);
         }
-        return value;
+        return trimmedValue;
     }
 }
