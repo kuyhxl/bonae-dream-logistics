@@ -14,12 +14,12 @@ import java.util.UUID;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/internal/hubs")
-public class HubController {
+public class InternalHubController {
 
     private final HubService hubService;
 
     @GetMapping("/{hubId}")
-    public ResponseEntity<HubResponse> getHub(@PathVariable UUID hubId) {
+    public ResponseEntity<HubResponse> validateHubExists(@PathVariable UUID hubId) {
         return ResponseEntity.ok(hubService.getHub(hubId));
     }
 }
