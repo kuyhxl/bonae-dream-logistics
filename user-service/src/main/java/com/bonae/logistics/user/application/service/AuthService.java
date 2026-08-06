@@ -7,6 +7,7 @@ import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequest;
 import com.bonae.logistics.user.presentation.dto.response.SignupResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,11 +33,15 @@ public class AuthService {
         User user = User.builder()
                 .username(username)
                 .password(password)
-                .name(signupRequest.getName())
-                .slackId(signupRequest.getSlackId())
-                .affiliationName(signupRequest.getAffiliationName())
+                .name(signupRequest.getName().trim())
+                .slackId(signupRequest.getSlackId().trim())
+                .affiliationName(signupRequest.getAffiliationName().trim())
                 .build();
 
-        return new SignupResponse(userRepository.save(user));
+        try {
+            return new SignupResponse(userRepository.save(user));
+        } catch (DataIntegrityViolationException e) {
+            throw new BusinessException(ErrorCode.USERNAME_DUPLICATED);
+        }
     }
 }

@@ -22,7 +22,7 @@ public class SignupResponse {
     private LocalDateTime createdAt; // 신청 일시
 
     public SignupResponse(User user) {
-        this.userId = user.getUserId();
+        this.userId = user.getId();
         this.username = user.getUsername();
         this.name = user.getName();
         this.status = user.getStatus();
