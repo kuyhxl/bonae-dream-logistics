@@ -8,4 +8,6 @@ import java.util.UUID;
 
 public interface HubRepository extends JpaRepository<Hub, UUID> {
     Optional<Hub> findByIdAndDeletedAtIsNull(UUID id);
+    boolean existsByNameAndDeletedAtIsNull(String name);
+    boolean existsByAddressAndDeletedAtIsNull(String address);
 }
