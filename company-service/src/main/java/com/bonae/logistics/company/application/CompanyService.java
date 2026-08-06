@@ -28,8 +28,7 @@ public class CompanyService {
 
     @Transactional
     public ResCreateCompanyDto createCompany(ReqCreateCompanyDto reqDto) {
-        // TODO: hub-service 내부 API 구현 후 허브 존재 여부 검증 로직 연동 및 테스트
-//        validateHubExists(reqDto.getHubId());
+        validateHubExists(reqDto.getHubId());
 
         //삭제되지 않은 업체 중 동일 업체명+주소가 있는지 검증
         if (companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress())) {
