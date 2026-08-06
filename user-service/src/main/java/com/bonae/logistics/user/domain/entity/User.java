@@ -15,12 +15,12 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "p_users")
+@Table(name = "p_users", schema = "user_service")
 public class User extends BaseEntity {
     @Id
-    @Column(name = "user_id", unique = true, nullable = false)
+    @Column(name = "id", unique = true, nullable = false)
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID userId;
+    private UUID id;
 
     @Column(name = "username", unique = true, length = 10, nullable = false)
     private String username;
@@ -39,7 +39,7 @@ public class User extends BaseEntity {
     private Role role;
 
     @Builder.Default
-    @Column(name = "status", nullable = false, columnDefinition = "VARCHAR(20) DEFAULT 'PENDING'")
+    @Column(name = "status", nullable = false)
     @Enumerated(EnumType.STRING)
     private Status status = Status.PENDING;
 
