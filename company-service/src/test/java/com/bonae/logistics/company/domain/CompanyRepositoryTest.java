@@ -1,4 +1,4 @@
-package com.bonae.logistics.company.infrastructure;
+package com.bonae.logistics.company.domain;
 
 import com.bonae.logistics.common.config.JpaAuditingConfig;
 import com.bonae.logistics.company.domain.entity.Company;
