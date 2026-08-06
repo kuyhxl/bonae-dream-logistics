@@ -1,4 +1,4 @@
-package com.bonae.logistics.user.config;
+package com.bonae.logistics.user.infrastructure.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;
