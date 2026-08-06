@@ -33,6 +33,9 @@ public enum ErrorCode{
     HUB_ROUTE_DUPLICATED(HttpStatus.CONFLICT, "중복된 경로입니다."),
     HUB_NAME_DUPLICATED(HttpStatus.CONFLICT, "중복된 허브명입니다."),
     HUB_ADDRESS_DUPLICATED(HttpStatus.CONFLICT, "중복된 허브 주소입니다."),
+    INVALID_HUB_ROUTE_DISTANCE(HttpStatus.BAD_REQUEST, "이동 거리는 0보다 커야 합니다."),
+    INVALID_HUB_ROUTE_DURATION(HttpStatus.BAD_REQUEST, "소요 시간은 0보다 커야 합니다."),
+    SAME_HUB_ROUTE_ENDPOINTS(HttpStatus.BAD_REQUEST, "출발 허브와 도착 허브는 달라야 합니다."),
 
     // 업체/상품/인벤토리
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "업체를 찾을 수 없습니다. "),
