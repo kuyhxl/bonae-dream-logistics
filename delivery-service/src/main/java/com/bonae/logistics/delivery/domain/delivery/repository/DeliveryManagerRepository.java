@@ -10,7 +10,7 @@ import java.util.UUID;
 
 public interface DeliveryManagerRepository extends JpaRepository<DeliveryManager, UUID> {
 
-    Optional<DeliveryManager> findByDeliveryManagerIdAndDeletedAtIsNull(UUID deliveryManagerId);
+    Optional<DeliveryManager> findByIdAndDeletedAtIsNull(UUID id);
 
     Page<DeliveryManager> findAllByDeletedAtIsNull(Pageable pageable);
 }
