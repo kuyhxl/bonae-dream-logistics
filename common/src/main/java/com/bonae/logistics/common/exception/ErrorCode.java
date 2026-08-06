@@ -72,6 +72,16 @@ public enum ErrorCode{
     DELIVERY_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 배송 완료되었습니다."),
     DELIVERY_ALREADY_CANCELLED(HttpStatus.CONFLICT, "이미 취소된 배송입니다."),
     DELIVERY_MANAGER_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 배송 담당자입니다."),
+    INVALID_DELIVERY_RECEIVER_NAME(HttpStatus.BAD_REQUEST, "수령인명은 비어 있을 수 없고 50자를 초과할 수 없습니다."),
+    INVALID_DELIVERY_RECEIVER_SLACK_ID(HttpStatus.BAD_REQUEST, "수령인 Slack ID는 비어 있을 수 없고 50자를 초과할 수 없습니다."),
+    INVALID_DELIVERY_ADDRESS(HttpStatus.BAD_REQUEST, "배송지 주소는 비어 있을 수 없고 255자를 초과할 수 없습니다."),
+    INVALID_DELIVERY_ASSIGNMENT_SEQUENCE(HttpStatus.BAD_REQUEST, "배송 배정 순번은 1 이상이어야 합니다."),
+    INVALID_DELIVERY_ASSIGNMENT_REASON(HttpStatus.BAD_REQUEST, "배송 배정 사유는 255자를 초과할 수 없습니다."),
+    INVALID_DELIVERY_MANAGER_SEQUENCE(HttpStatus.BAD_REQUEST, "배송 담당자 순번은 0 이상이어야 합니다."),
+    INVALID_DELIVERY_MANAGER_HUB_MAPPING(HttpStatus.BAD_REQUEST, "배송 담당자 타입과 소속 허브 ID 조합이 올바르지 않습니다."),
+    INVALID_DELIVERY_ROUTE_SEQUENCE(HttpStatus.BAD_REQUEST, "배송 경로 순번은 1 이상이어야 합니다."),
+    INVALID_DELIVERY_ROUTE_DISTANCE(HttpStatus.BAD_REQUEST, "배송 경로 예상 거리는 0 이상이며 소수 둘째 자리까지 허용됩니다."),
+    INVALID_DELIVERY_ROUTE_DURATION(HttpStatus.BAD_REQUEST, "배송 경로 예상 소요 시간은 0 이상이어야 합니다."),
 
     // 슬렉/AI
     SLACK_SEND_FAILED(HttpStatus.BAD_GATEWAY, "슬렉 메시지 발송에 실패했습니다."),
