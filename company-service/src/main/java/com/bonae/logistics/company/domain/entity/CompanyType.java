@@ -1,4 +1,4 @@
-package com.bonae.logistics.company.domain;
+package com.bonae.logistics.company.domain.entity;
 
 /* 업체 유형 */
 public enum CompanyType {

@@ -1,6 +1,6 @@
-package com.bonae.logistics.company.infrastructure;
+package com.bonae.logistics.company.domain.repository;
 
-import com.bonae.logistics.company.domain.Company;
+import com.bonae.logistics.company.domain.entity.Company;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.UUID;

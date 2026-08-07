@@ -2,11 +2,11 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
-import com.bonae.logistics.company.domain.Company;
-import com.bonae.logistics.company.infrastructure.CompanyRepository;
+import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
-import com.bonae.logistics.company.presentation.ReqCreateCompanyDto;
-import com.bonae.logistics.company.presentation.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -28,8 +28,7 @@ public class CompanyService {
 
     @Transactional
     public ResCreateCompanyDto createCompany(ReqCreateCompanyDto reqDto) {
-        // TODO: hub-service 내부 API 구현 후 허브 존재 여부 검증 로직 연동 및 테스트
-//        validateHubExists(reqDto.getHubId());
+        validateHubExists(reqDto.getHubId());
 
         //삭제되지 않은 업체 중 동일 업체명+주소가 있는지 검증
         if (companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress())) {
