@@ -1,11 +1,14 @@
 package com.bonae.logistics.hub.application.service;
 
+import com.bonae.logistics.common.config.AuditorAwareImpl;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.hub.domain.entity.Hub;
+import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
+import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubCreateRequest;
 import com.bonae.logistics.hub.presentation.dto.request.HubUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
@@ -14,10 +17,12 @@ import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -28,6 +33,8 @@ public class HubService {
     private static final String HUB_ADDRESS_UNIQUE_CONSTRAINT = "uk_p_hubs_active_address";
 
     private final HubRepository hubRepository;
+    private final HubRouteRepository hubRouteRepository;
+    private final AuditorAware<String> auditorAware;
 
     @Transactional
     public HubDetailResponse create(HubCreateRequest request) {
@@ -100,6 +107,20 @@ public class HubService {
         }
 
         return HubDetailResponse.from(hub);
+    }
+
+    @Transactional
+    public void delete(UUID hubId) {
+        Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
+
+        String deletedBy = auditorAware.getCurrentAuditor().orElse(AuditorAwareImpl.SYSTEM);
+
+        hub.delete(deletedBy);
+
+        // 연관된 이동정보도 함께 비활성화한다
+        List<HubRoute> relatedRoutes = hubRouteRepository.findAllActiveByHubId(hubId);
+        relatedRoutes.forEach(route -> route.delete(deletedBy));
     }
 
     // 내부 API(GET /api/internal/hubs/{hubId})용 존재 여부 확인, hubId만 반환

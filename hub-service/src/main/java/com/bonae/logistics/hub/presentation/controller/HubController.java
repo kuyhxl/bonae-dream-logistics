@@ -66,4 +66,12 @@ public class HubController {
         return ResponseEntity.ok(hubService.update(hubId, request));
     }
 
+    @DeleteMapping("/{hubId}")
+    @RoleCheck(UserRole.MASTER)
+    @Operation(summary = "허브 삭제", description = "허브를 논리 삭제한다. 연관된 이동정보도 함께 비활성화된다.")
+    public ResponseEntity<Void> deleteHub(@Parameter(description = "허브 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID hubId) {
+        hubService.delete(hubId);
+        return ResponseEntity.noContent().build();
+    }
+
 }
