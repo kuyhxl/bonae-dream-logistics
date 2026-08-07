@@ -36,6 +36,10 @@ public enum ErrorCode{
     INVALID_HUB_ROUTE_DISTANCE(HttpStatus.BAD_REQUEST, "이동 거리는 0보다 커야 합니다."),
     INVALID_HUB_ROUTE_DURATION(HttpStatus.BAD_REQUEST, "소요 시간은 0보다 커야 합니다."),
     SAME_HUB_ROUTE_ENDPOINTS(HttpStatus.BAD_REQUEST, "출발 허브와 도착 허브는 달라야 합니다."),
+    INVALID_HUB_NAME(HttpStatus.BAD_REQUEST, "허브명은 비어 있을 수 없고 100자를 초과할 수 없습니다."),
+    INVALID_HUB_ADDRESS(HttpStatus.BAD_REQUEST, "허브 주소는 비어 있을 수 없고 255자를 초과할 수 없습니다."),
+    INVALID_HUB_LATITUDE(HttpStatus.BAD_REQUEST, "위도는 -90 이상 90 이하여야 합니다."),
+    INVALID_HUB_LONGITUDE(HttpStatus.BAD_REQUEST, "경도는 -180 이상 180 이하여야 합니다."),
 
     // 업체/상품/재고
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "업체를 찾을 수 없습니다. "),
