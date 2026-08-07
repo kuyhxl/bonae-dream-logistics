@@ -4,16 +4,17 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
 import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.Arrays;
 
-// Gateway가 인증된 사용자의 ID와 권한을 헤더로 전달
+// 게이트웨이가 JWT 검증 후 전달한 X-User-Role 헤더로 인가를 수행한다.
+@Component
 public class AuthorizationInterceptor implements HandlerInterceptor {
 
     private static final String USER_ROLE_HEADER = "X-User-Role";
-    private static final String USER_ID_HEADER = "X-User-Id";
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
@@ -35,7 +36,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
     }
 
     private UserRole parseUserRole(String headerValue) {
-        if (headerValue == null) {
+        if (headerValue == null || headerValue.isBlank()) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         try {
