@@ -2,6 +2,8 @@ server:
   port: 19001
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: user-service
   # 로컬 개발 전용 DB 계정입니다(더미값). 환경변수가 있으면 그 값이 우선.

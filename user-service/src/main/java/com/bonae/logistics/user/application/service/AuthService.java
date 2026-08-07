@@ -55,7 +55,7 @@ public class AuthService {
         }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public LoginResponse login(@Valid LoginRequest loginRequest) {
 
         // 검토
