@@ -15,11 +15,11 @@ CREATE TABLE user_service.p_users
     approved_by      varchar(10)  NULL,
     approved_at      timestamp    NULL,
     created_at       timestamp    NOT NULL,
-    created_by       varchar(100) NOT NULL,
+    created_by       varchar(10) NOT NULL,
     updated_at       timestamp    NULL,
-    updated_by       varchar(100) NULL,
+    updated_by       varchar(10) NULL,
     deleted_at       timestamp    NULL,
-    deleted_by       varchar(100) NULL,
+    deleted_by       varchar(10) NULL,
 
     CONSTRAINT pk_p_users
         PRIMARY KEY (id),
