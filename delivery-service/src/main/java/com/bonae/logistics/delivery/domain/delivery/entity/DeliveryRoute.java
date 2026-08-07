@@ -58,6 +58,12 @@ public class DeliveryRoute extends BaseEntity {
     @Column(name = "duration_min")
     private Integer durationMin;
 
+    @Column(name = "actual_distance_km", precision = 10, scale = 2)
+    private BigDecimal actualDistanceKm;
+
+    @Column(name = "actual_duration_min")
+    private Integer actualDurationMin;
+
     @Column(name = "actual_departed_at")
     private LocalDateTime actualDepartedAt;
 

@@ -5,16 +5,12 @@ ALTER TABLE p_delivery_routes
     RENAME COLUMN expected_duration_min TO duration_min;
 
 ALTER TABLE p_delivery_routes
-    DROP CONSTRAINT ck_p_delivery_routes_actual_distance;
+    RENAME CONSTRAINT ck_p_delivery_routes_expected_distance
+        TO ck_p_delivery_routes_distance_km;
 
 ALTER TABLE p_delivery_routes
-    DROP CONSTRAINT ck_p_delivery_routes_actual_duration;
-
-ALTER TABLE p_delivery_routes
-    DROP COLUMN actual_distance_km;
-
-ALTER TABLE p_delivery_routes
-    DROP COLUMN actual_duration_min;
+    RENAME CONSTRAINT ck_p_delivery_routes_expected_duration
+        TO ck_p_delivery_routes_duration_min;
 
 ALTER TABLE p_delivery_routes
     ADD COLUMN distance_meters integer NULL;
