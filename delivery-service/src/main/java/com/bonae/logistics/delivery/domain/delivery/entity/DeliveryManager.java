@@ -22,8 +22,8 @@ import java.util.UUID;
 public class DeliveryManager extends BaseEntity {
 
     @Id
-    @Column(name = "delivery_manager_id", nullable = false, updatable = false)
-    private UUID deliveryManagerId;
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
 
     @Column(name = "hub_id")
     private UUID hubId;
@@ -36,12 +36,12 @@ public class DeliveryManager extends BaseEntity {
     private Integer deliverySequence;
 
     private DeliveryManager(
-            UUID deliveryManagerId,
+            UUID id,
             UUID hubId,
             ManagerType managerType,
             Integer deliverySequence
     ) {
-        this.deliveryManagerId = requireNotNull(deliveryManagerId, "배송 담당자 ID는 필수입니다.");
+        this.id = requireNotNull(id, "배송 담당자 ID는 필수입니다.");
         this.managerType = requireNotNull(managerType, "배송 담당자 타입은 필수입니다.");
         this.deliverySequence = requireNonNegative(deliverySequence, ErrorCode.INVALID_DELIVERY_MANAGER_SEQUENCE);
         validateHubAssignment(managerType, hubId);
@@ -49,13 +49,13 @@ public class DeliveryManager extends BaseEntity {
     }
 
     public static DeliveryManager create(
-            UUID deliveryManagerId,
+            UUID id,
             UUID hubId,
             ManagerType managerType,
             Integer deliverySequence
     ) {
         return new DeliveryManager(
-                deliveryManagerId,
+                id,
                 hubId,
                 managerType,
                 deliverySequence
