@@ -34,6 +34,13 @@ public class HubDetailResponse {
     @Schema(description = "생성자")
     private String createdBy;
 
+    @Schema(description = "수정 일시")
+    private LocalDateTime updatedAt;
+
+    @Schema(description = "수정자")
+    private String updatedBy;
+
+
     public static HubDetailResponse from(Hub hub) {
         return HubDetailResponse.builder()
                 .hubId(hub.getId())
@@ -43,6 +50,8 @@ public class HubDetailResponse {
                 .longitude(hub.getLongitude())
                 .createdAt(hub.getCreatedAt())
                 .createdBy(hub.getCreatedBy())
+                .updatedAt(hub.getUpdatedAt())
+                .updatedBy(hub.getUpdatedBy())
                 .build();
     }
 }

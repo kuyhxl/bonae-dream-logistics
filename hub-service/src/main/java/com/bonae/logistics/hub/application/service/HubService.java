@@ -7,6 +7,7 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.hub.domain.entity.Hub;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubCreateRequest;
+import com.bonae.logistics.hub.presentation.dto.request.HubUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubListItemResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
@@ -69,6 +70,37 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
+    @Transactional
+    public HubDetailResponse update(UUID hubId, HubUpdateRequest request) {
+        if (request.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
+
+        String name = request.getName() != null ? request.getName() : hub.getName();
+        String address = request.getAddress() != null ? request.getAddress() : hub.getAddress();
+        Double latitude = request.getLatitude() != null ? request.getLatitude() : hub.getLatitude();
+        Double longitude = request.getLongitude() != null ? request.getLongitude() : hub.getLongitude();
+
+        if (request.getName() != null && hubRepository.existsByNameAndDeletedAtIsNullAndIdNot(name, hubId)) {
+            throw new BusinessException(ErrorCode.HUB_NAME_DUPLICATED);
+        }
+        if (request.getAddress() != null && hubRepository.existsByAddressAndDeletedAtIsNullAndIdNot(address, hubId)) {
+            throw new BusinessException(ErrorCode.HUB_ADDRESS_DUPLICATED);
+        }
+
+        hub.update(name, address, latitude, longitude);
+
+        try {
+            hubRepository.saveAndFlush(hub);
+        } catch (DataIntegrityViolationException e) {
+            throw convertDuplicateException(e);
+        }
+
+        return HubDetailResponse.from(hub);
+    }
 
     // 내부 API(GET /api/internal/hubs/{hubId})용 존재 여부 확인, hubId만 반환
     @Transactional(readOnly = true)

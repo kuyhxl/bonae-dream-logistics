@@ -21,5 +21,6 @@ public interface HubRepository extends JpaRepository<Hub, UUID> {
             "OR h.name LIKE CONCAT('%', :keyword, '%') " +
             "OR h.address LIKE CONCAT('%', :keyword, '%'))")
     Page<Hub> findAllByKeywordAndDeletedAtIsNull(@Param("keyword") String keyword, Pageable pageable);
-
+    boolean existsByNameAndDeletedAtIsNullAndIdNot(String name, UUID id);
+    boolean existsByAddressAndDeletedAtIsNullAndIdNot(String address, UUID id);
 }
