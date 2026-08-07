@@ -2,14 +2,18 @@ package com.bonae.logistics.hub.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.hub.domain.entity.Hub;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubCreateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
+import com.bonae.logistics.hub.presentation.dto.response.HubListItemResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -69,5 +73,14 @@ public class HubService {
             }
         }
         return e;
+    }
+
+    public PageResponseDto<HubListItemResponse> getHubs (PageRequestDto pageRequestDto, String keyword) {
+        Page<Hub> hubs = hubRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
+        return PageResponseDto.from(hubs, HubListItemResponse::from);
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return (keyword == null || keyword.isBlank()) ? null : keyword.strip();
     }
 }
