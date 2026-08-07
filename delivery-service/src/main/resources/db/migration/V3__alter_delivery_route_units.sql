@@ -37,3 +37,7 @@ ALTER TABLE p_delivery_routes
         CHECK (distance_meters IS NULL OR distance_meters >= 0),
     ADD CONSTRAINT ck_p_delivery_routes_duration_seconds
         CHECK (duration_seconds IS NULL OR duration_seconds >= 0);
+
+CREATE UNIQUE INDEX uk_p_deliveries_active_order
+    ON p_deliveries (order_id)
+    WHERE deleted_at IS NULL;
