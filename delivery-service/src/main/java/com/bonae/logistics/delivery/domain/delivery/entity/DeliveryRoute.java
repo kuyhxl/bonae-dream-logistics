@@ -46,17 +46,17 @@ public class DeliveryRoute extends BaseEntity {
     @Column(name = "route_status", nullable = false, length = 30)
     private RouteStatus routeStatus;
 
-    @Column(name = "expected_distance_km", precision = 10, scale = 2)
-    private BigDecimal expectedDistanceKm;
+    @Column(name = "distance_meters")
+    private Integer distanceMeters;
 
-    @Column(name = "actual_distance_km", precision = 10, scale = 2)
-    private BigDecimal actualDistanceKm;
+    @Column(name = "duration_seconds")
+    private Integer durationSeconds;
 
-    @Column(name = "expected_duration_min")
-    private Integer expectedDurationMin;
+    @Column(name = "distance_km", precision = 10, scale = 2)
+    private BigDecimal distanceKm;
 
-    @Column(name = "actual_duration_min")
-    private Integer actualDurationMin;
+    @Column(name = "duration_min")
+    private Integer durationMin;
 
     @Column(name = "actual_departed_at")
     private LocalDateTime actualDepartedAt;
@@ -71,8 +71,10 @@ public class DeliveryRoute extends BaseEntity {
             UUID fromHubId,
             UUID toHubId,
             UUID deliveryManagerId,
-            BigDecimal expectedDistanceKm,
-            Integer expectedDurationMin
+            Integer distanceMeters,
+            Integer durationSeconds,
+            BigDecimal distanceKm,
+            Integer durationMin
     ) {
         this.id = requireNotNull(id, "배송 경로 ID는 필수입니다.");
         this.deliveryId = requireNotNull(deliveryId, "배송 ID는 필수입니다.");
@@ -81,8 +83,10 @@ public class DeliveryRoute extends BaseEntity {
         this.toHubId = requireNotNull(toHubId, "도착 허브 ID는 필수입니다.");
         this.deliveryManagerId = deliveryManagerId;
         this.routeStatus = RouteStatus.WAITING;
-        this.expectedDistanceKm = requireDecimal(expectedDistanceKm, 10, 2, ErrorCode.INVALID_DELIVERY_ROUTE_DISTANCE);
-        this.expectedDurationMin = requireNonNegative(expectedDurationMin, ErrorCode.INVALID_DELIVERY_ROUTE_DURATION);
+        this.distanceMeters = requireNonNegative(distanceMeters, ErrorCode.INVALID_DELIVERY_ROUTE_DISTANCE);
+        this.durationSeconds = requireNonNegative(durationSeconds, ErrorCode.INVALID_DELIVERY_ROUTE_DURATION);
+        this.distanceKm = requireNonNegative(distanceKm, ErrorCode.INVALID_DELIVERY_ROUTE_DISTANCE);
+        this.durationMin = requireNonNegative(durationMin, ErrorCode.INVALID_DELIVERY_ROUTE_DURATION);
     }
 
     public static DeliveryRoute create(
@@ -91,8 +95,10 @@ public class DeliveryRoute extends BaseEntity {
             UUID fromHubId,
             UUID toHubId,
             UUID deliveryManagerId,
-            BigDecimal expectedDistanceKm,
-            Integer expectedDurationMin
+            Integer distanceMeters,
+            Integer durationSeconds,
+            BigDecimal distanceKm,
+            Integer durationMin
     ) {
         return new DeliveryRoute(
                 UUID.randomUUID(),
@@ -101,8 +107,10 @@ public class DeliveryRoute extends BaseEntity {
                 fromHubId,
                 toHubId,
                 deliveryManagerId,
-                expectedDistanceKm,
-                expectedDurationMin
+                distanceMeters,
+                durationSeconds,
+                distanceKm,
+                durationMin
         );
     }
 
@@ -127,10 +135,11 @@ public class DeliveryRoute extends BaseEntity {
         return value;
     }
 
-    private static BigDecimal requireDecimal(BigDecimal value, int precision, int scale, ErrorCode errorCode) {
-        if (value != null && (value.signum() < 0 || value.precision() > precision || value.scale() > scale)) {
+    private static BigDecimal requireNonNegative(BigDecimal value, ErrorCode errorCode) {
+        if (value != null && value.signum() < 0) {
             throw new BusinessException(errorCode);
         }
         return value;
     }
+
 }
