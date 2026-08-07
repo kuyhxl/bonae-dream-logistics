@@ -2,18 +2,15 @@ package com.bonae.logistics.message.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Entity
 @Getter
-@NoArgsConstructor
-@AllArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PROTECTED)
 @Builder
 @Table(name = "p_slack_messages", schema = "message_service")
 public class SlackMessage extends BaseEntity {
@@ -42,5 +39,6 @@ public class SlackMessage extends BaseEntity {
     private LocalDateTime sentAt;
 
     @Column(name = "source_type", length = 20)
+    @Enumerated(EnumType.STRING)
     private SourceType sourceType;
 }
