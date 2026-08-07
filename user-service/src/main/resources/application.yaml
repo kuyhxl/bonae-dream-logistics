@@ -2,6 +2,8 @@ server:
   port: 19001
 
 spring:
+  config:
+    import: optional:file:.env[.properties]
   application:
     name: user-service
   # 로컬 개발 전용 DB 계정입니다(더미값). 환경변수가 있으면 그 값이 우선.
@@ -10,6 +12,10 @@ spring:
     username: ${POSTGRES_USER:bonae}
     password: ${POSTGRES_PASSWORD:local1234}
     driver-class-name: org.postgresql.Driver
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
   jpa:
     hibernate:
@@ -51,3 +57,8 @@ springdoc:
     path: /swagger-ui.html
   paths-to-exclude:
     - /api/internal/**  # 서비스 간 내부 API는 공개 문서에서 제외
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600000      # 1시간
+  refresh-token-expiration: 604800000   # 7일
