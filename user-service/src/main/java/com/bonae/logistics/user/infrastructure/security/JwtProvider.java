@@ -22,8 +22,8 @@ public class JwtProvider {
 
     private static final String CLAIM_ROLE = "role";
     private static final String CLAIM_TYPE = "typ";
-    private static final String TYPE_ACCESS = "access";
-    private static final String TYPE_REFRESH = "refresh";
+    private static final String TYPE_ACCESS = "ACCESS";
+    private static final String TYPE_REFRESH = "REFRESH";
 
     private final JwtProperties jwtProperties;
 
