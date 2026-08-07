@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: gateway
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
   cloud:
     gateway:
       server:
@@ -113,3 +119,8 @@ management:
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
+
+jwt:
+  secret: ${JWT_SECRET}
+  header: Authorization
+  prefix: "Bearer "
