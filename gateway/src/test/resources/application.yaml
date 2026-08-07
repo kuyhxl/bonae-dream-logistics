@@ -1,0 +1,22 @@
+# 테스트 전용 설정
+jwt:
+  secret: test-only-jwt-secret-key-must-be-at-least-32-bytes
+  header: Authorization
+  prefix: "Bearer "
+
+eureka:
+  client:
+    enabled: false          # 테스트에서 유레카 등록 시도 방지
+    register-with-eureka: false
+    fetch-registry: false
+
+spring:
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes: []        # 라우팅은 테스트 대상이 아니므로 비우기
+
+management:
+  tracing:
+    enabled: false          # 테스트에서 집킨 전송 방지
