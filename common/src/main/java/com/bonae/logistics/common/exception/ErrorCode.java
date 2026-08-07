@@ -79,8 +79,8 @@ public enum ErrorCode{
     INVALID_DELIVERY_MANAGER_SEQUENCE(HttpStatus.BAD_REQUEST, "배송 담당자 순번은 0 이상이어야 합니다."),
     INVALID_DELIVERY_MANAGER_HUB_MAPPING(HttpStatus.BAD_REQUEST, "배송 담당자 타입과 소속 허브 ID 조합이 올바르지 않습니다."),
     INVALID_DELIVERY_ROUTE_SEQUENCE(HttpStatus.BAD_REQUEST, "배송 경로 순번은 1 이상이어야 합니다."),
-    INVALID_DELIVERY_ROUTE_DISTANCE(HttpStatus.BAD_REQUEST, "배송 경로 거리는 0 이상이어야 합니다."),
-    INVALID_DELIVERY_ROUTE_DURATION(HttpStatus.BAD_REQUEST, "배송 경로 소요 시간은 0 이상이어야 합니다."),
+    INVALID_DELIVERY_ROUTE_DISTANCE(HttpStatus.BAD_REQUEST, "배송 경로 예상 거리는 0 이상이며 소수 둘째 자리까지 허용됩니다."),
+    INVALID_DELIVERY_ROUTE_DURATION(HttpStatus.BAD_REQUEST, "배송 경로 예상 소요 시간은 0 이상이어야 합니다."),
 
     // 슬렉/AI
     SLACK_SEND_FAILED(HttpStatus.BAD_GATEWAY, "슬렉 메시지 발송에 실패했습니다."),
