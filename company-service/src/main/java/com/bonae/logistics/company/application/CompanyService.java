@@ -12,7 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.UUID;
 
@@ -25,29 +25,37 @@ public class CompanyService {
 
     private final CompanyRepository companyRepository;
     private final HubClient hubClient;
+    private final TransactionTemplate transactionTemplate;
 
-    @Transactional
+    //@Transactional 제거
     public ResCreateCompanyDto createCompany(ReqCreateCompanyDto reqDto) {
+        // hub-service 호출은 외부 API 응답 지연이 DB 트랜잭션(커넥션 점유)을 붙잡지 않도록 트랜잭션 밖에서 수행한다.
         validateHubExists(reqDto.getHubId());
 
-        //삭제되지 않은 업체 중 동일 업체명+주소가 있는지 검증
-        if (companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress())) {
-            throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
-        }
+        // 실제 DB 작업만 트랜잭션으로 처리
+        Company company = transactionTemplate.execute(status -> {
 
-        Company company = new Company(reqDto.getName(),reqDto.getType(),reqDto.getHubId(),reqDto.getAddress());
-
-        // 최종 방어선은 DB 부분 유니크 인덱스(name, address where deleted_at is null)이며,
-        // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
-        // 그 외의 제약조건 위반은 예상치 못한 오류이므로 그대로 던져 공통 예외 처리기가 처리하도록 한다.
-        try {
-            companyRepository.saveAndFlush(company);
-        } catch (DataIntegrityViolationException e) {
-            if (isCompanyNameAddressUniqueViolation(e)) {
+            //삭제되지 않은 업체 중 동일 업체명+주소가 있는지 검증
+            if (companyRepository.existsByNameAndAddressAndDeletedAtIsNull(reqDto.getName(), reqDto.getAddress())) {
                 throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
             }
-            throw e;
-        }
+
+            Company newCompany = new Company(reqDto.getName(), reqDto.getType(), reqDto.getHubId(), reqDto.getAddress());
+
+            // 최종 방어선은 DB 부분 유니크 인덱스(name, address where deleted_at is null)이며,
+            // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
+            // 그 외의 제약조건 위반은 예상치 못한 오류이므로 그대로 던져 공통 예외 처리기가 처리하도록 한다.
+            try {
+                companyRepository.saveAndFlush(newCompany);
+            } catch (DataIntegrityViolationException e) {
+                if (isCompanyNameAddressUniqueViolation(e)) {
+                    throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
+                }
+                throw e;
+            }
+
+            return newCompany;
+        });
 
         return ResCreateCompanyDto.from(company);
     }
