@@ -34,12 +34,12 @@ public class User extends BaseEntity {
     @Column(name = "slack_id", nullable = false, length = 100)
     private String slackId;
 
-    @Column(name = "role")
+    @Column(name = "role", length = 20)
     @Enumerated(EnumType.STRING)
     private Role role;
 
     @Builder.Default
-    @Column(name = "status", nullable = false)
+    @Column(name = "status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
     private Status status = Status.PENDING;
 
