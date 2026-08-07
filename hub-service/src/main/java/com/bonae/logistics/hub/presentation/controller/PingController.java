@@ -1,4 +1,4 @@
-package com.bonae.logistics.user;
+package com.bonae.logistics.hub.presentation.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class PingController {
 
-    @GetMapping("/api/users/ping")
+    @GetMapping("/api/hubs/ping")
     public String ping() {
-        return "user-service OK";
+        return "hub-service OK";
     }
 }
