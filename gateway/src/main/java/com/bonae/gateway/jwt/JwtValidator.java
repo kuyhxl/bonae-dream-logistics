@@ -5,12 +5,12 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.SignatureException;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 import static com.bonae.gateway.jwt.InvalidTokenException.Reason;
 
@@ -25,11 +25,8 @@ public class JwtValidator {
     private final SecretKey secretKey;
 
     public JwtValidator(JwtProperties jwtProperties) {
-        // HS256
-        this.secretKey = new SecretKeySpec(
-                jwtProperties.secret().getBytes(StandardCharsets.UTF_8),
-                "HmacSHA256"
-        );
+        // BASE64 디코딩한 바이트로 HS256키 만들기
+        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.secret()));
     }
 
     public TokenClaims validate(String token) {

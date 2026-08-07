@@ -2,14 +2,14 @@ package com.bonae.gateway.jwt;
 
 import com.bonae.gateway.config.JwtProperties;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.crypto.SecretKey;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -20,8 +20,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @DisplayName("JwtValidator 액세스 토큰 검증")
 class JwtValidatorTest {
 
-    private static final String SECRET = "test-only-jwt-secret-key-must-be-at-least-32-bytes";
-    private static final String OTHER_SECRET = "another-secret-key-that-is-also-long-enough-32b";
+    // BASE64 인코딩된 32바이트 키 (테스트 전용)
+    private static final String SECRET =
+            "dGVzdC1vbmx5LWp3dC1zZWNyZXQta2V5LWZvci1nYXRld2F5ISE=";
+    private static final String OTHER_SECRET =
+            "YW5vdGhlci1zZWNyZXQta2V5LXVzZWQtZm9yLWZvcmdlcnkhIQ==";
 
     private static final String USERNAME = "bonaedreamida";
     private static final String ROLE = "COMPANY_MANAGER";
@@ -34,7 +37,7 @@ class JwtValidatorTest {
     }
 
     private SecretKey key(String secret) {
-        return new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
     }
 
     // 클레임을 개별 지정해 토큰을 만든다. null을 넘기면 해당 클레임을 생략한다.
