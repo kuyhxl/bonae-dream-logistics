@@ -19,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/hubs")
@@ -47,6 +49,13 @@ public class HubController {
     })
     public ResponseEntity<PageResponseDto<HubListItemResponse>> getHubs(@ParameterObject @ModelAttribute PageRequestDto pageRequestDto, @Parameter(description = "허브명/주소 검색어", example = "서울") @RequestParam(required = false) String keyword) {
         return ResponseEntity.ok(hubService.getHubs(pageRequestDto, keyword));
+    }
+
+    @GetMapping("/{hubId}")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
+    @Operation(summary = "허브 단건 조회", description = "허브 ID로 단건 상세 정보를 조회한다.")
+    public ResponseEntity<HubDetailResponse> getHubDetail(@Parameter(description = "허브 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID hubId) {
+        return ResponseEntity.ok(hubService.getHubDetail(hubId));
     }
 
 }

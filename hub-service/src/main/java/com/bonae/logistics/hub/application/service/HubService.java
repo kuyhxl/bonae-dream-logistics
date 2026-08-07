@@ -56,12 +56,29 @@ public class HubService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponseDto<HubListItemResponse> getHubs (PageRequestDto pageRequestDto, String keyword) {
+        Page<Hub> hubs = hubRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
+        return PageResponseDto.from(hubs, HubListItemResponse::from);
+    }
+
+    // 공개 API(GET /api/hubs/{hubId})용 상세 조회
+    @Transactional(readOnly = true)
+    public HubDetailResponse getHubDetail(UUID hubId) {
+        Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
+        return HubDetailResponse.from(hub);
+    }
+
+
+    // 내부 API(GET /api/internal/hubs/{hubId})용 존재 여부 확인, hubId만 반환
+    @Transactional(readOnly = true)
     public HubResponse getHub(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
         return HubResponse.from(hub);
     }
 
+    // DB 제약조건명으로 중복 종류(이름/주소)를 구분해 BusinessException으로 변환 매칭 안 되면 원본 예외 그대로 반환
     private RuntimeException convertDuplicateException(DataIntegrityViolationException e) {
         if (e.getCause() instanceof ConstraintViolationException cve) {
             String constraintName = cve.getConstraintName();
@@ -75,11 +92,7 @@ public class HubService {
         return e;
     }
 
-    public PageResponseDto<HubListItemResponse> getHubs (PageRequestDto pageRequestDto, String keyword) {
-        Page<Hub> hubs = hubRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
-        return PageResponseDto.from(hubs, HubListItemResponse::from);
-    }
-
+    // 빈 문자열/공백을 null과 동일하게 취급해 전체 조회로 처리
     private String normalizeKeyword(String keyword) {
         return (keyword == null || keyword.isBlank()) ? null : keyword.strip();
     }
