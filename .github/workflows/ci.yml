@@ -20,4 +20,11 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build
-        run: ./gradlew build -x test && ./gradlew :common:test :gateway:test
+        run: ./gradlew build -x test
+
+      - name: Test
+        run: >
+          ./gradlew
+          :common:test
+          :gateway:test
+          :user-service:test
