@@ -36,8 +36,9 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
     }
 
     private UserRole parseUserRole(String headerValue) {
+        // 헤더 자체가 없으면 인증되지 않은 요청(401), 값은 있는데 알 수 없는 role이면 권한 없음(403)으로 구분한다.
         if (headerValue == null || headerValue.isBlank()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
+            throw new BusinessException(ErrorCode.UNAUTHORIZED);
         }
         try {
             return UserRole.valueOf(headerValue);
