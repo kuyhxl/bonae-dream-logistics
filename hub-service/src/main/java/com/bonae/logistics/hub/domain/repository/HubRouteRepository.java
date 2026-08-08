@@ -6,9 +6,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface HubRouteRepository extends JpaRepository<HubRoute, UUID> {
+    boolean existsByDepartureHubIdAndArrivalHubIdAndDeletedAtIsNull(UUID departureHubId, UUID arrivalHubId);
     // 삭제할 허브가 출발 또는 도착으로 연결된 활성 이동정보를 모두 조회
     @Query("SELECT r " +
             "FROM HubRoute r " +
