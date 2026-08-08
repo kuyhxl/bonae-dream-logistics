@@ -12,7 +12,7 @@ import java.util.UUID;
 
 @Repository
 @RequiredArgsConstructor
-public class UserRepositoryCustomImpl implements UserRepositoryCustom {
+public class UserRepositoryImpl implements UserRepositoryCustom {
 
     private static final QUser user = QUser.user;
 
