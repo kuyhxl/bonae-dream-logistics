@@ -30,7 +30,7 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
                         managerTypeMatches(type)
                 )
                 // 배정 순번은 delivery-service가 관리하므로 여기선 가입순으로 안정 정렬만 보장한다.
-                .orderBy(user.deletedAt.asc())
+                .orderBy(user.createdAt.asc())
                 .fetch(); // List로 반환.
     }
 
@@ -45,7 +45,7 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
         if (type == null) {
             return null;
         }
-        // type으로 HUB_DELIVERY가 들어오면 hubId가 null이 아닌 조건을 반환한다.
+        // type으로 HUB_DELIVERY가 들어오면 hubId가 null인 조건을 반환한다.
         return type == DeliveryManagerType.HUB_DELIVERY
                 ? user.hubId.isNull()
                 : user.hubId.isNotNull();
