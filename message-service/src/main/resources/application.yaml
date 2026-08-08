@@ -4,6 +4,12 @@ server:
 spring:
   application:
     name: message-service
+
+  # 루트의 .env를 프로퍼티로 읽는다. 실행 위치에 따라 작업 디렉터리가 달라지므로 두 경로를 모두 시도한다.
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
   # 로컬 개발 전용 DB 계정입니다(더미값). 환경변수가 있으면 그 값이 우선.
   datasource:
     url: jdbc:postgresql://localhost:15432/${POSTGRES_DB:bonae}?currentSchema=message_service
