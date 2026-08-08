@@ -54,6 +54,22 @@ class JwtValidatorTest {
         return builder.signWith(key(secret)).compact();
     }
 
+    // 소속 클레임까지 지정해 토큰을 만든다. null을 넘기면 해당 클레임을 생략한다.
+    private String tokenWithAffiliation(String hubId, String companyId) {
+        var builder = Jwts.builder()
+                .subject(USERNAME)
+                .claim("role", ROLE)
+                .claim("typ", "ACCESS")
+                .id(UUID.randomUUID().toString())
+                .issuedAt(Date.from(Instant.now()))
+                .expiration(Date.from(Instant.now().plusSeconds(3600)));
+
+        if (hubId != null) builder.claim("hubId", hubId);
+        if (companyId != null) builder.claim("companyId", companyId);
+
+        return builder.signWith(key(SECRET)).compact();
+    }
+
     private String validToken() {
         return token(SECRET, USERNAME, ROLE, "ACCESS",
                 UUID.randomUUID().toString(), Instant.now().plusSeconds(3600));
@@ -77,6 +93,52 @@ class JwtValidatorTest {
         assertThat(claims.username()).isEqualTo(USERNAME);
         assertThat(claims.role()).isEqualTo(ROLE);
         assertThat(claims.jti()).isEqualTo(jti);
+    }
+
+    @Nested
+    @DisplayName("소속 정보")
+    class Affiliation {
+
+        private static final String HUB_ID = "3b1c3a78-2b73-4501-bf16-feec87fc98c4";
+        private static final String COMPANY_ID = "06950820-c85b-4669-badb-c623011d6ad1";
+
+        @Test
+        @DisplayName("소속 클레임이 있으면 그대로 추출한다")
+        void extractsAffiliation() {
+            TokenClaims claims = validator.validate(tokenWithAffiliation(HUB_ID, COMPANY_ID));
+
+            assertThat(claims.hubId()).isEqualTo(HUB_ID);
+            assertThat(claims.companyId()).isEqualTo(COMPANY_ID);
+        }
+
+        @Test
+        @DisplayName("소속 클레임이 없어도 검증을 통과하고 null로 반환한다")
+        void allowsMissingAffiliation() {
+            // MASTER처럼 소속이 없는 역할은 두 클레임이 모두 없다.
+            TokenClaims claims = validator.validate(tokenWithAffiliation(null, null));
+
+            assertThat(claims.hubId()).isNull();
+            assertThat(claims.companyId()).isNull();
+        }
+
+        @Test
+        @DisplayName("일부 소속만 있어도 검증을 통과한다")
+        void allowsPartialAffiliation() {
+            // HUB_MANAGER는 hubId만 갖는다.
+            TokenClaims claims = validator.validate(tokenWithAffiliation(HUB_ID, null));
+
+            assertThat(claims.hubId()).isEqualTo(HUB_ID);
+            assertThat(claims.companyId()).isNull();
+        }
+
+        @Test
+        @DisplayName("소속 클레임이 공백이면 null로 정규화한다")
+        void normalizesBlankToNull() {
+            TokenClaims claims = validator.validate(tokenWithAffiliation("   ", ""));
+
+            assertThat(claims.hubId()).isNull();
+            assertThat(claims.companyId()).isNull();
+        }
     }
 
     @Nested

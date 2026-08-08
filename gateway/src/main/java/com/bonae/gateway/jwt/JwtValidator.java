@@ -21,6 +21,8 @@ public class JwtValidator {
     private static final String CLAIM_TYPE = "typ";
     private static final String CLAIM_ROLE = "role";
     private static final String ACCESS_TOKEN_TYPE = "ACCESS";
+    private static final String CLAIM_COMPANY_ID = "companyId";
+    private static final String CLAIM_HUB_ID = "hubId";
 
     private final SecretKey secretKey;
 
@@ -38,7 +40,10 @@ public class JwtValidator {
         String jti = require(claims.getId(), "jti");
         String role = requireAllowedRole(claims.get(CLAIM_ROLE, String.class));
 
-        return new TokenClaims(username, role, jti);
+        String hubId = optional(claims.get(CLAIM_HUB_ID, String.class));
+        String companyId = optional(claims.get(CLAIM_COMPANY_ID, String.class));
+
+        return new TokenClaims(username, role, jti, hubId, companyId);
     }
 
     private Claims parse(String token){
@@ -83,5 +88,9 @@ public class JwtValidator {
         catch (IllegalArgumentException e) {
             throw new InvalidTokenException(Reason.ROLE_NOT_ALLOWED, "허용되지 않은 권한입니다." + role);
         }
+    }
+
+    private String optional(String value){
+        return (value == null || value.isBlank()) ? null : value;
     }
 }
