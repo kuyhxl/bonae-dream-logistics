@@ -1,5 +1,6 @@
 package com.bonae.logistics.hub.application.service;
 
+import com.bonae.logistics.common.config.AuditorAwareImpl;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
@@ -15,6 +16,7 @@ import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemRespons
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,7 @@ public class HubRouteService {
 
     private final HubRouteRepository hubRouteRepository;
     private final HubRepository hubRepository;
+    private final AuditorAware<String> auditorAware;
 
     @Transactional
     public HubRouteDetailResponse create(HubRouteCreateRequest request) {
@@ -81,6 +84,15 @@ public class HubRouteService {
         hubRoute.update(distanceMeters, durationSeconds);
 
         return HubRouteDetailResponse.from(hubRoute);
+    }
+
+    @Transactional
+    public void delete(UUID hubRouteId) {
+        HubRoute hubRoute = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND));
+
+        String deletedBy = auditorAware.getCurrentAuditor().orElse(AuditorAwareImpl.SYSTEM);
+        hubRoute.delete(deletedBy);
     }
 
     private Hub findActiveHub(UUID hubId) {

@@ -64,4 +64,12 @@ public class HubRouteController {
     public ResponseEntity<HubRouteDetailResponse> updateHubRoute(@Parameter(description = "이동정보 ID") @PathVariable UUID hubRouteId, @Valid @RequestBody HubRouteUpdateRequest request) {
         return ResponseEntity.ok(hubRouteService.update(hubRouteId, request));
     }
+
+    @DeleteMapping("/{hubRouteId}")
+    @RoleCheck(UserRole.MASTER)
+    @Operation(summary = "이동정보 삭제", description = "이동정보를 논리 삭제한다.")
+    public ResponseEntity<Void> deleteHubRoute(@Parameter(description = "이동정보 ID") @PathVariable UUID hubRouteId) {
+        hubRouteService.delete(hubRouteId);
+        return ResponseEntity.noContent().build();
+    }
 }
