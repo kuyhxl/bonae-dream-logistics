@@ -130,3 +130,15 @@ jwt:
   secret: ${JWT_SECRET}
   header: Authorization
   prefix: "Bearer "
+
+auth:
+  permit-all:
+    - /api/auth/login
+    - /api/auth/refresh
+    - /api/auth/signup
+    - /swagger-ui.html
+    - /swagger-ui/**
+    - /v3/api-docs/**
+    - /*-service/v3/api-docs
+    - /actuator/health
+    - /actuator/health/**
