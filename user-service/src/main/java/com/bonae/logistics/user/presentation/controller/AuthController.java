@@ -1,6 +1,8 @@
 package com.bonae.logistics.user.presentation.controller;
 
+import com.bonae.logistics.user.presentation.dto.request.LoginRequest;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequest;
+import com.bonae.logistics.user.presentation.dto.response.LoginResponse;
 import com.bonae.logistics.user.presentation.dto.response.SignupResponse;
 import com.bonae.logistics.user.application.service.AuthService;
 import jakarta.validation.Valid;
@@ -24,5 +26,9 @@ public class AuthController {
         return ResponseEntity.status(HttpStatus.CREATED).body(authService.signup(signupRequest));
     }
 
+    @PostMapping("/auth/login")
+    public ResponseEntity<LoginResponse> Login(@RequestBody @Valid LoginRequest loginRequest) {
+        return ResponseEntity.ok(authService.login(loginRequest));
+    }
 
 }
