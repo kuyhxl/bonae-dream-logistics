@@ -58,6 +58,7 @@ public class CompanyService {
         return ResCreateCompanyDto.from(company);
     }
 
+    @Transactional(readOnly = true)
     //삭제되지 않은 업체를 페이징 조회한다. type이 ALL이면 전체, 아니면 해당 유형만 조회한다.
     public PageResponseDto<ResGetCompanyListDto> getCompanies(PageRequestDto pageRequestDto, String type) {
         CompanyType companyType = parseCompanyType(type);
