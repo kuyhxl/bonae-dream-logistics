@@ -1,5 +1,6 @@
 package com.bonae.logistics.delivery.application.service;
 
+import com.bonae.logistics.common.auth.CurrentAuditorProvider;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
@@ -12,7 +13,6 @@ import com.bonae.logistics.delivery.presentation.dto.response.ResDeliveryManager
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,7 +28,7 @@ public class DeliveryManagerService {
     private static final String COMPANY_DELIVERY_SEQUENCE_UNIQUE_INDEX = "uk_p_delivery_managers_active_company_delivery_sequence";
 
     private final DeliveryManagerRepository deliveryManagerRepository;
-    private final AuditorAware<String> auditorAware;
+    private final CurrentAuditorProvider currentAuditorProvider;
 
     @Transactional
     public ResDeliveryManagerDto createDeliveryManager(ReqCreateDeliveryManagerDto reqDto) {
@@ -78,7 +78,7 @@ public class DeliveryManagerService {
     @Transactional
     public void deleteDeliveryManager(UUID deliveryManagerId) {
         DeliveryManager deliveryManager = findActiveDeliveryManager(deliveryManagerId);
-        deliveryManager.delete(auditorAware.getCurrentAuditor().orElse("SYSTEM"));
+        deliveryManager.delete(currentAuditorProvider.getCurrentAuditorOrSystem());
     }
 
     private DeliveryManager findActiveDeliveryManager(UUID deliveryManagerId) {

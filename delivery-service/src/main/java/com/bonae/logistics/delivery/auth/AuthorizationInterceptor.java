@@ -33,7 +33,7 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
     }
 
     private UserRole parseUserRole(String headerValue) {
-        if (headerValue == null) {
+        if (headerValue == null || headerValue.isBlank()) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         try {
