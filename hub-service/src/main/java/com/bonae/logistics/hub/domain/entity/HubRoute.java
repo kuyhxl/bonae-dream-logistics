@@ -3,13 +3,7 @@ package com.bonae.logistics.hub.domain.entity;
 import com.bonae.logistics.common.entity.BaseEntity;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -24,6 +18,7 @@ import java.util.UUID;
 public class HubRoute extends BaseEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
@@ -42,7 +37,6 @@ public class HubRoute extends BaseEntity {
     private Integer durationSeconds;
 
     private HubRoute(
-            UUID id,
             Hub departureHub,
             Hub arrivalHub,
             Integer distanceMeters,
@@ -52,7 +46,6 @@ public class HubRoute extends BaseEntity {
         validateDistance(distanceMeters);
         validateDuration(durationSeconds);
 
-        this.id = id;
         this.departureHub = departureHub;
         this.arrivalHub = arrivalHub;
         this.distanceMeters = distanceMeters;
@@ -66,7 +59,6 @@ public class HubRoute extends BaseEntity {
             Integer durationSeconds
     ) {
         return new HubRoute(
-                UUID.randomUUID(),
                 departureHub,
                 arrivalHub,
                 distanceMeters,
