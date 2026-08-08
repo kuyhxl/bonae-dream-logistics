@@ -9,6 +9,7 @@ import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubRouteCreateRequest;
+import com.bonae.logistics.hub.presentation.dto.request.HubRouteUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemResponse;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +63,23 @@ public class HubRouteService {
     public HubRouteDetailResponse getHubRouteDetail(UUID hubRouteId) {
         HubRoute hubRoute = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND));
+        return HubRouteDetailResponse.from(hubRoute);
+    }
+
+    @Transactional
+    public HubRouteDetailResponse update(UUID hubRouteId, HubRouteUpdateRequest request) {
+        if (request.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        HubRoute hubRoute = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND));
+
+        Integer distanceMeters = request.getDistanceMeters() != null ? request.getDistanceMeters() : hubRoute.getDistanceMeters();
+        Integer durationSeconds = request.getDurationSeconds() != null ? request.getDurationSeconds() : hubRoute.getDurationSeconds();
+
+        hubRoute.update(distanceMeters, durationSeconds);
+
         return HubRouteDetailResponse.from(hubRoute);
     }
 

@@ -6,6 +6,7 @@ import com.bonae.logistics.hub.application.service.HubRouteService;
 import com.bonae.logistics.hub.domain.entity.UserRole;
 import com.bonae.logistics.hub.presentation.auth.RoleCheck;
 import com.bonae.logistics.hub.presentation.dto.request.HubRouteCreateRequest;
+import com.bonae.logistics.hub.presentation.dto.request.HubRouteUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -55,5 +56,12 @@ public class HubRouteController {
     @Operation(summary = "이동정보 단건 조회", description = "이동정보 ID로 단건 상세 정보를 조회한다.")
     public ResponseEntity<HubRouteDetailResponse> getHubRouteDetail(@Parameter(description = "이동정보 ID") @PathVariable UUID hubRouteId) {
         return ResponseEntity.ok(hubRouteService.getHubRouteDetail(hubRouteId));
+    }
+
+    @PatchMapping("/{hubRouteId}")
+    @RoleCheck(UserRole.MASTER)
+    @Operation(summary = "이동정보 수정", description = "이동정보의 거리/소요시간을 부분 수정한다.")
+    public ResponseEntity<HubRouteDetailResponse> updateHubRoute(@Parameter(description = "이동정보 ID") @PathVariable UUID hubRouteId, @Valid @RequestBody HubRouteUpdateRequest request) {
+        return ResponseEntity.ok(hubRouteService.update(hubRouteId, request));
     }
 }
