@@ -1,20 +1,23 @@
 package com.bonae.logistics.hub.presentation.controller;
 
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.hub.application.service.HubRouteService;
 import com.bonae.logistics.hub.domain.entity.UserRole;
 import com.bonae.logistics.hub.presentation.auth.RoleCheck;
 import com.bonae.logistics.hub.presentation.dto.request.HubRouteCreateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
+import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequiredArgsConstructor
@@ -30,5 +33,20 @@ public class HubRouteController {
     public ResponseEntity<HubRouteDetailResponse> createHubRoute(@Valid @RequestBody HubRouteCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(hubRouteService.create(request));
 
+    }
+
+    @GetMapping
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
+    @Operation(summary = "이동정보 목록/검색", description = "이동정보 목록을 출발/도착 허브명 키워드로 검색하고 정렬/페이징하여 조회한다.")
+    @Parameters({
+            @Parameter(name = "page", description = "페이지 번호(1-based)", example = "1"),
+            @Parameter(name = "size", description = "페이지 크기 (10, 30, 50만 허용)", example = "10"),
+            @Parameter(name = "sort", description = "정렬 기준 (createdAt, updatedAt만 허용)", example = "createdAt"),
+            @Parameter(name = "direction", description = "정렬 방향 (asc, desc)", example = "desc")
+    })
+    public ResponseEntity<PageResponseDto<HubRouteListItemResponse>> getHubRoutes(
+            @ParameterObject @ModelAttribute PageRequestDto pageRequestDto,
+            @Parameter(description = "출발/도착 허브명 검색어", example = "서울") @RequestParam(required = false) String keyword) {
+        return ResponseEntity.ok(hubRouteService.getHubRoutes(pageRequestDto, keyword));
     }
 }

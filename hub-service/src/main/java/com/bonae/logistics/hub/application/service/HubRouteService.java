@@ -2,15 +2,19 @@ package com.bonae.logistics.hub.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.hub.domain.entity.Hub;
 import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubRouteCreateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
+import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +52,12 @@ public class HubRouteService {
         return HubRouteDetailResponse.from(hubRoute);
     }
 
+    @Transactional(readOnly = true)
+    public PageResponseDto<HubRouteListItemResponse> getHubRoutes(PageRequestDto pageRequestDto, String keyword) {
+        Page<HubRoute> hubRoutes = hubRouteRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
+        return PageResponseDto.from(hubRoutes, HubRouteListItemResponse::from);
+    }
+
     private Hub findActiveHub(UUID hubId) {
         return hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
@@ -59,6 +69,10 @@ public class HubRouteService {
             return new BusinessException(ErrorCode.HUB_ROUTE_DUPLICATED);
         }
         return e;
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return (keyword == null || keyword.isBlank()) ? null : keyword.strip();
     }
 
 }
