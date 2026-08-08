@@ -1,7 +1,11 @@
 package com.bonae.logistics.hub.domain.repository;
 
 import com.bonae.logistics.hub.domain.entity.Hub;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -10,4 +14,13 @@ public interface HubRepository extends JpaRepository<Hub, UUID> {
     Optional<Hub> findByIdAndDeletedAtIsNull(UUID id);
     boolean existsByNameAndDeletedAtIsNull(String name);
     boolean existsByAddressAndDeletedAtIsNull(String address);
+    @Query("SELECT h " +
+            "FROM Hub h " +
+            "WHERE h.deletedAt IS NULL " +
+            "AND (:keyword IS NULL " +
+            "OR h.name LIKE CONCAT('%', :keyword, '%') " +
+            "OR h.address LIKE CONCAT('%', :keyword, '%'))")
+    Page<Hub> findAllByKeywordAndDeletedAtIsNull(@Param("keyword") String keyword, Pageable pageable);
+    boolean existsByNameAndDeletedAtIsNullAndIdNot(String name, UUID id);
+    boolean existsByAddressAndDeletedAtIsNullAndIdNot(String address, UUID id);
 }

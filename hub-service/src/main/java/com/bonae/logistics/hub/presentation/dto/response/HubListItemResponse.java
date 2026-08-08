@@ -5,13 +5,12 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 
-import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
 @Builder
-@Schema(description = "허브 상세 응답")
-public class HubDetailResponse {
+@Schema(description = "허브 목록 항목 응답")
+public class HubListItemResponse {
 
     @Schema(description = "허브 ID")
     private UUID hubId;
@@ -28,30 +27,13 @@ public class HubDetailResponse {
     @Schema(description = "경도")
     private Double longitude;
 
-    @Schema(description = "생성 일시")
-    private LocalDateTime createdAt;
-
-    @Schema(description = "생성자")
-    private String createdBy;
-
-    @Schema(description = "수정 일시")
-    private LocalDateTime updatedAt;
-
-    @Schema(description = "수정자")
-    private String updatedBy;
-
-
-    public static HubDetailResponse from(Hub hub) {
-        return HubDetailResponse.builder()
+    public static HubListItemResponse from(Hub hub) {
+        return HubListItemResponse.builder()
                 .hubId(hub.getId())
                 .name(hub.getName())
                 .address(hub.getAddress())
                 .latitude(hub.getLatitude())
                 .longitude(hub.getLongitude())
-                .createdAt(hub.getCreatedAt())
-                .createdBy(hub.getCreatedBy())
-                .updatedAt(hub.getUpdatedAt())
-                .updatedBy(hub.getUpdatedBy())
                 .build();
     }
 }
