@@ -1,7 +1,28 @@
 package com.bonae.logistics.user.application.service;
 
+import com.bonae.logistics.user.domain.entity.DeliveryManagerType;
+import com.bonae.logistics.user.domain.repository.UserRepository;
+import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class UserService {
+
+    private final UserRepository userRepository;
+
+    // 배송 배정 후보 조회. 결과가 비어도 예외로 보지 않고 빈 목록을 반환한다.
+    // 배정 가능한 담당자가 없다는 판단(DELIVERY_MANAGER_NOT_AVAILABLE)은 호출 측인 delivery-service의 책임이다.
+    public List<DeliveryManagerResponse> getDeliveryManagers(UUID hubId, DeliveryManagerType type) {
+        return userRepository.searchDeliveryManagers(hubId, type)
+                .stream()
+                .map(DeliveryManagerResponse::new)
+                .toList();
+    }
 }
