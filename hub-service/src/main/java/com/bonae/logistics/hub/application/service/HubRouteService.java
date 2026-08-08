@@ -58,6 +58,13 @@ public class HubRouteService {
         return PageResponseDto.from(hubRoutes, HubRouteListItemResponse::from);
     }
 
+    @Transactional(readOnly = true)
+    public HubRouteDetailResponse getHubRouteDetail(UUID hubRouteId) {
+        HubRoute hubRoute = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND));
+        return HubRouteDetailResponse.from(hubRoute);
+    }
+
     private Hub findActiveHub(UUID hubId) {
         return hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));

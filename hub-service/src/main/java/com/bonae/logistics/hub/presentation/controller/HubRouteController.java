@@ -19,6 +19,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/hub-routes")
@@ -44,9 +46,14 @@ public class HubRouteController {
             @Parameter(name = "sort", description = "정렬 기준 (createdAt, updatedAt만 허용)", example = "createdAt"),
             @Parameter(name = "direction", description = "정렬 방향 (asc, desc)", example = "desc")
     })
-    public ResponseEntity<PageResponseDto<HubRouteListItemResponse>> getHubRoutes(
-            @ParameterObject @ModelAttribute PageRequestDto pageRequestDto,
-            @Parameter(description = "출발/도착 허브명 검색어", example = "서울") @RequestParam(required = false) String keyword) {
+    public ResponseEntity<PageResponseDto<HubRouteListItemResponse>> getHubRoutes(@ParameterObject @ModelAttribute PageRequestDto pageRequestDto, @Parameter(description = "출발/도착 허브명 검색어", example = "서울") @RequestParam(required = false) String keyword) {
         return ResponseEntity.ok(hubRouteService.getHubRoutes(pageRequestDto, keyword));
+    }
+
+    @GetMapping("/{hubRouteId}")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
+    @Operation(summary = "이동정보 단건 조회", description = "이동정보 ID로 단건 상세 정보를 조회한다.")
+    public ResponseEntity<HubRouteDetailResponse> getHubRouteDetail(@Parameter(description = "이동정보 ID") @PathVariable UUID hubRouteId) {
+        return ResponseEntity.ok(hubRouteService.getHubRouteDetail(hubRouteId));
     }
 }

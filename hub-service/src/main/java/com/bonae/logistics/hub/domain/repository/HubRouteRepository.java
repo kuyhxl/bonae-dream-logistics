@@ -12,6 +12,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface HubRouteRepository extends JpaRepository<HubRoute, UUID> {
+    Optional<HubRoute> findByIdAndDeletedAtIsNull(UUID id);
     boolean existsByDepartureHubIdAndArrivalHubIdAndDeletedAtIsNull(UUID departureHubId, UUID arrivalHubId);
 
     @Query("SELECT r " +
