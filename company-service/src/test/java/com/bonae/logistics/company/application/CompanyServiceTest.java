@@ -2,12 +2,15 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.domain.entity.Company;
 import com.bonae.logistics.company.domain.entity.CompanyType;
 import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import feign.FeignException;
 import feign.Request;
 import org.hibernate.exception.ConstraintViolationException;
@@ -18,16 +21,22 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -157,6 +166,51 @@ class CompanyServiceTest {
                 .isNotInstanceOf(BusinessException.class);
 
         verify(companyRepository).saveAndFlush(any(Company.class));
+    }
+
+    @Test
+    @DisplayName("getCompanies_type이 ALL일때_전체업체를조회한다")
+    void getCompanies_type이ALL일때_전체업체를조회한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> companyPage = new PageImpl<>(List.of(company), pageRequestDto.toPageable(), 1);
+
+        when(companyRepository.findAllByTypeAndDeletedAtIsNull(isNull(), any(Pageable.class)))
+                .thenReturn(companyPage);
+
+        PageResponseDto<ResGetCompanyListDto> resDto = companyService.getCompanies(pageRequestDto, "ALL");
+
+        assertThat(resDto.getContent()).hasSize(1);
+        assertThat(resDto.getContent().get(0).getName()).isEqualTo(company.getName());
+        assertThat(resDto.getTotalElements()).isEqualTo(1);
+        verify(companyRepository).findAllByTypeAndDeletedAtIsNull(isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getCompanies_특정업체타입으로조회시_해당타입만조회한다")
+    void getCompanies_특정업체타입으로조회시_해당타입만조회한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.findAllByTypeAndDeletedAtIsNull(eq(CompanyType.PRODUCER), any(Pageable.class)))
+                .thenReturn(emptyPage);
+
+        companyService.getCompanies(pageRequestDto, "PRODUCER");
+
+        verify(companyRepository).findAllByTypeAndDeletedAtIsNull(eq(CompanyType.PRODUCER), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("getCompanies_유효하지않은업체타입일때_예외발생")
+    void getCompanies_유효하지않은업체타입일때_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+
+        assertThatThrownBy(() -> companyService.getCompanies(pageRequestDto, "INVALID"))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_COMPANY_TYPE);
+
+        verify(companyRepository, never()).findAllByTypeAndDeletedAtIsNull(any(), any());
     }
 
     private DataIntegrityViolationException duplicateKeyException(String constraintName) {
