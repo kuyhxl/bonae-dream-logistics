@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Getter
 @NoArgsConstructor
-public class ReqCreateDeliveryDto {
+public class DeliveryCreateRequest {
 
     @NotNull(message = "주문 ID는 필수입니다.")
     private UUID orderId;

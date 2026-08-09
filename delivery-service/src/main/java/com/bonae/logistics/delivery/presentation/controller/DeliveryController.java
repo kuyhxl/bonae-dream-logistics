@@ -3,9 +3,9 @@ package com.bonae.logistics.delivery.presentation.controller;
 import com.bonae.logistics.delivery.application.service.DeliveryService;
 import com.bonae.logistics.delivery.auth.RoleCheck;
 import com.bonae.logistics.delivery.auth.UserRole;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqCreateDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResCancelDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResCreateDeliveryDto;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -28,16 +28,16 @@ public class DeliveryController {
 
     @PostMapping
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
-    public ResponseEntity<ResCreateDeliveryDto> createDelivery(
-            @Valid @RequestBody ReqCreateDeliveryDto reqDto
+    public ResponseEntity<DeliveryCreateResponse> createDelivery(
+            @Valid @RequestBody DeliveryCreateRequest request
     ) {
-        ResCreateDeliveryDto resDto = deliveryService.createDelivery(reqDto);
-        return ResponseEntity.status(HttpStatus.CREATED).body(resDto);
+        DeliveryCreateResponse response = deliveryService.createDelivery(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     @PatchMapping("/{deliveryId}/cancel")
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
-    public ResponseEntity<ResCancelDeliveryDto> cancelDelivery(@PathVariable UUID deliveryId) {
+    public ResponseEntity<DeliveryCancelResponse> cancelDelivery(@PathVariable UUID deliveryId) {
         return ResponseEntity.ok(deliveryService.cancelDelivery(deliveryId));
     }
 }

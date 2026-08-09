@@ -5,9 +5,9 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.delivery.domain.delivery.entity.Delivery;
 import com.bonae.logistics.delivery.domain.delivery.entity.DeliveryStatus;
 import com.bonae.logistics.delivery.domain.delivery.repository.DeliveryRepository;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqCreateDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResCancelDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResCreateDeliveryDto;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,10 +40,10 @@ class DeliveryServiceTest {
     @Test
     @DisplayName("배송 생성에 성공한다")
     void createDelivery_success() throws Exception {
-        ReqCreateDeliveryDto reqDto = createRequest();
+        DeliveryCreateRequest reqDto = createRequest();
         when(deliveryRepository.saveAndFlush(any(Delivery.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        ResCreateDeliveryDto result = deliveryService.createDelivery(reqDto);
+        DeliveryCreateResponse result = deliveryService.createDelivery(reqDto);
 
         ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
         verify(deliveryRepository).saveAndFlush(captor.capture());
@@ -76,7 +76,7 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
         doNothing().when(deliveryRepository).flush();
 
-        ResCancelDeliveryDto result = deliveryService.cancelDelivery(delivery.getId());
+        DeliveryCancelResponse result = deliveryService.cancelDelivery(delivery.getId());
 
         verify(deliveryRepository).flush();
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
@@ -106,8 +106,8 @@ class DeliveryServiceTest {
                 .isEqualTo(ErrorCode.DELIVERY_ALREADY_COMPLETED);
     }
 
-    private ReqCreateDeliveryDto createRequest() throws Exception {
-        ReqCreateDeliveryDto reqDto = new ReqCreateDeliveryDto();
+    private DeliveryCreateRequest createRequest() throws Exception {
+        DeliveryCreateRequest reqDto = new DeliveryCreateRequest();
         setField(reqDto, "orderId", UUID.randomUUID());
         setField(reqDto, "originHubId", UUID.randomUUID());
         setField(reqDto, "destinationHubId", UUID.randomUUID());

@@ -10,15 +10,15 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class ResCancelDeliveryDto {
+public class DeliveryCancelResponse {
 
     private UUID deliveryId;
     private DeliveryStatus status;
     private LocalDateTime updatedAt;
     private String updatedBy;
 
-    public static ResCancelDeliveryDto from(Delivery delivery) {
-        return ResCancelDeliveryDto.builder()
+    public static DeliveryCancelResponse from(Delivery delivery) {
+        return DeliveryCancelResponse.builder()
                 .deliveryId(delivery.getId())
                 .status(delivery.getStatus())
                 .updatedAt(delivery.getUpdatedAt())
