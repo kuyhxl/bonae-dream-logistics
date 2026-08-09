@@ -37,6 +37,16 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
+  cloud:
+    openfeign:
+      client:
+        config:
+          hub-service:
+            # 외부 API 호출 시 응답 지연으로 인한 불필요한 대기 방지를 위해 Timeout 설정
+            # 연결 2초, 응답 대기 5초
+            connect-timeout: 2000
+            read-timeout: 5000
+
 eureka:
   client:
     service-url:

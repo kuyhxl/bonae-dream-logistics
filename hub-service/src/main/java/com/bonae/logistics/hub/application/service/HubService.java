@@ -21,6 +21,7 @@ import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -64,8 +65,13 @@ public class HubService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponseDto<HubListItemResponse> getHubs (PageRequestDto pageRequestDto, String keyword) {
-        Page<Hub> hubs = hubRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
+    public PageResponseDto<HubListItemResponse> getHubs(PageRequestDto pageRequestDto, String keyword) {
+        Page<Hub> hubs;
+        if (!StringUtils.hasText(keyword)) {
+            hubs = hubRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+        } else {
+            hubs = hubRepository.findAllByKeywordAndDeletedAtIsNull(keyword.trim(), pageRequestDto.toPageable());
+        }
         return PageResponseDto.from(hubs, HubListItemResponse::from);
     }
 
@@ -144,9 +150,5 @@ public class HubService {
         }
         return e;
     }
-
-    // 빈 문자열/공백을 null과 동일하게 취급해 전체 조회로 처리
-    private String normalizeKeyword(String keyword) {
-        return (keyword == null || keyword.isBlank()) ? null : keyword.strip();
-    }
 }
+
