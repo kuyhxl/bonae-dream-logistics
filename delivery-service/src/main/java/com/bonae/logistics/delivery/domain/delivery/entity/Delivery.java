@@ -105,6 +105,17 @@ public class Delivery extends BaseEntity {
         );
     }
 
+    public void cancel() {
+        if (status == DeliveryStatus.DELIVERED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_COMPLETED);
+        }
+        if (status == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_CANCELLED);
+        }
+
+        this.status = DeliveryStatus.CANCELLED;
+    }
+
     private static <T> T requireNotNull(T value, String detail) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, detail);
