@@ -18,7 +18,7 @@ public class InternalUserController {
 
     private final UserService userService;
 
-    @GetMapping("delivery-managers")
+    @GetMapping("/delivery-managers")
     public ResponseEntity<List<DeliveryManagerResponse>> getDeliveryManagers(
             @RequestParam(required = false) UUID hubId,
             @RequestParam(required = false)DeliveryManagerType type
@@ -26,7 +26,7 @@ public class InternalUserController {
         return ResponseEntity.ok(userService.getDeliveryManagers(hubId, type));
     }
 
-    @GetMapping("{username}")
+    @GetMapping("/{username}")
     public ResponseEntity<UserInfoResponse> getUserInfo(@PathVariable String username) {
         return ResponseEntity.ok(userService.getUserInfo(username));
     }
