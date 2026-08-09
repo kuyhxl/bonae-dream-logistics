@@ -1,4 +1,4 @@
-package com.bonae.logistics.message.config;
+package com.bonae.logistics.message.infrastructure.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
