@@ -4,6 +4,7 @@ import com.bonae.gateway.config.AuthPathProperties;
 import com.bonae.gateway.config.JwtProperties;
 import com.bonae.gateway.jwt.InvalidTokenException;
 import com.bonae.gateway.jwt.JwtValidator;
+import com.bonae.gateway.jwt.TokenBlacklistChecker;
 import com.bonae.gateway.jwt.TokenClaims;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cloud.gateway.filter.GatewayFilterChain;
@@ -29,16 +30,19 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
     private final JwtProperties jwtProperties;
     private final AuthPathProperties authPathProperties;
     private final AuthenticationErrorWriter errorWriter;
+    private final TokenBlacklistChecker blacklistChecker;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public JwtAuthenticationFilter(JwtValidator jwtValidator,
                                    JwtProperties jwtProperties,
                                    AuthPathProperties authPathProperties,
-                                   AuthenticationErrorWriter errorWriter) {
+                                   AuthenticationErrorWriter errorWriter,
+                                   TokenBlacklistChecker blacklistChecker) {
         this.jwtValidator = jwtValidator;
         this.jwtProperties = jwtProperties;
         this.authPathProperties = authPathProperties;
         this.errorWriter = errorWriter;
+        this.blacklistChecker = blacklistChecker;
     }
 
     @Override
@@ -57,13 +61,39 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
             return errorWriter.unauthorized(exchange);
         }
 
+        TokenClaims claims;
         try {
-            TokenClaims claims = jwtValidator.validate(token);
-            return chain.filter(withUserHeaders(exchange, claims));
+            claims = jwtValidator.validate(token);
         } catch (InvalidTokenException e) {
             // 사유는 로그에만
             log.warn("인증 실패: {} - {} {}", e.getReason(), request.getMethod(), path);
             return errorWriter.unauthorized(exchange);
+        }
+
+        TokenClaims validated = claims;
+
+        // 서명, 만료 검증을 통과한 토큰만 조회
+        // onErrorResume은 조회 구간에만 걸어서 이후 라우팅 단계의 오류까지 삼키지 않도록
+        return blacklistChecker.isBlacklisted(claims.jti())
+                .onErrorResume(e -> {
+                    log.error("블랙리스트 조회 실패 - {} {}", request.getMethod(), path, e);
+                    return Mono.error(new BlacklistUnavailableException(e));
+                })
+                .flatMap(blacklisted -> {
+                    if (blacklisted) {
+                        log.warn("인증 실패: 로그아웃된 토큰 - {} {}", request.getMethod(), path);
+                        return errorWriter.unauthorized(exchange);
+                    }
+                    return chain.filter(withUserHeaders(exchange, validated));
+                })
+                .onErrorResume(BlacklistUnavailableException.class,
+                        e -> errorWriter.serviceUnavailable(exchange));
+    }
+
+    // 블랙리스트 조회 실패를 라우팅 단계의 오류랑 구별하기 위한 내부 신호입미다
+    private static class BlacklistUnavailableException extends RuntimeException {
+        BlacklistUnavailableException(Throwable cause) {
+            super(cause);
         }
     }
 
