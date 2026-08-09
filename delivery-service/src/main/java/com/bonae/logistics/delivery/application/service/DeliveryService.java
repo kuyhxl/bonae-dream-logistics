@@ -7,6 +7,9 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,32 @@ public class DeliveryService {
                 ? deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(requireCompanyId(companyId), pageRequestDto.toPageable())
                 : deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
         return PageResponseDto.from(deliveries, DeliveryListItemResponse::from);
+    }
+
+    @Transactional
+    public DeliveryCreateResponse createDelivery(DeliveryCreateRequest request) {
+        Delivery delivery = Delivery.create(
+                request.getOrderId(),
+                request.getOriginHubId(),
+                request.getDestinationHubId(),
+                request.getReceiverCompanyId(),
+                request.getReceiverName(),
+                request.getReceiverSlackId(),
+                request.getDeliveryAddress()
+        );
+
+        Delivery savedDelivery = deliveryRepository.saveAndFlush(delivery);
+        return DeliveryCreateResponse.from(savedDelivery);
+    }
+
+    @Transactional
+    public DeliveryCancelResponse cancelDelivery(UUID deliveryId) {
+        Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        delivery.cancel();
+        deliveryRepository.flush();
+        return DeliveryCancelResponse.from(delivery);
     }
 
     private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId) {
