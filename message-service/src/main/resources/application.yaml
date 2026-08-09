@@ -72,6 +72,6 @@ resilience4j:
         wait-duration: 1s
         exponential-backoff-multiplier: 2
         retry-exceptions:
-          - com.bonae.logistics.message.infrastructure.slack.SlackTransientException
+          - com.bonae.logistics.message.infrastructure.slack.SlackTransientException # 재시도 에러
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
