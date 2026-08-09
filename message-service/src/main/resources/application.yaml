@@ -61,7 +61,7 @@ springdoc:
 slack:
   bot-token: ${SLACK_TOKEN:dummy}
   api-url: https://slack.com/api
-  mock: ${SLACK_MOCK:false}
+  mock: ${SLACK_MOCK:true}
   max-attempts: 3
 
 resilience4j:
