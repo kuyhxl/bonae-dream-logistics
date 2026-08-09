@@ -5,6 +5,12 @@ spring:
   application:
     name: gateway
 
+  # 루트의 .env를 프로퍼티로 읽는다. 실행 위치에 따라 작업 디렉터리가 달라지므로 두 경로를 모두 시도한다.
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:../.env[.properties]
+
   data:
     redis:
       host: ${REDIS_HOST:localhost}
@@ -124,3 +130,15 @@ jwt:
   secret: ${JWT_SECRET}
   header: Authorization
   prefix: "Bearer "
+
+auth:
+  permit-all:
+    - /api/auth/login
+    - /api/auth/refresh
+    - /api/auth/signup
+    - /swagger-ui.html
+    - /swagger-ui/**
+    - /v3/api-docs/**
+    - /*-service/v3/api-docs
+    - /actuator/health
+    - /actuator/health/**

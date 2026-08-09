@@ -1,6 +1,6 @@
 # 테스트 전용 설정
 jwt:
-  secret: test-only-jwt-secret-key-must-be-at-least-32-bytes
+  secret: bG9jYWwtZGV2LW9ubHktbm90LWZvci1wcm9kdWN0aW9uLWJvbmFlLWRyZWFtLWxvZ2lzdGljcw==
   header: Authorization
   prefix: "Bearer "
 
