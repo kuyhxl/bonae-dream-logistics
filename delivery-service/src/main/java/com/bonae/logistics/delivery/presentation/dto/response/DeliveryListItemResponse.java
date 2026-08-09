@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Getter
 @Builder
-public class ResGetDeliveryListDto {
+public class DeliveryListItemResponse {
 
     private UUID deliveryId;
     private UUID orderId;
@@ -25,8 +25,8 @@ public class ResGetDeliveryListDto {
     private LocalDateTime createdAt;
     private String createdBy;
 
-    public static ResGetDeliveryListDto from(Delivery delivery) {
-        return ResGetDeliveryListDto.builder()
+    public static DeliveryListItemResponse from(Delivery delivery) {
+        return DeliveryListItemResponse.builder()
                 .deliveryId(delivery.getId())
                 .orderId(delivery.getOrderId())
                 .originHubId(delivery.getOriginHubId())

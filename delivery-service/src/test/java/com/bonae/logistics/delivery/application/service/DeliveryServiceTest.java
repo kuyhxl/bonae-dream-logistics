@@ -6,8 +6,8 @@ import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.domain.delivery.entity.Delivery;
 import com.bonae.logistics.delivery.domain.delivery.repository.DeliveryRepository;
-import com.bonae.logistics.delivery.presentation.dto.response.ResGetDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResGetDeliveryListDto;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +40,7 @@ class DeliveryServiceTest {
         Delivery delivery = createDelivery();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
 
-        ResGetDeliveryDto result = deliveryService.getDelivery(delivery.getId());
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId());
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
@@ -67,7 +67,7 @@ class DeliveryServiceTest {
         when(deliveryRepository.findAllByDeletedAtIsNull(any()))
                 .thenReturn(new PageImpl<>(List.of(delivery)));
 
-        PageResponseDto<ResGetDeliveryListDto> result = deliveryService.getDeliveries(pageRequestDto);
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());

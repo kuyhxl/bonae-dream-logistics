@@ -5,8 +5,8 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.application.service.DeliveryService;
 import com.bonae.logistics.delivery.auth.RoleCheck;
 import com.bonae.logistics.delivery.auth.UserRole;
-import com.bonae.logistics.delivery.presentation.dto.response.ResGetDeliveryDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResGetDeliveryListDto;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.Parameters;
@@ -33,7 +33,7 @@ public class DeliveryController {
     @GetMapping("/{deliveryId}")
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
     @Operation(summary = "배송 단건 조회", description = "배송 ID로 배송 상세 정보를 조회합니다.")
-    public ResponseEntity<ResGetDeliveryDto> getDelivery(
+    public ResponseEntity<DeliveryDetailResponse> getDelivery(
             @Parameter(description = "배송 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4")
             @PathVariable UUID deliveryId
     ) {
@@ -49,7 +49,7 @@ public class DeliveryController {
             @Parameter(name = "sort", description = "정렬 기준 (createdAt, updatedAt)", example = "createdAt"),
             @Parameter(name = "direction", description = "정렬 방향 (asc, desc)", example = "desc")
     })
-    public ResponseEntity<PageResponseDto<ResGetDeliveryListDto>> getDeliveries(
+    public ResponseEntity<PageResponseDto<DeliveryListItemResponse>> getDeliveries(
             @ParameterObject @ModelAttribute PageRequestDto pageRequestDto
     ) {
         return ResponseEntity.ok(deliveryService.getDeliveries(pageRequestDto));
