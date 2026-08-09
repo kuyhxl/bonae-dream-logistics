@@ -1,7 +1,7 @@
 package com.bonae.logistics.delivery.presentation.dto.response;
 
-import com.bonae.logistics.delivery.domain.delivery.entity.Delivery;
-import com.bonae.logistics.delivery.domain.delivery.entity.DeliveryStatus;
+import com.bonae.logistics.delivery.domain.entity.Delivery;
+import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
 import lombok.Builder;
 import lombok.Getter;
 

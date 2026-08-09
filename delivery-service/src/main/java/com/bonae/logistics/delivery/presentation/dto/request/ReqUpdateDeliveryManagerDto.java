@@ -1,6 +1,6 @@
 package com.bonae.logistics.delivery.presentation.dto.request;
 
-import com.bonae.logistics.delivery.domain.delivery.entity.ManagerType;
+import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;

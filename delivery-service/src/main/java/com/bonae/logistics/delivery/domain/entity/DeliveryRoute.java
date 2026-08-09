@@ -1,4 +1,4 @@
-package com.bonae.logistics.delivery.domain.delivery.entity;
+package com.bonae.logistics.delivery.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
 import com.bonae.logistics.common.exception.BusinessException;

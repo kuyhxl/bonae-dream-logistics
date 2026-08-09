@@ -1,6 +1,6 @@
-package com.bonae.logistics.delivery.domain.delivery.repository;
+package com.bonae.logistics.delivery.domain.repository;
 
-import com.bonae.logistics.delivery.domain.delivery.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;

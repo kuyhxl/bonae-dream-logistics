@@ -1,4 +1,4 @@
-package com.bonae.logistics.delivery.domain.delivery.entity;
+package com.bonae.logistics.delivery.domain.entity;
 
 public enum ManagerType {
     HUB_DELIVERY,
