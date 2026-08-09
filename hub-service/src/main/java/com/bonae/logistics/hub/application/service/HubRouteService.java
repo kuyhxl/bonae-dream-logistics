@@ -20,6 +20,7 @@ import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
@@ -58,7 +59,12 @@ public class HubRouteService {
 
     @Transactional(readOnly = true)
     public PageResponseDto<HubRouteListItemResponse> getHubRoutes(PageRequestDto pageRequestDto, String keyword) {
-        Page<HubRoute> hubRoutes = hubRouteRepository.findAllByKeywordAndDeletedAtIsNull(normalizeKeyword(keyword), pageRequestDto.toPageable());
+        Page<HubRoute> hubRoutes;
+        if (!StringUtils.hasText(keyword)) {
+            hubRoutes = hubRouteRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+        } else {
+            hubRoutes = hubRouteRepository.findAllByKeywordAndDeletedAtIsNull(keyword.trim(), pageRequestDto.toPageable());
+        }
         return PageResponseDto.from(hubRoutes, HubRouteListItemResponse::from);
     }
 
@@ -106,10 +112,6 @@ public class HubRouteService {
             return new BusinessException(ErrorCode.HUB_ROUTE_DUPLICATED);
         }
         return e;
-    }
-
-    private String normalizeKeyword(String keyword) {
-        return (keyword == null || keyword.isBlank()) ? null : keyword.strip();
     }
 
 }
