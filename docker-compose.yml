@@ -1,4 +1,19 @@
+x-app-common: &app-common
+  restart: unless-stopped
+  environment: &app-env
+    SPRING_PROFILES_ACTIVE: docker
+    POSTGRES_DB: ${POSTGRES_DB}
+    POSTGRES_USER: ${POSTGRES_USER}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    JWT_SECRET: ${JWT_SECRET}
+    TZ: Asia/Seoul
+
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+
 services:
+  # ---------- 인프라 ---------- #
   postgres:
     image: postgres:16-alpine
     container_name: bonae-postgres
@@ -25,12 +40,145 @@ services:
       - "6379:6379"
     volumes:
       - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   zipkin:
     image: openzipkin/zipkin:latest
     container_name: bonae-zipkin
     ports:
       - "9411:9411"
+
+  # ---------- 서비스 디스커버리 ---------- #
+  eureka-server:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: eureka-server
+    container_name: bonae-eureka-server
+    ports:
+      - "8761:8761"
+    # 제일 먼저 떠 있어야함.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ---------- 애플리케이션 ---------- #
+  user-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: user-service
+    container_name: bonae-user-service
+    ports:
+      - "19001:19001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  message-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: message-service
+    container_name: bonae-message-service
+    ports:
+      - "19002:19002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  hub-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: hub-service
+    container_name: bonae-hub-service
+    ports:
+      - "19003:19003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  company-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: company-service
+    container_name: bonae-company-service
+    ports:
+      - "19004:19004"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  order-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: order-service
+    container_name: bonae-order-service
+    ports:
+      - "19005:19005"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  delivery-service:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: delivery-service
+    container_name: bonae-delivery-service
+    ports:
+      - "19006:19006"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+
+  # ---------- 게이트웨이 ---------- #
+  # 라우팅 대상이 Eureka에 등록된 뒤 떠야 하므로 마지막에 둔다.
+  gateway:
+    <<: *app-common
+    build:
+      <<: *app-build
+      args:
+        MODULE: gateway
+    container_name: bonae-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
 
 volumes:
   postgres-data:
