@@ -1,18 +1,17 @@
 package com.bonae.logistics.user.presentation.controller;
 
+import com.bonae.logistics.user.application.service.AuthService;
 import com.bonae.logistics.user.presentation.dto.request.LoginRequest;
+import com.bonae.logistics.user.presentation.dto.request.LogoutRequest;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequest;
 import com.bonae.logistics.user.presentation.dto.response.LoginResponse;
 import com.bonae.logistics.user.presentation.dto.response.SignupResponse;
-import com.bonae.logistics.user.application.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api")
@@ -31,4 +30,12 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(loginRequest));
     }
 
+    @PostMapping("/auth/logout")
+    public ResponseEntity<Void> logout(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @RequestBody @Valid LogoutRequest logoutRequest) {
+
+        authService.logout(authorizationHeader, logoutRequest);
+        return ResponseEntity.noContent().build();
+    }
 }
