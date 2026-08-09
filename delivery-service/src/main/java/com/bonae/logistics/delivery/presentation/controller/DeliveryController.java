@@ -17,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,10 +35,12 @@ public class DeliveryController {
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
     @Operation(summary = "배송 단건 조회", description = "배송 ID로 배송 상세 정보를 조회합니다.")
     public ResponseEntity<DeliveryDetailResponse> getDelivery(
+            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader(value = "X-User-Company-Id", required = false) UUID companyId,
             @Parameter(description = "배송 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4")
             @PathVariable UUID deliveryId
     ) {
-        return ResponseEntity.ok(deliveryService.getDelivery(deliveryId));
+        return ResponseEntity.ok(deliveryService.getDelivery(deliveryId, UserRole.valueOf(userRoleHeader), companyId));
     }
 
     @GetMapping
@@ -50,8 +53,10 @@ public class DeliveryController {
             @Parameter(name = "direction", description = "정렬 방향 (asc, desc)", example = "desc")
     })
     public ResponseEntity<PageResponseDto<DeliveryListItemResponse>> getDeliveries(
+            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader(value = "X-User-Company-Id", required = false) UUID companyId,
             @ParameterObject @ModelAttribute PageRequestDto pageRequestDto
     ) {
-        return ResponseEntity.ok(deliveryService.getDeliveries(pageRequestDto));
+        return ResponseEntity.ok(deliveryService.getDeliveries(pageRequestDto, UserRole.valueOf(userRoleHeader), companyId));
     }
 }

@@ -4,6 +4,7 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.delivery.entity.Delivery;
 import com.bonae.logistics.delivery.domain.delivery.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
@@ -40,7 +41,7 @@ class DeliveryServiceTest {
         Delivery delivery = createDelivery();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
 
-        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId());
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.MASTER, null);
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
@@ -53,7 +54,7 @@ class DeliveryServiceTest {
         UUID deliveryId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId))
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, UserRole.MASTER, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
@@ -67,11 +68,50 @@ class DeliveryServiceTest {
         when(deliveryRepository.findAllByDeletedAtIsNull(any()))
                 .thenReturn(new PageImpl<>(List.of(delivery)));
 
-        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto);
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.MASTER, null);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getContent().get(0).getStatus()).isEqualTo(delivery.getStatus());
+    }
+
+    @Test
+    @DisplayName("업체 담당자는 자기 업체 배송만 단건 조회한다")
+    void getDelivery_companyManagerScoped() {
+        Delivery delivery = createDelivery();
+        UUID companyId = delivery.getReceiverCompanyId();
+        when(deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(delivery.getId(), companyId))
+                .thenReturn(Optional.of(delivery));
+
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.COMPANY_MANAGER, companyId);
+
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+    }
+
+    @Test
+    @DisplayName("업체 담당자는 companyId 헤더가 없으면 목록 조회할 수 없다")
+    void getDeliveries_companyManagerWithoutCompanyId() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+
+        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("업체 담당자는 자기 업체 배송만 목록 조회한다")
+    void getDeliveries_companyManagerScoped() {
+        Delivery delivery = createDelivery();
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        UUID companyId = delivery.getReceiverCompanyId();
+        when(deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(any(), any()))
+                .thenReturn(new PageImpl<>(List.of(delivery)));
+
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, companyId);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
     }
 
     private Delivery createDelivery() {
