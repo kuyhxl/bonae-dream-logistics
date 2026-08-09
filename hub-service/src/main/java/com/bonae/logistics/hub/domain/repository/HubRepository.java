@@ -14,13 +14,21 @@ public interface HubRepository extends JpaRepository<Hub, UUID> {
     Optional<Hub> findByIdAndDeletedAtIsNull(UUID id);
     boolean existsByNameAndDeletedAtIsNull(String name);
     boolean existsByAddressAndDeletedAtIsNull(String address);
-    @Query("SELECT h " +
-            "FROM Hub h " +
-            "WHERE h.deletedAt IS NULL " +
-            "AND (:keyword IS NULL " +
-            "OR h.name LIKE CONCAT('%', :keyword, '%') " +
-            "OR h.address LIKE CONCAT('%', :keyword, '%'))")
+
+    Page<Hub> findAllByDeletedAtIsNull(Pageable pageable);
+
+    @Query("""
+        SELECT h
+        FROM Hub h
+        WHERE h.deletedAt IS NULL
+          AND (
+              h.name LIKE CONCAT('%', :keyword, '%')
+              OR h.address LIKE CONCAT('%', :keyword, '%')
+          )
+        """)
     Page<Hub> findAllByKeywordAndDeletedAtIsNull(@Param("keyword") String keyword, Pageable pageable);
+
     boolean existsByNameAndDeletedAtIsNullAndIdNot(String name, UUID id);
     boolean existsByAddressAndDeletedAtIsNullAndIdNot(String address, UUID id);
 }
+
