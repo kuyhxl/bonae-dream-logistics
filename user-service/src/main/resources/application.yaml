@@ -2,8 +2,6 @@ server:
   port: 19001
 
 spring:
-  config:
-    import: optional:file:.env[.properties]
   application:
     name: user-service
 
