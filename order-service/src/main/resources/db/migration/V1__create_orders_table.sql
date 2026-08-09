@@ -10,9 +10,9 @@ CREATE TABLE p_orders (
                           remarks               VARCHAR(500),
                           status                VARCHAR(20) NOT NULL DEFAULT 'PENDING',
                           created_at            TIMESTAMP NOT NULL,
-                          created_by            VARCHAR(50) NOT NULL,
+                          created_by            VARCHAR(10) NOT NULL,
                           updated_at            TIMESTAMP,
-                          updated_by            VARCHAR(50),
+                          updated_by            VARCHAR(10),
                           deleted_at            TIMESTAMP,
-                          deleted_by            VARCHAR(50)
+                          deleted_by            VARCHAR(10)
 );
