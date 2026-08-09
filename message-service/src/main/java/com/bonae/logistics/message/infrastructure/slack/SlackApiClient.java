@@ -24,10 +24,10 @@ public class SlackApiClient implements SlackClient {
     );
 
     private final RestClient restClient;
-    private final int maxAttemps;
+    private final int maxAttempts;
 
     public SlackApiClient(RestClient slackRestClient, SlackProperties properties) {
-        this.maxAttemps = properties.maxAttempts();
+        this.maxAttempts = properties.maxAttempts();
         this.restClient = slackRestClient;
     }
 
@@ -59,6 +59,6 @@ public class SlackApiClient implements SlackClient {
     private SlackSendResult sendFallback(String receiverSlackId, String message, Throwable t) {
         String errorCode = (t instanceof SlackTransientException e) ? e.getSlackErrorCode() : t.getClass().getSimpleName();
         log.error("[SLACK] 재시도 소진 to={} error={}", receiverSlackId, errorCode);
-        return SlackSendResult.failure(errorCode, maxAttemps);
+        return SlackSendResult.failure(errorCode, maxAttempts);
     }
 }
