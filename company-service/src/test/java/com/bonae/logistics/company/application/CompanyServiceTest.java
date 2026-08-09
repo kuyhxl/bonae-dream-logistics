@@ -10,6 +10,7 @@ import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import feign.FeignException;
 import feign.Request;
@@ -33,6 +34,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -223,6 +225,49 @@ class CompanyServiceTest {
                 .isEqualTo(ErrorCode.INVALID_COMPANY_TYPE);
 
         verify(companyRepository, never()).findAllByTypeAndDeletedAtIsNull(any(), any());
+    }
+
+    @Test
+    @DisplayName("getCompanyInternal_삭제되지않은업체일때_isDeleted가false인업체정보를반환한다")
+    void getCompanyInternal_삭제되지않은업체일때_isDeleted가false인업체정보를반환한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findById(company.getId())).thenReturn(Optional.of(company));
+
+        ResGetCompanyInternalDto resDto = companyService.getCompanyInternal(company.getId());
+
+        assertThat(resDto.getCompanyId()).isEqualTo(company.getId());
+        assertThat(resDto.getName()).isEqualTo(company.getName());
+        assertThat(resDto.getType()).isEqualTo(company.getType());
+        assertThat(resDto.getHubId()).isEqualTo(company.getHubId());
+        assertThat(resDto.getAddress()).isEqualTo(company.getAddress());
+        assertThat(resDto.isDeleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getCompanyInternal_삭제된업체일때_isDeleted가true인업체정보를반환한다")
+    void getCompanyInternal_삭제된업체일때_isDeleted가true인업체정보를반환한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        company.delete("tester");
+
+        when(companyRepository.findById(company.getId())).thenReturn(Optional.of(company));
+
+        ResGetCompanyInternalDto resDto = companyService.getCompanyInternal(company.getId());
+
+        assertThat(resDto.isDeleted()).isTrue();
+    }
+
+    @Test
+    @DisplayName("getCompanyInternal_존재하지않는업체일때_예외발생")
+    void getCompanyInternal_존재하지않는업체일때_예외발생() {
+        UUID companyId = UUID.randomUUID();
+
+        when(companyRepository.findById(companyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyService.getCompanyInternal(companyId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
     }
 
     private DataIntegrityViolationException duplicateKeyException(String constraintName) {
