@@ -11,5 +11,5 @@ import lombok.NoArgsConstructor;
 public class RefreshRequest {
 
     @NotBlank(message = "리프레시 토큰은 필수입니다.")
-    public String refreshToken;
+    private String refreshToken;
 }

@@ -15,5 +15,5 @@ public class TokenResponse {
     private String tokenType;
     private long expiresIn; // 초
     private String refreshToken;
-    private String refreshExpiresIn;  // 초
+    private long refreshExpiresIn;  // 초
 }
