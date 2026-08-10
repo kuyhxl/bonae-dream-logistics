@@ -77,9 +77,9 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
-    //다른 서비스 내부 호출용 업체 단건 조회. 삭제 여부와 무관하게 조회하고 isDeleted로 삭제 상태를 알려준다.
+    //다른 서비스 내부 호출용 업체 단건 조회. 삭제된 업체는 없는 업체와 동일하게 COMPANY_NOT_FOUND로 응답한다.
     public ResGetCompanyInternalDto getCompanyInternal(UUID companyId) {
-        Company company = companyRepository.findById(companyId)
+        Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         return ResGetCompanyInternalDto.from(company);
     }

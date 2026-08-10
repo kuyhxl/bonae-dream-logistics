@@ -8,10 +8,13 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
     boolean existsByNameAndAddressAndDeletedAtIsNull(String name, String address);
+
+    Optional<Company> findByIdAndDeletedAtIsNull(UUID id);
 
     // type이 null이면 전체 조회, 값이 있으면 해당 유형만 조회
     @Query("SELECT c FROM Company c WHERE c.deletedAt IS NULL AND (:type IS NULL OR c.type = :type)")
