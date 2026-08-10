@@ -6,11 +6,16 @@ import io.micrometer.tracing.Tracer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.List;
 
@@ -66,6 +71,46 @@ public class GlobalExceptionHandler {
         ErrorCode errorCode = ErrorCode.INVALID_INPUT;
         log.warn("[{}] 요청 파라미터 타입 변환 실패: parameter={}", errorCode.name(), e.getName()
         );
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 요청 본문을 읽을 수 없음(깨진 JSON, 타입 불일치, 본문 누락)
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleNotReadable(HttpMessageNotReadableException e) {
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT;
+        log.warn("[{}] 요청 본문을 읽을 수 없음: {}", errorCode.name(), e.getMessage());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 필수 요청 헤더 누락
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeader(MissingRequestHeaderException e) {
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT;
+        log.warn("[{}] 필수 요청 헤더 누락: header={}", errorCode.name(), e.getHeaderName());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 매핑되지 않은 경로 ->  없는 리소스이므로 404
+    @ExceptionHandler({NoResourceFoundException.class, NoHandlerFoundException.class})
+    public ResponseEntity<ErrorResponse> handleNotFound(Exception e) {
+        ErrorCode errorCode = ErrorCode.RESOURCE_NOT_FOUND;
+        log.warn("[{}] 매핑되지 않은 경로: {}", errorCode.name(), e.getMessage());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 경로는 있으나 메서드가 다름
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
+        ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;
+        log.warn("[{}] 지원하지 않는 메서드: {}", errorCode.name(), e.getMethod());
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
