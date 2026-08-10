@@ -41,18 +41,12 @@ public class DeliveryService {
 
     @Transactional
     public DeliveryCreateResponse createDelivery(DeliveryCreateRequest request) {
-        Delivery delivery = Delivery.create(
-                request.getOrderId(),
-                request.getOriginHubId(),
-                request.getDestinationHubId(),
-                request.getReceiverCompanyId(),
-                request.getReceiverName(),
-                request.getReceiverSlackId(),
-                request.getDeliveryAddress()
+        // Company/User/Hub internal API orchestration is agreed in the contract
+        // but intentionally deferred to a follow-up PR to keep this PR as a skeleton.
+        throw new BusinessException(
+                ErrorCode.SERVICE_UNAVAILABLE,
+                "배송 생성 오케스트레이션은 후속 PR에서 구현 예정입니다."
         );
-
-        Delivery savedDelivery = deliveryRepository.saveAndFlush(delivery);
-        return DeliveryCreateResponse.from(savedDelivery);
     }
 
     @Transactional

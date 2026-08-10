@@ -10,13 +10,11 @@ import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
-import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -45,27 +43,14 @@ class DeliveryServiceTest {
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("배송 생성에 성공한다")
-    void createDelivery_success() throws Exception {
+    @DisplayName("배송 생성은 오케스트레이션 구현 전까지 스켈레톤으로 유지한다")
+    void createDelivery_skeleton() throws Exception {
         DeliveryCreateRequest reqDto = createRequest();
-        when(deliveryRepository.saveAndFlush(any(Delivery.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DeliveryCreateResponse result = deliveryService.createDelivery(reqDto);
-
-        ArgumentCaptor<Delivery> captor = ArgumentCaptor.forClass(Delivery.class);
-        verify(deliveryRepository).saveAndFlush(captor.capture());
-
-        Delivery savedDelivery = captor.getValue();
-        assertThat(savedDelivery.getOrderId()).isEqualTo(reqDto.getOrderId());
-        assertThat(savedDelivery.getOriginHubId()).isEqualTo(reqDto.getOriginHubId());
-        assertThat(savedDelivery.getDestinationHubId()).isEqualTo(reqDto.getDestinationHubId());
-        assertThat(savedDelivery.getReceiverCompanyId()).isEqualTo(reqDto.getReceiverCompanyId());
-        assertThat(savedDelivery.getReceiverName()).isEqualTo("홍길동");
-        assertThat(savedDelivery.getStatus()).isEqualTo(DeliveryStatus.READY);
-
-        assertThat(result.getDeliveryId()).isEqualTo(savedDelivery.getId());
-        assertThat(result.getOrderId()).isEqualTo(reqDto.getOrderId());
-        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.READY);
+        assertThatThrownBy(() -> deliveryService.createDelivery(reqDto))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
     }
 
     @Test
@@ -179,12 +164,10 @@ class DeliveryServiceTest {
     private DeliveryCreateRequest createRequest() throws Exception {
         DeliveryCreateRequest reqDto = new DeliveryCreateRequest();
         setField(reqDto, "orderId", UUID.randomUUID());
-        setField(reqDto, "originHubId", UUID.randomUUID());
-        setField(reqDto, "destinationHubId", UUID.randomUUID());
+        setField(reqDto, "supplierCompanyId", UUID.randomUUID());
         setField(reqDto, "receiverCompanyId", UUID.randomUUID());
-        setField(reqDto, "receiverName", "  홍길동  ");
-        setField(reqDto, "receiverSlackId", "  hong123  ");
-        setField(reqDto, "deliveryAddress", "  서울시 강남구 테헤란로 1  ");
+        setField(reqDto, "productInfo", "  마른 오징어 50박스  ");
+        setField(reqDto, "requestNote", "  12월 12일 3시까지 부탁드립니다.  ");
         return reqDto;
     }
 
