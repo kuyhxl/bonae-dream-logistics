@@ -8,9 +8,9 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.domain.entity.DeliveryManager;
 import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.repository.DeliveryManagerRepository;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqCreateDeliveryManagerDto;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqUpdateDeliveryManagerDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResDeliveryManagerDto;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerUpdateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryManagerResponse;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,7 +53,7 @@ class DeliveryManagerServiceTest {
     @DisplayName("배송 담당자 생성 시 요청한 ID를 그대로 사용한다")
     void createDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
-        ReqCreateDeliveryManagerDto reqDto = ReqCreateDeliveryManagerDto.builder()
+        DeliveryManagerCreateRequest reqDto = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(deliveryManagerId)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
@@ -68,7 +68,7 @@ class DeliveryManagerServiceTest {
 
         when(deliveryManagerRepository.saveAndFlush(any(DeliveryManager.class))).thenReturn(savedDeliveryManager);
 
-        ResDeliveryManagerDto resDto = deliveryManagerService.createDeliveryManager(reqDto);
+        DeliveryManagerResponse resDto = deliveryManagerService.createDeliveryManager(reqDto);
 
         assertThat(resDto.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
         assertThat(resDto.getManagerType()).isEqualTo(ManagerType.HUB_DELIVERY);
@@ -79,7 +79,7 @@ class DeliveryManagerServiceTest {
     @Test
     @DisplayName("배송 담당자 순번 중복은 비즈니스 예외로 변환한다")
     void createDeliveryManager_duplicateSequence() {
-        ReqCreateDeliveryManagerDto reqDto = ReqCreateDeliveryManagerDto.builder()
+        DeliveryManagerCreateRequest reqDto = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(UUID.randomUUID())
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
@@ -108,7 +108,7 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.of(deliveryManager));
 
-        ResDeliveryManagerDto resDto = deliveryManagerService.getDeliveryManager(deliveryManagerId);
+        DeliveryManagerResponse resDto = deliveryManagerService.getDeliveryManager(deliveryManagerId);
 
         assertThat(resDto.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
         verify(deliveryManagerRepository).findByIdAndDeletedAtIsNull(deliveryManagerId);
@@ -141,7 +141,7 @@ class DeliveryManagerServiceTest {
 
         when(deliveryManagerRepository.findAllByDeletedAtIsNull(any(Pageable.class))).thenReturn(page);
 
-        PageResponseDto<ResDeliveryManagerDto> response = deliveryManagerService.getDeliveryManagers(pageRequestDto);
+        PageResponseDto<DeliveryManagerResponse> response = deliveryManagerService.getDeliveryManagers(pageRequestDto);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).getDeliverySequence()).isEqualTo(2);
@@ -157,7 +157,7 @@ class DeliveryManagerServiceTest {
                 ManagerType.HUB_DELIVERY,
                 0
         );
-        ReqUpdateDeliveryManagerDto reqDto = ReqUpdateDeliveryManagerDto.builder()
+        DeliveryManagerUpdateRequest reqDto = DeliveryManagerUpdateRequest.builder()
                 .hubId(UUID.randomUUID())
                 .managerType(ManagerType.COMPANY_DELIVERY)
                 .deliverySequence(3)
@@ -166,7 +166,7 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.of(deliveryManager));
 
-        ResDeliveryManagerDto response = deliveryManagerService.updateDeliveryManager(deliveryManagerId, reqDto);
+        DeliveryManagerResponse response = deliveryManagerService.updateDeliveryManager(deliveryManagerId, reqDto);
 
         assertThat(response.getManagerType()).isEqualTo(ManagerType.COMPANY_DELIVERY);
         assertThat(response.getHubId()).isEqualTo(reqDto.getHubId());
