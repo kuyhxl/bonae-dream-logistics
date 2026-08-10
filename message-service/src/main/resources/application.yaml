@@ -59,9 +59,9 @@ springdoc:
     - /api/internal/**  # 서비스 간 내부 API는 공개 문서에서 제외
 
 slack:
-  bot-token: ${SLACK_TOKEN:dummy}
+  bot-token: ${SLACK_TOKEN:dummy} # api.slack.com/apps -> OAuth & Permissions -> Bot User OAuth Token
   api-url: https://slack.com/api
-  mock: ${SLACK_MOCK:true}
+  mock: ${SLACK_MOCK:true} # 토큰 없이 개발할 때
   max-attempts: 3
 
 resilience4j:
