@@ -24,7 +24,7 @@ public enum ErrorCode{
     USER_NOT_APPROVED(HttpStatus.CONFLICT, "승인 대기 중이거나 거절된 계정입니다."),
     INVALID_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "유효하지 않은 리프레시 토큰입니다."),
     EXPIRED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 만료되었습니다. 다시 로그인해주세요."),
-    REFRESH_TOKEN_NOT_FOUND(HttpStatus.NOT_FOUND, "리프레시 토큰을 찾을 수 없습니다."),
+    REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "리프레시 토큰을 찾을 수 없습니다."),
     USER_ALREADY_PROCESSED(HttpStatus.CONFLICT ,"이미 처리된 가입 요청입니다"),
 
     // 허브
@@ -70,11 +70,13 @@ public enum ErrorCode{
 
     // 배송
     DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "배송을 찾을 수 없습니다. "),
+    DELIVERY_MANAGER_NOT_FOUND(HttpStatus.NOT_FOUND, "배송 담당자를 찾을 수 없습니다."),
     DELIVERY_MANAGER_NOT_AVAILABLE(HttpStatus.CONFLICT, "배정 가능한 배송 담당자가 없습니다. "),
     DELIVERY_ALREADY_ASSIGNED(HttpStatus.CONFLICT, "이미 배송 담당자가 할당되었습니다."),
     DELIVERY_ALREADY_COMPLETED(HttpStatus.CONFLICT, "이미 배송 완료되었습니다."),
     DELIVERY_ALREADY_CANCELLED(HttpStatus.CONFLICT, "이미 취소된 배송입니다."),
     DELIVERY_MANAGER_ALREADY_DELETED(HttpStatus.CONFLICT, "이미 삭제된 배송 담당자입니다."),
+    DELIVERY_MANAGER_SEQUENCE_DUPLICATED(HttpStatus.CONFLICT, "이미 사용 중인 배송 담당자 순번입니다."),
     INVALID_DELIVERY_RECEIVER_NAME(HttpStatus.BAD_REQUEST, "수령인명은 비어 있을 수 없고 50자를 초과할 수 없습니다."),
     INVALID_DELIVERY_RECEIVER_SLACK_ID(HttpStatus.BAD_REQUEST, "수령인 Slack ID는 비어 있을 수 없고 50자를 초과할 수 없습니다."),
     INVALID_DELIVERY_ADDRESS(HttpStatus.BAD_REQUEST, "배송지 주소는 비어 있을 수 없고 255자를 초과할 수 없습니다."),

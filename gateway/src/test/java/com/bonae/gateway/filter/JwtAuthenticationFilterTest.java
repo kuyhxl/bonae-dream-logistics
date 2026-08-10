@@ -3,6 +3,7 @@ package com.bonae.gateway.filter;
 import com.bonae.gateway.config.AuthPathProperties;
 import com.bonae.gateway.config.JwtProperties;
 import com.bonae.gateway.jwt.JwtValidator;
+import com.bonae.gateway.jwt.TokenBlacklistChecker;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
@@ -26,7 +27,11 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 @DisplayName("JwtAuthenticationFilter 인증 및 헤더 주입")
 class JwtAuthenticationFilterTest {
@@ -38,6 +43,7 @@ class JwtAuthenticationFilterTest {
     private static final String COMPANY_ID = "06950820-c85b-4669-badb-c623011d6ad1";
 
     private JwtAuthenticationFilter filter;
+    private TokenBlacklistChecker blacklistChecker;
 
     @BeforeEach
     void setUp() {
@@ -45,11 +51,16 @@ class JwtAuthenticationFilterTest {
         AuthPathProperties authPaths = new AuthPathProperties(List.of(
                 "/api/auth/signup", "/api/auth/login", "/api/auth/refresh", "/v3/api-docs/**"));
 
+        // 테스트에서 필요할 때 스텁을 덮어씀
+        blacklistChecker = mock(TokenBlacklistChecker.class);
+        given(blacklistChecker.isBlacklisted(anyString())).willReturn(Mono.just(false));
+
         filter = new JwtAuthenticationFilter(
                 new JwtValidator(jwtProperties),
                 jwtProperties,
                 authPaths,
-                new AuthenticationErrorWriter(new ObjectMapper(), mock(Tracer.class)));
+                new AuthenticationErrorWriter(new ObjectMapper(), mock(Tracer.class)),
+                blacklistChecker);
     }
 
     private SecretKey key() {
@@ -234,6 +245,91 @@ class JwtAuthenticationFilterTest {
             // jti를 추출해 블랙리스트에 등록해야 하므로 인증을 거쳐야 함
             assertThat(statusOf(MockServerHttpRequest.post("/api/auth/logout").build()))
                     .isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("제외 경로는 Redis를 조회하지 않는다")
+        void doesNotQueryRedis() {
+            // 레디스 장애 중에도 로그인은 가능해야 복구할 수 있다
+            forwardedFor(MockServerHttpRequest.post("/api/auth/login").build());
+
+            verify(blacklistChecker, never()).isBlacklisted(anyString());
+        }
+    }
+
+    @Nested
+    @DisplayName("블랙리스트")
+    class Blacklist {
+
+        @Test
+        @DisplayName("블랙리스트에 없는 토큰은 통과한다")
+        void notBlacklistedPasses() {
+            given(blacklistChecker.isBlacklisted(anyString())).willReturn(Mono.just(false));
+
+            ServerWebExchange forwarded = forwardedFor(
+                    MockServerHttpRequest.get("/api/companies")
+                            .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
+                            .build());
+
+            assertThat(forwarded).isNotNull();
+            assertThat(forwarded.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo(USERNAME);
+        }
+
+        @Test
+        @DisplayName("로그아웃된 토큰은 401을 반환한다")
+        void blacklistedRejected() {
+            given(blacklistChecker.isBlacklisted(anyString())).willReturn(Mono.just(true));
+
+            assertThat(statusOf(MockServerHttpRequest.get("/api/companies")
+                    .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
+                    .build()))
+                    .isEqualTo(HttpStatus.UNAUTHORIZED);
+        }
+
+        @Test
+        @DisplayName("로그아웃된 토큰은 체인으로 전달하지 않는다")
+        void blacklistedNotForwarded() {
+            given(blacklistChecker.isBlacklisted(anyString())).willReturn(Mono.just(true));
+
+            assertThat(forwardedFor(MockServerHttpRequest.get("/api/companies")
+                    .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
+                    .build()))
+                    .isNull();
+        }
+
+        @Test
+        @DisplayName("Redis 조회에 실패하면 503을 반환한다")
+        void redisFailureReturnsServiceUnavailable() {
+            // 블랙리스트는 보안 통제이므로 확인할 수 없으면 통과시키지 않음
+            given(blacklistChecker.isBlacklisted(anyString()))
+                    .willReturn(Mono.error(new RuntimeException("redis down")));
+
+            assertThat(statusOf(MockServerHttpRequest.get("/api/companies")
+                    .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
+                    .build()))
+                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        }
+
+        @Test
+        @DisplayName("Redis 조회에 실패하면 체인으로 전달하지 않는다")
+        void redisFailureNotForwarded() {
+            given(blacklistChecker.isBlacklisted(anyString()))
+                    .willReturn(Mono.error(new RuntimeException("redis down")));
+
+            assertThat(forwardedFor(MockServerHttpRequest.get("/api/companies")
+                    .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
+                    .build()))
+                    .isNull();
+        }
+
+        @Test
+        @DisplayName("유효하지 않은 토큰은 Redis를 조회하지 않는다")
+        void invalidTokenSkipsRedis() {
+            statusOf(MockServerHttpRequest.get("/api/companies")
+                    .header("Authorization", "Bearer not-a-jwt")
+                    .build());
+
+            verify(blacklistChecker, never()).isBlacklisted(anyString());
         }
     }
 }

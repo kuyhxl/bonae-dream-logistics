@@ -7,8 +7,10 @@ import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.infrastructure.config.JwtProperties;
 import com.bonae.logistics.user.infrastructure.persistence.RefreshTokenStore;
+import com.bonae.logistics.user.infrastructure.persistence.TokenBlacklistStore;
 import com.bonae.logistics.user.infrastructure.security.JwtProvider;
 import com.bonae.logistics.user.presentation.dto.request.LoginRequest;
+import com.bonae.logistics.user.presentation.dto.request.LogoutRequest;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequest;
 import com.bonae.logistics.user.presentation.dto.response.LoginResponse;
 import com.bonae.logistics.user.presentation.dto.response.SignupResponse;
@@ -28,6 +30,7 @@ public class AuthService {
     private final JwtProperties jwtProperties;
     private final JwtProvider jwtProvider;
     private final RefreshTokenStore refreshTokenStore;
+    private final TokenBlacklistStore tokenBlacklistStore;
 
     @Transactional
     public SignupResponse signup(SignupRequest signupRequest) {
@@ -91,5 +94,38 @@ public class AuthService {
                 .username(user.getUsername())
                 .role(user.getRole())
                 .build();
+    }
+
+    public void logout(String authorizationHeader, LogoutRequest logoutRequest) {
+        String refreshToken = logoutRequest.getRefreshToken();
+
+        // 서명·만료·타입 검증 후 username 추출
+        String username = jwtProvider.parseRefreshToken(refreshToken).getSubject();
+
+        // refreshToken 저장소에 있는 토큰과 동일한지 확인
+        String storedToken = refreshTokenStore.find(username).orElseThrow(() -> new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND));
+
+        if (!storedToken.equals(refreshToken)) {
+            throw new BusinessException(ErrorCode.REFRESH_TOKEN_NOT_FOUND);
+        }
+
+        // refreshToken 삭제
+        refreshTokenStore.delete(username);
+
+        // accessToken 즉시 무효화 -> redis blacklist에 담기!
+        blacklistAccessToken(authorizationHeader);
+    }
+
+    private void blacklistAccessToken(String authorizationHeader) {
+        String bearerPrefix = JwtProvider.TOKEN_TYPE + " ";
+
+        if (authorizationHeader == null || !authorizationHeader.startsWith(bearerPrefix)) {
+            return;
+        }
+
+        String accessToken = authorizationHeader.substring(bearerPrefix.length()).trim();
+
+        jwtProvider.parseAccessToken(accessToken)
+                .ifPresent(claims -> tokenBlacklistStore.add(claims.getId(), jwtProvider.remainingMillis(claims)));
     }
 }

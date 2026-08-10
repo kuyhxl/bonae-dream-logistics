@@ -1,8 +1,13 @@
 package com.bonae.logistics.user.application.service;
 
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.user.domain.entity.DeliveryManagerType;
+import com.bonae.logistics.user.domain.entity.Status;
+import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
+import com.bonae.logistics.user.presentation.dto.response.UserInfoResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,5 +29,12 @@ public class UserService {
                 .stream()
                 .map(DeliveryManagerResponse::new)
                 .toList();
+    }
+
+    public UserInfoResponse getUserInfo(String username) {
+        User user = userRepository
+                .findByUsernameAndStatusAndDeletedAtIsNull(username, Status.APPROVED)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+        return new UserInfoResponse(user);
     }
 }
