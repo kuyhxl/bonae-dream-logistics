@@ -1,5 +1,6 @@
 package com.bonae.logistics.user.application.service;
 
+import com.bonae.logistics.common.auth.CurrentAuditorProvider;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
@@ -29,6 +30,7 @@ import java.util.UUID;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final CurrentAuditorProvider currentAuditorProvider;
 
     // 배송 배정 후보 조회. 결과가 비어도 예외로 보지 않고 빈 목록을 반환한다.
     // 배정 가능한 담당자가 없다는 판단(DELIVERY_MANAGER_NOT_AVAILABLE)은 호출 측인 delivery-service의 책임이다.
@@ -96,5 +98,19 @@ public class UserService {
                 request.getCompanyId()
         );
         return UserDetailResponse.from(user);
+    }
+
+    // 사용자 논리 삭제 (MASTER 전용). 물리 삭제하지 않고 deleted_at, deleted_by만 기록한다.
+    @Transactional
+    public void deleteUser(UUID userId) {
+        User user = findActive(userId);
+        String requester = currentAuditorProvider.getCurrentAuditorOrSystem(); // = X-User-Id(username)
+
+        // 마스터가 자기 계정을 지우면 관리 주체가 사라질 수 있어 막는다.
+        if (user.getUsername().equals(requester)) {
+            throw new BusinessException(ErrorCode.SELF_DELETE_NOT_ALLOWED);
+        }
+
+        user.delete(requester); // BaseEntity.delete()
     }
 }

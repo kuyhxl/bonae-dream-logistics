@@ -56,4 +56,12 @@ public class UserController {
     ) {
         return ResponseEntity.ok(userService.updateUser(userId, request));
     }
+
+    // 사용자 논리 삭제 (MASTER 전용)
+    @DeleteMapping("/users/{userId}")
+    @RoleCheck(Role.MASTER)
+    public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
+        userService.deleteUser(userId);
+        return ResponseEntity.noContent().build();
+    }
 }
