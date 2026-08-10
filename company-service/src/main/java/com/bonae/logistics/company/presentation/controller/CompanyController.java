@@ -53,12 +53,12 @@ public class CompanyController {
     @PatchMapping("/{companyId}")
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER})
     public ResponseEntity<ResUpdateCompanyDto> updateCompany(
-            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader("X-User-Role") String userRole,
             @RequestHeader("X-User-Id") String username,
             @PathVariable UUID companyId,
             @Valid @RequestBody ReqUpdateCompanyDto reqDto) {
         ResUpdateCompanyDto resDto = companyService.updateCompany(
-                companyId, reqDto, UserRole.valueOf(userRoleHeader), username);
+                companyId, reqDto, UserRole.valueOf(userRole), username);
         return ResponseEntity.status(HttpStatus.OK).body(resDto);
     }
 }
