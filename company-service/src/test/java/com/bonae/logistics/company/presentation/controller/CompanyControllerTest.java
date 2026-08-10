@@ -11,6 +11,7 @@ import com.bonae.logistics.company.domain.entity.CompanyType;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.DisplayName;
@@ -97,6 +98,63 @@ class CompanyControllerTest {
         mockMvc.perform(get("/api/companies"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/search_정상요청시_검색결과와페이지정보를_응답한다")
+    void searchCompanies_정상요청시_검색결과와페이지정보를_응답한다() throws Exception {
+        UUID hubId = UUID.randomUUID();
+        ResSearchCompanyDto item = ResSearchCompanyDto.builder()
+                .companyId(UUID.randomUUID())
+                .name("삼성전자")
+                .type(CompanyType.PRODUCER)
+                .hubId(hubId)
+                .address("경기도 수원시 영통구")
+                .build();
+
+        PageResponseDto<ResSearchCompanyDto> pageResponse = PageResponseDto.<ResSearchCompanyDto>builder()
+                .content(List.of(item))
+                .page(1)
+                .size(10)
+                .totalElements(1)
+                .totalPages(1)
+                .last(true)
+                .build();
+
+        when(companyService.searchCompanies(any(PageRequestDto.class), eq("삼성"), eq("PRODUCER"), eq(hubId)))
+                .thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/companies/search")
+                        .header("X-User-Role", "DELIVERY_MANAGER")
+                        .param("keyword", "삼성")
+                        .param("type", "PRODUCER")
+                        .param("hubId", hubId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("삼성전자"))
+                .andExpect(jsonPath("$.content[0].type").value("PRODUCER"))
+                .andExpect(jsonPath("$.content[0].hubId").value(hubId.toString()));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/search_권한헤더가없을때_401을응답한다")
+    void searchCompanies_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(get("/api/companies/search"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/search_허용되지않은정렬기준일때_400을응답한다")
+    void searchCompanies_허용되지않은정렬기준일때_400을응답한다() throws Exception {
+        when(companyService.searchCompanies(any(PageRequestDto.class), any(), anyString(), any()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_SORT_FIELD));
+
+        mockMvc.perform(get("/api/companies/search")
+                        .header("X-User-Role", "MASTER")
+                        .param("sort", "invalidField"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SORT_FIELD"));
     }
 
     @Test

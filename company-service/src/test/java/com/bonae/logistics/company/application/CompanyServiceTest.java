@@ -17,6 +17,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import feign.FeignException;
 import feign.Request;
@@ -237,6 +238,115 @@ class CompanyServiceTest {
                 .isEqualTo(ErrorCode.INVALID_COMPANY_TYPE);
 
         verify(companyRepository, never()).findAllByTypeAndDeletedAtIsNull(any(), any());
+    }
+
+    @Test
+    @DisplayName("searchCompanies_조건이없을때_전체업체를조회한다")
+    void searchCompanies_조건이없을때_전체업체를조회한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> companyPage = new PageImpl<>(List.of(company), pageRequestDto.toPageable(), 1);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(companyPage);
+
+        PageResponseDto<ResSearchCompanyDto> resDto =
+                companyService.searchCompanies(pageRequestDto, null, "ALL", null);
+
+        assertThat(resDto.getContent()).hasSize(1);
+        assertThat(resDto.getContent().get(0).getName()).isEqualTo(company.getName());
+        verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_키워드가있을때_앞뒤공백을제거하고LIKE패턴으로전달한다")
+    void searchCompanies_키워드가있을때_앞뒤공백을제거하고LIKE패턴으로전달한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                eq("%삼성%"), isNull(), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        companyService.searchCompanies(pageRequestDto, "  삼성  ", "ALL", null);
+
+        verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                eq("%삼성%"), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_키워드가공백뿐일때_조건없이전달한다")
+    void searchCompanies_키워드가공백뿐일때_조건없이전달한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        companyService.searchCompanies(pageRequestDto, "   ", "ALL", null);
+
+        verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_타입으로검색시_해당타입조건으로조회한다")
+    void searchCompanies_타입으로검색시_해당타입조건으로조회한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), eq(CompanyType.PRODUCER), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        companyService.searchCompanies(pageRequestDto, null, "PRODUCER", null);
+
+        verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), eq(CompanyType.PRODUCER), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_허브로검색시_해당허브조건으로조회한다")
+    void searchCompanies_허브로검색시_해당허브조건으로조회한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        UUID hubId = UUID.randomUUID();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), eq(hubId), any(Pageable.class))).thenReturn(emptyPage);
+
+        companyService.searchCompanies(pageRequestDto, null, "ALL", hubId);
+
+        verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), eq(hubId), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_유효하지않은업체타입일때_예외발생")
+    void searchCompanies_유효하지않은업체타입일때_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+
+        assertThatThrownBy(() -> companyService.searchCompanies(pageRequestDto, null, "INVALID", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_COMPANY_TYPE);
+
+        verify(companyRepository, never())
+                .searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("searchCompanies_정렬기준이허용되지않을때_예외발생")
+    void searchCompanies_정렬기준이허용되지않을때_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        pageRequestDto.setSort("invalidField");
+
+        assertThatThrownBy(() -> companyService.searchCompanies(pageRequestDto, null, "ALL", null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_SORT_FIELD);
+
+        verify(companyRepository, never())
+                .searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(any(), any(), any(), any());
     }
 
     @Test
