@@ -18,6 +18,9 @@ public class HubRoutePathFinder {
 
     @Transactional(readOnly = true)
     public List<HubRoute> findShortestPath(UUID departureHubId, UUID arrivalHubId) {
+        Objects.requireNonNull(departureHubId, "출발 허브 ID는 null일 수 없습니다.");
+        Objects.requireNonNull(arrivalHubId, "도착 허브 ID는 null일 수 없습니다.");
+
         // 1. 출발지와 도착지가 같으면 빈 경로 리스트 반환
         if (departureHubId.equals(arrivalHubId)) {
             return new ArrayList<>();

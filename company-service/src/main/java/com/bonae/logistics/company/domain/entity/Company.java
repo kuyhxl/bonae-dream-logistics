@@ -43,15 +43,24 @@ public class Company extends BaseEntity {
         this.address = address;
     }
 
+    // 인자로 넘어온 값이 null이면 해당 필드는 변경하지 않는다 (부분 수정)
     public void update(
             String name,
             CompanyType type,
             UUID hubId,
             String address
     ) {
-        this.name = name;
-        this.type = type;
-        this.hubId = hubId;
-        this.address = address;
+        if (name != null) {
+            this.name = name;
+        }
+        if (type != null) {
+            this.type = type;
+        }
+        if (hubId != null) {
+            this.hubId = hubId;
+        }
+        if (address != null) {
+            this.address = address;
+        }
     }
 }

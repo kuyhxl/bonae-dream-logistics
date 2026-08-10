@@ -6,15 +6,19 @@ import com.bonae.logistics.common.exception.GlobalExceptionHandler;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.application.CompanyService;
+import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.CompanyType;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,8 +28,12 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -139,6 +147,117 @@ class CompanyControllerTest {
 
         mockMvc.perform(get("/api/companies/{companyId}", companyId)
                         .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/companies/{companyId}_정상요청시_수정된업체정보를_응답한다")
+    void updateCompany_정상요청시_수정된업체정보를_응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        UUID hubId = UUID.randomUUID();
+        ResUpdateCompanyDto resDto = ResUpdateCompanyDto.builder()
+                .companyId(companyId)
+                .name("삼성전자 물류센터")
+                .type(CompanyType.PRODUCER)
+                .hubId(hubId)
+                .address("경기도 수원시 권선구")
+                .updatedAt(LocalDateTime.now())
+                .updatedBy("hub-admin-id")
+                .build();
+
+        when(companyService.updateCompany(eq(companyId), any(ReqUpdateCompanyDto.class), eq(UserRole.MASTER), anyString()))
+                .thenReturn(resDto);
+
+        String requestBody = """
+                {
+                  "name": "삼성전자 물류센터",
+                  "type": "PRODUCER",
+                  "hubId": "%s",
+                  "address": "경기도 수원시 권선구"
+                }
+                """.formatted(hubId);
+
+        mockMvc.perform(patch("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+                .andExpect(jsonPath("$.name").value("삼성전자 물류센터"))
+                .andExpect(jsonPath("$.type").value("PRODUCER"))
+                .andExpect(jsonPath("$.hubId").value(hubId.toString()))
+                .andExpect(jsonPath("$.address").value("경기도 수원시 권선구"))
+                .andExpect(jsonPath("$.updatedBy").value("hub-admin-id"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/companies/{companyId}_권한헤더가없을때_401을응답한다")
+    void updateCompany_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(patch("/api/companies/{companyId}", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/companies/{companyId}_존재하지않거나삭제된업체일때_404를응답한다")
+    void updateCompany_존재하지않거나삭제된업체일때_404를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        when(companyService.updateCompany(eq(companyId), any(ReqUpdateCompanyDto.class), eq(UserRole.MASTER), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_정상요청시_204를응답한다")
+    void deleteCompany_정상요청시_204를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
+                .andExpect(status().isNoContent())
+                .andExpect(jsonPath("$").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_권한헤더가없을때_401을응답한다")
+    void deleteCompany_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/companies/{companyId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_허용되지않은역할일때_403을응답한다")
+    void deleteCompany_허용되지않은역할일때_403을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/companies/{companyId}", UUID.randomUUID())
+                        .header("X-User-Role", "COMPANY_MANAGER")
+                        .header("X-User-Id", "company-manager01"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_존재하지않거나삭제된업체일때_404를응답한다")
+    void deleteCompany_존재하지않거나삭제된업체일때_404를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        doThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND))
+                .when(companyService).deleteCompany(eq(companyId), eq(UserRole.MASTER), anyString());
+
+        mockMvc.perform(delete("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
     }

@@ -120,4 +120,65 @@ class CompanyRepositoryTest {
 
         assertThat(foundCompany).isEmpty();
     }
+
+    @Test
+    @DisplayName("existsByNameAndAddressAndDeletedAtIsNullAndIdNot_자기자신만같은이름과주소를가질때_false반환")
+    void existsByNameAndAddressAndDeletedAtIsNullAndIdNot_자기자신만같은이름과주소를가질때_false반환() {
+        Company savedCompany = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+
+        boolean exists = companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(
+                "배송센터A", "서울시 강남구 테헤란로 1", savedCompany.getId());
+
+        assertThat(exists).isFalse();
+    }
+
+    @Test
+    @DisplayName("existsByNameAndAddressAndDeletedAtIsNullAndIdNot_다른업체가같은이름과주소를가질때_true반환")
+    void existsByNameAndAddressAndDeletedAtIsNullAndIdNot_다른업체가같은이름과주소를가질때_true반환() {
+        companyRepository.save(new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Company anotherCompany = companyRepository.save(
+                new Company("배송센터B", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 송파구 올림픽로 1")
+        );
+
+        boolean exists = companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(
+                "배송센터A", "서울시 강남구 테헤란로 1", anotherCompany.getId());
+
+        assertThat(exists).isTrue();
+    }
+
+    @Test
+    @DisplayName("update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다")
+    void update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다() throws InterruptedException {
+        Company company = companyRepository.saveAndFlush(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+        var createdUpdatedAt = company.getUpdatedAt();
+
+        // LocalDateTime의 해상도 차이로 값이 같아 보이는 걸 방지하기 위해 약간의 시간차를 둔다.
+        Thread.sleep(10);
+        company.update("배송센터A-수정", null, null, null);
+        companyRepository.saveAndFlush(company);
+
+        assertThat(company.getName()).isEqualTo("배송센터A-수정");
+        assertThat(company.getUpdatedAt()).isAfter(createdUpdatedAt);
+        assertThat(company.getUpdatedBy()).isEqualTo("SYSTEM");
+    }
+
+    @Test
+    @DisplayName("delete_호출후flush하면_deletedAt과deletedBy가저장된다")
+    void delete_호출후flush하면_deletedAt과deletedBy가저장된다() {
+        Company company = companyRepository.saveAndFlush(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+
+        company.delete("tester");
+        companyRepository.saveAndFlush(company);
+
+        Company reloaded = companyRepository.findById(company.getId()).orElseThrow();
+        assertThat(reloaded.getDeletedAt()).isNotNull();
+        assertThat(reloaded.getDeletedBy()).isEqualTo("tester");
+        assertThat(reloaded.isDeleted()).isTrue();
+    }
 }
