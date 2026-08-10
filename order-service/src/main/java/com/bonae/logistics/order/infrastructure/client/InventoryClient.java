@@ -4,12 +4,15 @@ import com.bonae.logistics.order.infrastructure.client.dto.InventoryDeductReques
 import com.bonae.logistics.order.infrastructure.client.dto.InventoryDeductResponseDto;
 import com.bonae.logistics.order.infrastructure.client.dto.InventoryRestoreRequestDto;
 import com.bonae.logistics.order.infrastructure.client.dto.InventoryRestoreResponseDto;
+import com.bonae.logistics.order.infrastructure.config.OrderFeignConfig;
+import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.UUID;
 
+@FeignClient(name = "product-service", configuration = OrderFeignConfig.class)
 public interface InventoryClient {
 
     @PostMapping("/api/internal/products/{productId}/inventories/deduct")
