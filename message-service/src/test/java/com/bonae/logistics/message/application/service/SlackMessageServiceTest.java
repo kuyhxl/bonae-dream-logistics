@@ -9,7 +9,6 @@ import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
@@ -25,7 +24,7 @@ class SlackMessageServiceTest {
     void setUp() {
         store = mock(SlackMessageStore.class);
         slackClient = mock(SlackClient.class);
-        service = new SlackMessageService(store, slackClient, mock(Tracer.class, Mockito.RETURNS_DEEP_STUBS));
+        service = new SlackMessageService(store, slackClient, mock(Tracer.class));
     }
 
     @Test
