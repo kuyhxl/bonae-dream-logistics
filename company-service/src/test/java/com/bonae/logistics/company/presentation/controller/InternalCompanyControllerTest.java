@@ -63,28 +63,8 @@ class InternalCompanyControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/internal/companies/{companyId}_삭제된업체일때_isDeleted가true로응답한다")
-    void getCompany_삭제된업체일때_isDeleted가true로응답한다() throws Exception {
-        UUID companyId = UUID.randomUUID();
-        ResGetCompanyInternalDto resDto = ResGetCompanyInternalDto.builder()
-                .companyId(companyId)
-                .name("삼성전자")
-                .type(CompanyType.PRODUCER)
-                .hubId(UUID.randomUUID())
-                .address("경기도 수원시 영통구")
-                .isDeleted(true)
-                .build();
-
-        when(companyService.getCompanyInternal(companyId)).thenReturn(resDto);
-
-        mockMvc.perform(get("/api/internal/companies/{companyId}", companyId))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isDeleted").value(true));
-    }
-
-    @Test
-    @DisplayName("GET /api/internal/companies/{companyId}_존재하지않는업체일때_404를응답한다")
-    void getCompany_존재하지않는업체일때_404를응답한다() throws Exception {
+    @DisplayName("GET /api/internal/companies/{companyId}_존재하지않거나삭제된업체일때_404를응답한다")
+    void getCompany_존재하지않거나삭제된업체일때_404를응답한다() throws Exception {
         UUID companyId = UUID.randomUUID();
         when(companyService.getCompanyInternal(companyId)).thenThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
 

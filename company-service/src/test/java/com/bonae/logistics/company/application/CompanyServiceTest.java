@@ -228,11 +228,11 @@ class CompanyServiceTest {
     }
 
     @Test
-    @DisplayName("getCompanyInternal_삭제되지않은업체일때_isDeleted가false인업체정보를반환한다")
-    void getCompanyInternal_삭제되지않은업체일때_isDeleted가false인업체정보를반환한다() {
+    @DisplayName("getCompanyInternal_삭제되지않은업체일때_업체정보를반환한다")
+    void getCompanyInternal_삭제되지않은업체일때_업체정보를반환한다() {
         Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
 
-        when(companyRepository.findById(company.getId())).thenReturn(Optional.of(company));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
 
         ResGetCompanyInternalDto resDto = companyService.getCompanyInternal(company.getId());
 
@@ -245,24 +245,12 @@ class CompanyServiceTest {
     }
 
     @Test
-    @DisplayName("getCompanyInternal_삭제된업체일때_isDeleted가true인업체정보를반환한다")
-    void getCompanyInternal_삭제된업체일때_isDeleted가true인업체정보를반환한다() {
-        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
-        company.delete("tester");
-
-        when(companyRepository.findById(company.getId())).thenReturn(Optional.of(company));
-
-        ResGetCompanyInternalDto resDto = companyService.getCompanyInternal(company.getId());
-
-        assertThat(resDto.isDeleted()).isTrue();
-    }
-
-    @Test
-    @DisplayName("getCompanyInternal_존재하지않는업체일때_예외발생")
-    void getCompanyInternal_존재하지않는업체일때_예외발생() {
+    @DisplayName("getCompanyInternal_존재하지않거나삭제된업체일때_예외발생")
+    void getCompanyInternal_존재하지않거나삭제된업체일때_예외발생() {
+        // 삭제된 업체는 리포지토리 쿼리 조건(deletedAt IS NULL)에서 이미 걸러지므로 미존재와 동일하게 빈 값이 반환된다.
         UUID companyId = UUID.randomUUID();
 
-        when(companyRepository.findById(companyId)).thenReturn(Optional.empty());
+        when(companyRepository.findByIdAndDeletedAtIsNull(companyId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> companyService.getCompanyInternal(companyId))
                 .isInstanceOf(BusinessException.class)
