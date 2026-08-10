@@ -1,4 +1,4 @@
-package com.bonae.logistics.order.infrastructure.client.dto;
+package com.bonae.logistics.order.infrastructure.client.dto.request;
 
 import java.util.UUID;
 
