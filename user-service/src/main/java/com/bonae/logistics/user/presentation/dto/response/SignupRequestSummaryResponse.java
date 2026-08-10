@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 
 // 가입 요청 목록 한 건. 승인 판단에 필요한 소속명과 처리 이력을 함께 노출한다.
+// UserSummaryResponse를 재사용하지 않는 이유: approvedBy/approvedAt이 필요하다.
 @Getter
 @Builder
 public class SignupRequestSummaryResponse {
