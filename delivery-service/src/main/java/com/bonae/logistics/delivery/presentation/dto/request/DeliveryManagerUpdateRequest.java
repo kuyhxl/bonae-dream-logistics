@@ -14,7 +14,7 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReqCreateDeliveryManagerDto {
+public class DeliveryManagerUpdateRequest {
 
     private UUID hubId;
 
