@@ -8,6 +8,7 @@ import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.infrastructure.config.JwtProperties;
 import com.bonae.logistics.user.infrastructure.persistence.RefreshTokenStore;
+import com.bonae.logistics.user.infrastructure.persistence.TokenBlacklistStore;
 import com.bonae.logistics.user.infrastructure.security.JwtProvider;
 import com.bonae.logistics.user.presentation.dto.request.RefreshRequest;
 import com.bonae.logistics.user.presentation.dto.response.TokenResponse;
@@ -42,8 +43,12 @@ class AuthServiceRefreshTest {
     private static final String OLD_REFRESH_TOKEN = "old.refresh.token";
     private static final String NEW_REFRESH_TOKEN = "new.refresh.token";
     private static final String NEW_ACCESS_TOKEN = "new.access.token";
+    private static final String OLD_ACCESS_TOKEN = "old.access.token";
+    private static final String AUTH_HEADER = JwtProvider.TOKEN_TYPE + " " + OLD_ACCESS_TOKEN;
+    private static final String OLD_ACCESS_JTI = "old-access-jti";
     private static final long ACCESS_EXP = 3600000L;
     private static final long REFRESH_EXP = 604800000L;
+    private static final long REMAINING_MILLIS = 1200000L;
     private static final UUID HUB_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final UUID COMPANY_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
@@ -59,7 +64,11 @@ class AuthServiceRefreshTest {
     @Mock
     private RefreshTokenStore refreshTokenStore;
     @Mock
+    private TokenBlacklistStore tokenBlacklistStore;
+    @Mock
     private Claims claims;
+    @Mock
+    private Claims accessClaims;
 
     /* refreshToken의 서명·만료·타입 검증을 통과한 상태를 만든다 */
     private void givenValidRefreshToken() {
@@ -70,6 +79,16 @@ class AuthServiceRefreshTest {
     /* 저장소에 보관 중인 refreshToken을 지정한다 */
     private void givenStoredToken(String storedToken) {
         given(refreshTokenStore.find(USERNAME)).willReturn(Optional.of(storedToken));
+    }
+
+    /* 재발급에 필요한 나머지 스텁을 채운다 */
+    private void givenIssuableUser(Role role, UUID hubId, UUID companyId) {
+        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME))
+                .willReturn(Optional.of(user(role, Status.APPROVED, hubId, companyId)));
+        given(jwtProvider.createAccessToken(USERNAME, role, hubId, companyId)).willReturn(NEW_ACCESS_TOKEN);
+        given(jwtProvider.createRefreshToken(USERNAME)).willReturn(NEW_REFRESH_TOKEN);
+        given(jwtProperties.getAccessTokenExpiration()).willReturn(ACCESS_EXP);
+        given(jwtProperties.getRefreshTokenExpiration()).willReturn(REFRESH_EXP);
     }
 
     private User user(Role role, Status status, UUID hubId, UUID companyId) {
@@ -86,9 +105,10 @@ class AuthServiceRefreshTest {
                 .build();
     }
 
-    /* 실패 케이스에서는 어떤 토큰도 새로 발급·저장되지 않아야 한다 */
+    /* 실패 케이스에서는 토큰이 새로 발급되지도, 기존 토큰이 폐기되지도 않아야 한다 */
     private void thenNothingIssued() {
         then(refreshTokenStore).should(never()).save(anyString(), anyString(), anyLong());
+        then(tokenBlacklistStore).shouldHaveNoInteractions();
     }
 
     static Stream<Arguments> affiliations() {
@@ -107,15 +127,10 @@ class AuthServiceRefreshTest {
         // given
         givenValidRefreshToken();
         givenStoredToken(OLD_REFRESH_TOKEN);
-        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME))
-                .willReturn(Optional.of(user(role, Status.APPROVED, hubId, companyId)));
-        given(jwtProvider.createAccessToken(USERNAME, role, hubId, companyId)).willReturn(NEW_ACCESS_TOKEN);
-        given(jwtProvider.createRefreshToken(USERNAME)).willReturn(NEW_REFRESH_TOKEN);
-        given(jwtProperties.getAccessTokenExpiration()).willReturn(ACCESS_EXP);
-        given(jwtProperties.getRefreshTokenExpiration()).willReturn(REFRESH_EXP);
+        givenIssuableUser(role, hubId, companyId);
 
-        // when
-        TokenResponse response = authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN));
+        // when - Authorization 헤더 없이 호출 (permit-all 경로라 헤더가 없을 수 있다)
+        TokenResponse response = authService.refresh(null, new RefreshRequest(OLD_REFRESH_TOKEN));
 
         // then
         assertThat(response.getAccessToken()).isEqualTo(NEW_ACCESS_TOKEN);
@@ -130,6 +145,45 @@ class AuthServiceRefreshTest {
         // refreshToken은 새 값으로 덮어써서 회전시킨다 (RTR)
         then(refreshTokenStore).should().save(USERNAME, NEW_REFRESH_TOKEN, REFRESH_EXP);
         then(refreshTokenStore).should(never()).delete(anyString());
+
+        // 헤더가 없으면 무효화할 accessToken도 없다
+        then(tokenBlacklistStore).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("재발급에 성공하면 회전 전 accessToken을 남은 수명만큼 블랙리스트에 등록한다")
+    void refresh_blacklistsPreviousAccessToken() {
+        // given
+        givenValidRefreshToken();
+        givenStoredToken(OLD_REFRESH_TOKEN);
+        givenIssuableUser(Role.HUB_MANAGER, HUB_ID, null);
+        given(jwtProvider.parseAccessToken(OLD_ACCESS_TOKEN)).willReturn(Optional.of(accessClaims));
+        given(accessClaims.getId()).willReturn(OLD_ACCESS_JTI);
+        given(jwtProvider.remainingMillis(accessClaims)).willReturn(REMAINING_MILLIS);
+
+        // when
+        TokenResponse response = authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN));
+
+        // then - 한 사용자에게 유효한 accessToken이 둘 이상 남지 않아야 한다
+        assertThat(response.getAccessToken()).isEqualTo(NEW_ACCESS_TOKEN);
+        then(tokenBlacklistStore).should().add(OLD_ACCESS_JTI, REMAINING_MILLIS);
+    }
+
+    @Test
+    @DisplayName("헤더의 accessToken이 이미 만료·위조된 경우 블랙리스트 등록 없이 재발급된다")
+    void refresh_withUnparsableAccessTokenHeader() {
+        // given
+        givenValidRefreshToken();
+        givenStoredToken(OLD_REFRESH_TOKEN);
+        givenIssuableUser(Role.COMPANY_MANAGER, null, COMPANY_ID);
+        given(jwtProvider.parseAccessToken(OLD_ACCESS_TOKEN)).willReturn(Optional.empty());
+
+        // when
+        TokenResponse response = authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN));
+
+        // then - 무효화할 대상이 없을 뿐 재발급 자체는 정상 동작해야 한다
+        assertThat(response.getAccessToken()).isEqualTo(NEW_ACCESS_TOKEN);
+        then(tokenBlacklistStore).shouldHaveNoInteractions();
     }
 
     @Test
@@ -140,11 +194,12 @@ class AuthServiceRefreshTest {
                 .willThrow(new BusinessException(ErrorCode.EXPIRED_REFRESH_TOKEN));
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXPIRED_REFRESH_TOKEN);
 
         then(refreshTokenStore).shouldHaveNoInteractions();
+        then(tokenBlacklistStore).shouldHaveNoInteractions();
     }
 
     @Test
@@ -155,11 +210,12 @@ class AuthServiceRefreshTest {
                 .willThrow(new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_REFRESH_TOKEN);
 
         then(refreshTokenStore).shouldHaveNoInteractions();
+        then(tokenBlacklistStore).shouldHaveNoInteractions();
     }
 
     @Test
@@ -170,7 +226,7 @@ class AuthServiceRefreshTest {
         given(refreshTokenStore.find(USERNAME)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFRESH_TOKEN_NOT_FOUND);
 
@@ -185,7 +241,7 @@ class AuthServiceRefreshTest {
         givenStoredToken(NEW_REFRESH_TOKEN);
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFRESH_TOKEN_NOT_FOUND);
 
@@ -203,7 +259,7 @@ class AuthServiceRefreshTest {
         given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME)).willReturn(Optional.empty());
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
 
@@ -220,7 +276,7 @@ class AuthServiceRefreshTest {
                 .willReturn(Optional.of(user(null, Status.PENDING, null, null)));
 
         // when & then
-        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+        assertThatThrownBy(() -> authService.refresh(AUTH_HEADER, new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_APPROVED);
 
