@@ -2,11 +2,20 @@ package com.bonae.logistics.user.infrastructure.persistence;
 
 import com.bonae.logistics.user.domain.entity.*;
 import com.bonae.logistics.user.domain.repository.UserRepositoryCustom;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQuery;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.support.PageableExecutionUtils;
 import org.springframework.stereotype.Repository;
+import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -49,5 +58,65 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
         return type == DeliveryManagerType.HUB_DELIVERY
                 ? user.hubId.isNull()
                 : user.hubId.isNotNull();
+    }
+
+    @Override
+    public Page<User> searchUsers(String keyword, Role role, Status status, UUID hubId, Pageable pageable) {
+        // 논리 삭제된 사용자는 조회·검색에서 제외한다.
+        BooleanExpression[] conditions = {
+                user.deletedAt.isNull(),
+                keywordContains(keyword),
+                roleEq(role),
+                statusEq(status),
+                hubIdEq(hubId)
+        };
+
+        List<User> content = queryFactory
+                .selectFrom(user)
+                .where(conditions)
+                .orderBy(toOrderSpecifiers(pageable))
+                .offset(pageable.getOffset())
+                .limit(pageable.getPageSize())
+                .fetch();
+
+        JPAQuery<Long> countQuery = queryFactory
+                .select(user.count())
+                .from(user)
+                .where(conditions);
+
+        // 마지막 페이지이거나 첫 페이지가 다 안 찬 경우 count 쿼리를 생략한다.
+        return PageableExecutionUtils.getPage(content, pageable, countQuery::fetchOne);
+    }
+
+    // 아이디·이름·슬랙ID·소속명을 대소문자 구분 없이 부분 일치로 검색한다.
+    private BooleanExpression keywordContains(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return null;
+        }
+        return user.username.containsIgnoreCase(keyword)
+                .or(user.name.containsIgnoreCase(keyword))
+                .or(user.slackId.containsIgnoreCase(keyword))
+                .or(user.affiliationName.containsIgnoreCase(keyword));
+    }
+
+    private BooleanExpression roleEq(Role role) {
+        return role == null ? null : user.role.eq(role);
+    }
+
+    private BooleanExpression statusEq(Status status) {
+        return status == null ? null : user.status.eq(status);
+    }
+
+    // PageRequestDto에서 createdAt/updatedAt만 통과하므로 그 외는 createdAt으로 처리한다.
+    private OrderSpecifier<?>[] toOrderSpecifiers(Pageable pageable) {
+        List<OrderSpecifier<?>> orders = new ArrayList<>();
+        for (Sort.Order order : pageable.getSort()) {
+            Order direction = order.isAscending() ? Order.ASC : Order.DESC;
+            orders.add(new OrderSpecifier<>(direction,
+                    "updatedAt".equals(order.getProperty()) ? user.updatedAt : user.createdAt));
+        }
+        // updatedAt이 null이거나 값이 같을 때 페이지 간 순서가 흔들리지 않도록 2차 정렬을 붙인다.
+        orders.add(user.id.asc());
+        return orders.toArray(OrderSpecifier[]::new);
     }
 }
