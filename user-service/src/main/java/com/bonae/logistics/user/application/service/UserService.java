@@ -10,6 +10,7 @@ import com.bonae.logistics.user.domain.entity.Status;
 import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
+import com.bonae.logistics.user.presentation.dto.request.UserUpdateRequest;
 import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserInfoResponse;
@@ -81,5 +82,19 @@ public class UserService {
         if (!user.getUsername().equals(requesterUsername)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
+    }
+
+    // 사용자 수정 (MASTER 전용). 더티 체킹으로 반영된다.
+    @Transactional
+    public UserDetailResponse updateUser(UUID userId, UserUpdateRequest request) {
+        User user = findActive(userId);
+        user.update(
+                request.getName(),
+                request.getSlackId(),
+                request.getRole(),
+                request.getHubId(),
+                request.getCompanyId()
+        );
+        return UserDetailResponse.from(user);
     }
 }

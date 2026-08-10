@@ -6,8 +6,10 @@ import com.bonae.logistics.user.application.service.UserService;
 import com.bonae.logistics.user.domain.entity.Role;
 import com.bonae.logistics.user.infrastructure.auth.RoleCheck;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
+import com.bonae.logistics.user.presentation.dto.request.UserUpdateRequest;
 import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -43,5 +45,15 @@ public class UserController {
             @RequestHeader(USER_ROLE_HEADER) Role requesterRole
     ) {
         return ResponseEntity.ok(userService.getUser(userId, requesterUsername, requesterRole));
+    }
+
+    // 사용자 수정 (MASTER 전용)
+    @PatchMapping("/users/{userId}")
+    @RoleCheck(Role.MASTER)
+    public ResponseEntity<UserDetailResponse> updateUser(
+            @PathVariable UUID userId,
+            @Valid @RequestBody UserUpdateRequest request
+    ) {
+        return ResponseEntity.ok(userService.updateUser(userId, request));
     }
 }
