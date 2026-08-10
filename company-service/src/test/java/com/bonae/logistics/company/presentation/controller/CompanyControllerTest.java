@@ -86,11 +86,11 @@ class CompanyControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/companies_권한헤더가없을때_403을응답한다")
-    void getCompanies_권한헤더가없을때_403을응답한다() throws Exception {
+    @DisplayName("GET /api/companies_권한헤더가없을때_401을응답한다")
+    void getCompanies_권한헤더가없을때_401을응답한다() throws Exception {
         mockMvc.perform(get("/api/companies"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
     @Test
@@ -125,10 +125,10 @@ class CompanyControllerTest {
 
     @Test
     @DisplayName("GET /api/companies/{companyId}_권한헤더가없을때_403을응답한다")
-    void getCompany_권한헤더가없을때_403을응답한다() throws Exception {
+    void getCompany_권한헤더가없을때_401을응답한다() throws Exception {
         mockMvc.perform(get("/api/companies/{companyId}", UUID.randomUUID()))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -82,6 +83,14 @@ public class CompanyService {
         Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
         return ResGetCompanyDto.from(company);
+    }
+
+    @Transactional(readOnly = true)
+    //다른 서비스 내부 호출용 업체 단건 조회. 삭제된 업체는 없는 업체와 동일하게 COMPANY_NOT_FOUND로 응답한다.
+    public ResGetCompanyInternalDto getCompanyInternal(UUID companyId) {
+        Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+        return ResGetCompanyInternalDto.from(company);
     }
 
     //업체 타입 변환 메서드(String -> CompanyType)

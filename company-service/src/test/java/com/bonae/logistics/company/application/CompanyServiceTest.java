@@ -11,6 +11,7 @@ import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import feign.FeignException;
 import feign.Request;
@@ -252,6 +253,37 @@ class CompanyServiceTest {
         when(companyRepository.findByIdAndDeletedAtIsNull(companyId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> companyService.getCompany(companyId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("getCompanyInternal_삭제되지않은업체일때_업체정보를반환한다")
+    void getCompanyInternal_삭제되지않은업체일때_업체정보를반환한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+
+        ResGetCompanyInternalDto resDto = companyService.getCompanyInternal(company.getId());
+
+        assertThat(resDto.getCompanyId()).isEqualTo(company.getId());
+        assertThat(resDto.getName()).isEqualTo(company.getName());
+        assertThat(resDto.getType()).isEqualTo(company.getType());
+        assertThat(resDto.getHubId()).isEqualTo(company.getHubId());
+        assertThat(resDto.getAddress()).isEqualTo(company.getAddress());
+        assertThat(resDto.isDeleted()).isFalse();
+    }
+
+    @Test
+    @DisplayName("getCompanyInternal_존재하지않거나삭제된업체일때_예외발생")
+    void getCompanyInternal_존재하지않거나삭제된업체일때_예외발생() {
+        // 삭제된 업체는 리포지토리 쿼리 조건(deletedAt IS NULL)에서 이미 걸러지므로 미존재와 동일하게 빈 값이 반환된다.
+        UUID companyId = UUID.randomUUID();
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(companyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyService.getCompanyInternal(companyId))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
