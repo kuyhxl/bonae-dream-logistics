@@ -18,6 +18,7 @@ public class InternalUserController {
 
     private final UserService userService;
 
+    // 배송 담당자 목록 조회 API
     @GetMapping("/delivery-managers")
     public ResponseEntity<List<DeliveryManagerResponse>> getDeliveryManagers(
             @RequestParam(required = false) UUID hubId,
@@ -26,6 +27,7 @@ public class InternalUserController {
         return ResponseEntity.ok(userService.getDeliveryManagers(hubId, type));
     }
 
+    // 내부 사용자 목록 조회 API
     @GetMapping("/{username}")
     public ResponseEntity<UserInfoResponse> getUserInfo(@PathVariable String username) {
         return ResponseEntity.ok(userService.getUserInfo(username));

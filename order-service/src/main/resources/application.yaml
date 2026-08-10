@@ -37,6 +37,15 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connectTimeout: 3000    # 연결 타임아웃 (ms)
+            readTimeout: 5000       # 응답 대기 타임아웃 (ms)
+            loggerLevel: basic
+
 eureka:
   client:
     service-url:

@@ -7,6 +7,7 @@ import com.bonae.logistics.company.auth.RoleCheck;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,11 +15,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/companies")
@@ -40,6 +44,13 @@ public class CompanyController {
             @ModelAttribute PageRequestDto pageRequestDto,
             @RequestParam(defaultValue = "ALL") String type) {
         PageResponseDto<ResGetCompanyListDto> resDto = companyService.getCompanies(pageRequestDto, type);
+        return ResponseEntity.status(HttpStatus.OK).body(resDto);
+    }
+
+    @GetMapping("/{companyId}")
+    @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
+    public ResponseEntity<ResGetCompanyDto> getCompany(@PathVariable UUID companyId) {
+        ResGetCompanyDto resDto = companyService.getCompany(companyId);
         return ResponseEntity.status(HttpStatus.OK).body(resDto);
     }
 }

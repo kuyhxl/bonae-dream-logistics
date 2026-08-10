@@ -23,8 +23,6 @@ public class AuthenticationErrorWriter {
     // common 에러코드와 동일한 값
     private static final String UNAUTHORIZED_CODE = "UNAUTHORIZED";
     private static final String UNAUTHORIZED_MESSAGE = "인증이 필요합니다";
-    private static final String SERVICE_UNAVAILABLE_CODE = "SERVICE_UNAVAILABLE";
-    private static final String SERVICE_UNAVAILABLE_MESSAGE = "일시적으로 서비스를 사용할 수 없습니다. ";
 
     private final ObjectMapper objectMapper;
     private final Tracer tracer;
@@ -36,12 +34,6 @@ public class AuthenticationErrorWriter {
 
     public Mono<Void> unauthorized(ServerWebExchange exchange) {
         return write(exchange, HttpStatus.UNAUTHORIZED, UNAUTHORIZED_CODE, UNAUTHORIZED_MESSAGE);
-    }
-
-    // 블랙리스트 조회 실패 등 인증을 확정할 수 없는 상황에 사용한다. 토큰 자체는 문제가 없으므로 503으로 알림
-    public Mono<Void> serviceUnavailable(ServerWebExchange exchange) {
-        return write(exchange, HttpStatus.SERVICE_UNAVAILABLE,
-                SERVICE_UNAVAILABLE_CODE, SERVICE_UNAVAILABLE_MESSAGE);
     }
 
     private Mono<Void> write(ServerWebExchange exchange, HttpStatus status, String code, String message) {

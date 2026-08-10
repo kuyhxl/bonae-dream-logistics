@@ -7,9 +7,9 @@ import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.domain.entity.DeliveryManager;
 import com.bonae.logistics.delivery.domain.repository.DeliveryManagerRepository;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqCreateDeliveryManagerDto;
-import com.bonae.logistics.delivery.presentation.dto.request.ReqUpdateDeliveryManagerDto;
-import com.bonae.logistics.delivery.presentation.dto.response.ResDeliveryManagerDto;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerUpdateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryManagerResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -31,9 +31,9 @@ public class DeliveryManagerService {
     private final CurrentAuditorProvider currentAuditorProvider;
 
     @Transactional
-    public ResDeliveryManagerDto createDeliveryManager(ReqCreateDeliveryManagerDto reqDto) {
+    public DeliveryManagerResponse createDeliveryManager(DeliveryManagerCreateRequest reqDto) {
         DeliveryManager deliveryManager = DeliveryManager.create(
-                UUID.randomUUID(),
+                reqDto.getDeliveryManagerId(),
                 reqDto.getHubId(),
                 reqDto.getManagerType(),
                 reqDto.getDeliverySequence()
@@ -41,24 +41,24 @@ public class DeliveryManagerService {
 
         try {
             DeliveryManager savedDeliveryManager = deliveryManagerRepository.saveAndFlush(deliveryManager);
-            return ResDeliveryManagerDto.from(savedDeliveryManager);
+            return DeliveryManagerResponse.from(savedDeliveryManager);
         } catch (DataIntegrityViolationException e) {
             throwDuplicateSequenceIfMatched(e);
             throw e;
         }
     }
 
-    public ResDeliveryManagerDto getDeliveryManager(UUID deliveryManagerId) {
-        return ResDeliveryManagerDto.from(findActiveDeliveryManager(deliveryManagerId));
+    public DeliveryManagerResponse getDeliveryManager(UUID deliveryManagerId) {
+        return DeliveryManagerResponse.from(findActiveDeliveryManager(deliveryManagerId));
     }
 
-    public PageResponseDto<ResDeliveryManagerDto> getDeliveryManagers(PageRequestDto pageRequestDto) {
+    public PageResponseDto<DeliveryManagerResponse> getDeliveryManagers(PageRequestDto pageRequestDto) {
         Page<DeliveryManager> page = deliveryManagerRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
-        return PageResponseDto.from(page, ResDeliveryManagerDto::from);
+        return PageResponseDto.from(page, DeliveryManagerResponse::from);
     }
 
     @Transactional
-    public ResDeliveryManagerDto updateDeliveryManager(UUID deliveryManagerId, ReqUpdateDeliveryManagerDto reqDto) {
+    public DeliveryManagerResponse updateDeliveryManager(UUID deliveryManagerId, DeliveryManagerUpdateRequest reqDto) {
         DeliveryManager deliveryManager = findActiveDeliveryManager(deliveryManagerId);
         deliveryManager.update(
                 reqDto.getHubId(),
@@ -68,7 +68,7 @@ public class DeliveryManagerService {
 
         try {
             deliveryManagerRepository.flush();
-            return ResDeliveryManagerDto.from(deliveryManager);
+            return DeliveryManagerResponse.from(deliveryManager);
         } catch (DataIntegrityViolationException e) {
             throwDuplicateSequenceIfMatched(e);
             throw e;
