@@ -4,15 +4,20 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.Company;
 import com.bonae.logistics.company.domain.entity.CompanyType;
 import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.infrastructure.HubClient;
+import com.bonae.logistics.company.infrastructure.UserClient;
+import com.bonae.logistics.company.infrastructure.UserInfoDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -34,6 +39,7 @@ public class CompanyService {
 
     private final CompanyRepository companyRepository;
     private final HubClient hubClient;
+    private final UserClient userClient;
     private final TransactionTemplate transactionTemplate;
 
     //@Transactional 제거
@@ -69,6 +75,56 @@ public class CompanyService {
         return ResCreateCompanyDto.from(company);
     }
 
+    //@Transactional 제거 (createCompany와 동일하게 외부 서비스 호출을 트랜잭션 밖에서 수행)
+    public ResUpdateCompanyDto updateCompany(UUID companyId, ReqUpdateCompanyDto reqDto,
+                                             UserRole userRole, String username) {
+        // 존재 여부(삭제 여부 포함)와 접근권한을 먼저 확인.
+        // 존재하지도, 권한도 없는 요청 때문에
+        // 아래 외부 서비스 호출(authorizeUpdate/validateHubExists)이 낭비되지 않도록 여기서 먼저 걸러낸다.
+        Company target = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+        authorizeUpdate(target, userRole, username);
+
+        // hub-service 호출은 외부 API 응답 지연이 DB 트랜잭션(커넥션 점유)을 붙잡지 않도록 트랜잭션 밖에서 수행
+        if (reqDto.getHubId() != null) {
+            validateHubExists(reqDto.getHubId());
+        }
+
+        // 실제 DB 작업만 트랜잭션으로 처리
+        Company company = transactionTemplate.execute(status -> {
+            // 외부 서비스 호출 중 업체가 삭제될 수 있으므로 실제 수정 직전에 재조회.
+            // 최신 상태의 managed 엔티티를 수정해 삭제된 업체의 재생성을 방지하고,
+            // JPA dirty checking으로 변경 사항을 반영한다.
+            Company managedCompany = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+            // 이번 수정으로 반영될 이름/주소(요청에 없으면 기존 값 유지)로 중복 여부를 검증
+            String effectiveName = reqDto.getName() != null ? reqDto.getName() : managedCompany.getName();
+            String effectiveAddress = reqDto.getAddress() != null ? reqDto.getAddress() : managedCompany.getAddress();
+
+            if (companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(effectiveName, effectiveAddress, companyId)) {
+                throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
+            }
+
+            // 최종 방어선은 DB 부분 유니크 인덱스(name, address where deleted_at is null)이며,
+            // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
+            try {
+                managedCompany.update(reqDto.getName(), reqDto.getType(), reqDto.getHubId(), reqDto.getAddress());
+                companyRepository.saveAndFlush(managedCompany);
+            } catch (DataIntegrityViolationException e) {
+                if (isCompanyNameAddressUniqueViolation(e)) {
+                    throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
+                }
+                throw e;
+            }
+
+            return managedCompany;
+        });
+
+        return ResUpdateCompanyDto.from(company);
+    }
+
     @Transactional(readOnly = true)
     //삭제되지 않은 업체를 페이징 조회한다. type이 ALL이면 전체, 아니면 해당 유형만 조회한다.
     public PageResponseDto<ResGetCompanyListDto> getCompanies(PageRequestDto pageRequestDto, String type) {
@@ -102,6 +158,35 @@ public class CompanyService {
             return CompanyType.valueOf(type.toUpperCase());
         } catch (IllegalArgumentException e) {
             throw new BusinessException(ErrorCode.INVALID_COMPANY_TYPE);
+        }
+    }
+
+    // HUB_MANAGER는 담당 허브 소속 업체만, COMPANY_MANAGER는 본인 업체만 수정할 수 있다. MASTER는 제한 없음.
+    // 요청 헤더로는 X-User-Role, X-User-Id만 전달되므로, 소속 hubId/companyId는 user-service에 조회한다.
+    private void authorizeUpdate(Company company, UserRole userRole, String username) {
+        if (userRole != UserRole.HUB_MANAGER && userRole != UserRole.COMPANY_MANAGER) {
+            return;
+        }
+
+        UserInfoDto userInfo = getUserInfo(username);
+
+        if (userRole == UserRole.HUB_MANAGER) {
+            if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        } else {
+            if (userInfo.companyId() == null || !userInfo.companyId().equals(company.getId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
+    }
+
+    // user-service의 내부 API로 사용자의 소속 정보를 조회한다.
+    private UserInfoDto getUserInfo(String username) {
+        try {
+            return userClient.getUserInfo(username);
+        } catch (FeignException.NotFound e) {
+            throw new BusinessException(ErrorCode.USER_NOT_FOUND);
         }
     }
 
