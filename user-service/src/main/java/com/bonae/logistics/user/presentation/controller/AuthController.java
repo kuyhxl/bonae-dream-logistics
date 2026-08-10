@@ -3,9 +3,11 @@ package com.bonae.logistics.user.presentation.controller;
 import com.bonae.logistics.user.application.service.AuthService;
 import com.bonae.logistics.user.presentation.dto.request.LoginRequest;
 import com.bonae.logistics.user.presentation.dto.request.LogoutRequest;
+import com.bonae.logistics.user.presentation.dto.request.RefreshRequest;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequest;
 import com.bonae.logistics.user.presentation.dto.response.LoginResponse;
 import com.bonae.logistics.user.presentation.dto.response.SignupResponse;
+import com.bonae.logistics.user.presentation.dto.response.TokenResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -37,5 +39,12 @@ public class AuthController {
 
         authService.logout(authorizationHeader, logoutRequest);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/auth/refresh")
+    public ResponseEntity<TokenResponse> refresh(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @RequestBody @Valid RefreshRequest refreshRequest) {
+        return ResponseEntity.ok(authService.refresh(authorizationHeader, refreshRequest));
     }
 }
