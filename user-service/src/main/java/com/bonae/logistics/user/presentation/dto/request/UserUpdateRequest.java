@@ -8,7 +8,8 @@ import lombok.Setter;
 import java.util.UUID;
 
 // PATCH 부분 수정. null인 필드는 "변경 없음"으로 취급한다.
-// role에 정의되지 않은 값이 오면 Jackson이 HttpMessageNotReadableException을 던져 400으로 처리된다.
+// UserSearchCondition과 달리 body는 Jackson이 처리하므로, 잘못된 role 값은
+// HttpMessageNotReadableException -> 400 INVALID_INPUT으로 이미 걸러진다.
 @Getter
 @Setter
 public class UserUpdateRequest {
