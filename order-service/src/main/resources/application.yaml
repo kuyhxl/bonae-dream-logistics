@@ -42,9 +42,13 @@ spring:
       client:
         config:
           default:
-            connectTimeout: 3000    # 연결 타임아웃 (ms)
+            connectTimeout: 2000    # 연결 타임아웃 (ms)
             readTimeout: 5000       # 응답 대기 타임아웃 (ms)
             loggerLevel: basic
+
+app:
+  alert:
+    admin-slack-id: ${ADMIN_SLACK_ID:}
 
 eureka:
   client:
