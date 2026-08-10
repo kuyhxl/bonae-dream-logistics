@@ -12,19 +12,24 @@ import com.bonae.logistics.user.infrastructure.security.JwtProvider;
 import com.bonae.logistics.user.presentation.dto.request.RefreshRequest;
 import com.bonae.logistics.user.presentation.dto.response.TokenResponse;
 import io.jsonwebtoken.Claims;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.never;
@@ -39,6 +44,8 @@ class AuthServiceRefreshTest {
     private static final String NEW_ACCESS_TOKEN = "new.access.token";
     private static final long ACCESS_EXP = 3600000L;
     private static final long REFRESH_EXP = 604800000L;
+    private static final UUID HUB_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+    private static final UUID COMPANY_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
     @InjectMocks
     private AuthService authService;
@@ -54,31 +61,55 @@ class AuthServiceRefreshTest {
     @Mock
     private Claims claims;
 
-    @BeforeEach
-    void setUp() {
+    /* refreshToken의 서명·만료·타입 검증을 통과한 상태를 만든다 */
+    private void givenValidRefreshToken() {
         given(jwtProvider.parseRefreshToken(OLD_REFRESH_TOKEN)).willReturn(claims);
         given(claims.getSubject()).willReturn(USERNAME);
     }
 
-    private User approvedUser() {
+    /* 저장소에 보관 중인 refreshToken을 지정한다 */
+    private void givenStoredToken(String storedToken) {
+        given(refreshTokenStore.find(USERNAME)).willReturn(Optional.of(storedToken));
+    }
+
+    private User user(Role role, Status status, UUID hubId, UUID companyId) {
         return User.builder()
                 .username(USERNAME)
                 .password("encoded")
                 .name("테스트")
                 .slackId("U000TEST123")
                 .affiliationName("테스트업체")
-                .role(Role.COMPANY_MANAGER)
-                .status(Status.APPROVED)
+                .role(role)
+                .status(status)
+                .hubId(hubId)
+                .companyId(companyId)
                 .build();
     }
 
-    @Test
-    @DisplayName("유효한 refreshToken이면 accessToken과 refreshToken을 모두 새로 발급한다")
-    void refresh_success() {
+    /* 실패 케이스에서는 어떤 토큰도 새로 발급·저장되지 않아야 한다 */
+    private void thenNothingIssued() {
+        then(refreshTokenStore).should(never()).save(anyString(), anyString(), anyLong());
+    }
+
+    static Stream<Arguments> affiliations() {
+        return Stream.of(
+                Arguments.of(Role.HUB_MANAGER, HUB_ID, null),
+                Arguments.of(Role.DELIVERY_MANAGER, HUB_ID, null),
+                Arguments.of(Role.COMPANY_MANAGER, null, COMPANY_ID),
+                Arguments.of(Role.MASTER, null, null)
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("affiliations")
+    @DisplayName("유효한 refreshToken이면 DB의 최신 role·hubId·companyId로 토큰을 모두 새로 발급한다")
+    void refresh_success(Role role, UUID hubId, UUID companyId) {
         // given
-        given(refreshTokenStore.find(USERNAME)).willReturn(Optional.of(OLD_REFRESH_TOKEN));
-        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME)).willReturn(Optional.of(approvedUser()));
-        given(jwtProvider.createAccessToken(anyString(), any(), any(), any())).willReturn(NEW_ACCESS_TOKEN);
+        givenValidRefreshToken();
+        givenStoredToken(OLD_REFRESH_TOKEN);
+        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME))
+                .willReturn(Optional.of(user(role, Status.APPROVED, hubId, companyId)));
+        given(jwtProvider.createAccessToken(USERNAME, role, hubId, companyId)).willReturn(NEW_ACCESS_TOKEN);
         given(jwtProvider.createRefreshToken(USERNAME)).willReturn(NEW_REFRESH_TOKEN);
         given(jwtProperties.getAccessTokenExpiration()).willReturn(ACCESS_EXP);
         given(jwtProperties.getRefreshTokenExpiration()).willReturn(REFRESH_EXP);
@@ -93,48 +124,106 @@ class AuthServiceRefreshTest {
         assertThat(response.getExpiresIn()).isEqualTo(ACCESS_EXP / 1000);
         assertThat(response.getRefreshExpiresIn()).isEqualTo(REFRESH_EXP / 1000);
 
+        // 소속 클레임은 refreshToken이 아니라 DB 조회 결과가 그대로 전달되어야 한다
+        then(jwtProvider).should().createAccessToken(USERNAME, role, hubId, companyId);
+
+        // refreshToken은 새 값으로 덮어써서 회전시킨다 (RTR)
         then(refreshTokenStore).should().save(USERNAME, NEW_REFRESH_TOKEN, REFRESH_EXP);
+        then(refreshTokenStore).should(never()).delete(anyString());
     }
 
     @Test
-    @DisplayName("저장소에 refreshToken이 없으면 REFRESH_TOKEN_NOT_FOUND")
+    @DisplayName("만료된 refreshToken이면 저장소를 건드리지 않고 예외가 전파된다")
+    void refresh_expiredToken() {
+        // given - 검증 단계에서 바로 막히므로 givenValidRefreshToken()을 쓰지 않는다
+        given(jwtProvider.parseRefreshToken(OLD_REFRESH_TOKEN))
+                .willThrow(new BusinessException(ErrorCode.EXPIRED_REFRESH_TOKEN));
+
+        // when & then
+        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.EXPIRED_REFRESH_TOKEN);
+
+        then(refreshTokenStore).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("위조된 refreshToken이면 저장소를 건드리지 않고 예외가 전파된다")
+    void refresh_invalidToken() {
+        // given
+        given(jwtProvider.parseRefreshToken(OLD_REFRESH_TOKEN))
+                .willThrow(new BusinessException(ErrorCode.INVALID_REFRESH_TOKEN));
+
+        // when & then
+        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_REFRESH_TOKEN);
+
+        then(refreshTokenStore).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("저장소에 refreshToken이 없으면(로그아웃됨) REFRESH_TOKEN_NOT_FOUND")
     void refresh_notFoundInStore() {
+        // given
+        givenValidRefreshToken();
         given(refreshTokenStore.find(USERNAME)).willReturn(Optional.empty());
 
+        // when & then
         assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFRESH_TOKEN_NOT_FOUND);
 
-        then(refreshTokenStore).should(never()).save(anyString(), anyString(), anyLong());
+        thenNothingIssued();
     }
 
     @Test
     @DisplayName("이미 회전된 옛 refreshToken이 재사용되면 저장된 토큰까지 폐기한다")
     void refresh_reuseDetected() {
-        given(refreshTokenStore.find(USERNAME)).willReturn(Optional.of(NEW_REFRESH_TOKEN));
+        // given - 저장소에는 이미 새 토큰이 들어 있는데 옛 토큰으로 재발급을 시도한다
+        givenValidRefreshToken();
+        givenStoredToken(NEW_REFRESH_TOKEN);
 
+        // when & then
         assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.REFRESH_TOKEN_NOT_FOUND);
 
+        // 탈취 의심 상황이므로 저장된 토큰까지 지워 재로그인을 강제한다
         then(refreshTokenStore).should().delete(USERNAME);
-        then(refreshTokenStore).should(never()).save(anyString(), anyString(), anyLong());
+        thenNothingIssued();
+    }
+
+    @Test
+    @DisplayName("탈퇴한 사용자의 refreshToken이면 USER_NOT_FOUND")
+    void refresh_userNotFound() {
+        // given - 저장소에는 토큰이 남아 있지만 DB에서는 논리 삭제된 상태
+        givenValidRefreshToken();
+        givenStoredToken(OLD_REFRESH_TOKEN);
+        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME)).willReturn(Optional.empty());
+
+        // when & then
+        assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_FOUND);
+
+        thenNothingIssued();
     }
 
     @Test
     @DisplayName("승인 상태가 아닌 사용자는 재발급할 수 없다")
     void refresh_notApproved() {
-        User pending = User.builder()
-                .username(USERNAME).password("encoded").name("테스트")
-                .slackId("U000TEST123").affiliationName("테스트업체")
-                .status(Status.PENDING)
-                .build();
+        // given
+        givenValidRefreshToken();
+        givenStoredToken(OLD_REFRESH_TOKEN);
+        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME))
+                .willReturn(Optional.of(user(null, Status.PENDING, null, null)));
 
-        given(refreshTokenStore.find(USERNAME)).willReturn(Optional.of(OLD_REFRESH_TOKEN));
-        given(userRepository.findByUsernameAndDeletedAtIsNull(USERNAME)).willReturn(Optional.of(pending));
-
+        // when & then
         assertThatThrownBy(() -> authService.refresh(new RefreshRequest(OLD_REFRESH_TOKEN)))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_NOT_APPROVED);
+
+        thenNothingIssued();
     }
 }
