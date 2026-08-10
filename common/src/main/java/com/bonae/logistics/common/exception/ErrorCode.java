@@ -45,7 +45,6 @@ public enum ErrorCode{
     COMPANY_NOT_FOUND(HttpStatus.NOT_FOUND, "업체를 찾을 수 없습니다. "),
     INVALID_COMPANY_TYPE(HttpStatus.BAD_REQUEST, "유효하지 않은 업체 유형입니다."),
     COMPANY_DUPLICATED(HttpStatus.CONFLICT, "이미 동일한 업체명과 주소로 등록된 업체가 존재합니다."),
-    COMPANY_ADDRESS_DUPLICATED(HttpStatus.CONFLICT, "이미 동일한 주소로 등록된 업체가 존재합니다."),
 
     // 상품
     PRODUCT_NOT_FOUND(HttpStatus.NOT_FOUND, "상품을 찾을 수 없습니다. "),

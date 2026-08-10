@@ -106,9 +106,6 @@ public class CompanyService {
             if (companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(effectiveName, effectiveAddress, companyId)) {
                 throw new BusinessException(ErrorCode.COMPANY_DUPLICATED);
             }
-            if (companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(effectiveAddress, companyId)) {
-                throw new BusinessException(ErrorCode.COMPANY_ADDRESS_DUPLICATED);
-            }
 
             // 최종 방어선은 DB 부분 유니크 인덱스(name, address where deleted_at is null)이며,
             // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
