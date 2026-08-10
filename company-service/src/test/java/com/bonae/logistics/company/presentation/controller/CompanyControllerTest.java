@@ -29,7 +29,9 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -212,6 +214,50 @@ class CompanyControllerTest {
                         .header("X-User-Id", "master01")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_정상요청시_204를응답한다")
+    void deleteCompany_정상요청시_204를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
+                .andExpect(status().isNoContent())
+                .andExpect(jsonPath("$").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_권한헤더가없을때_401을응답한다")
+    void deleteCompany_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/companies/{companyId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_허용되지않은역할일때_403을응답한다")
+    void deleteCompany_허용되지않은역할일때_403을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/companies/{companyId}", UUID.randomUUID())
+                        .header("X-User-Role", "COMPANY_MANAGER")
+                        .header("X-User-Id", "company-manager01"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/companies/{companyId}_존재하지않거나삭제된업체일때_404를응답한다")
+    void deleteCompany_존재하지않거나삭제된업체일때_404를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        doThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND))
+                .when(companyService).deleteCompany(eq(companyId), eq(UserRole.MASTER), anyString());
+
+        mockMvc.perform(delete("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
     }

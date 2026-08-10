@@ -165,4 +165,20 @@ class CompanyRepositoryTest {
         assertThat(company.getUpdatedAt()).isAfter(createdUpdatedAt);
         assertThat(company.getUpdatedBy()).isEqualTo("SYSTEM");
     }
+
+    @Test
+    @DisplayName("delete_호출후flush하면_deletedAt과deletedBy가저장된다")
+    void delete_호출후flush하면_deletedAt과deletedBy가저장된다() {
+        Company company = companyRepository.saveAndFlush(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+
+        company.delete("tester");
+        companyRepository.saveAndFlush(company);
+
+        Company reloaded = companyRepository.findById(company.getId()).orElseThrow();
+        assertThat(reloaded.getDeletedAt()).isNotNull();
+        assertThat(reloaded.getDeletedBy()).isEqualTo("tester");
+        assertThat(reloaded.isDeleted()).isTrue();
+    }
 }
