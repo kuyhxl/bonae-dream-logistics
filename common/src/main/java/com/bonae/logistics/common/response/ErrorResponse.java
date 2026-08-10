@@ -1,14 +1,19 @@
 package com.bonae.logistics.common.response;
 
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
 import java.util.List;
 
+// Feign이 하위 서비스의 에러 응답을 읽어야 하므로 역직렬화를 지원해줌
 @Getter
 @Builder
+@Jacksonized
+@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class ErrorResponse {
 
@@ -37,6 +42,8 @@ public class ErrorResponse {
 
     @Getter
     @Builder
+    @Jacksonized
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class FieldError {
         private final String field;
         private final String reason;
