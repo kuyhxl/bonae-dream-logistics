@@ -1,4 +1,4 @@
-package com.bonae.logistics.message.config;
+package com.bonae.logistics.message.infrastructure.config;
 
 import io.swagger.v3.oas.models.Components;
 import io.swagger.v3.oas.models.OpenAPI;

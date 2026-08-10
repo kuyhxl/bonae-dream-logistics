@@ -10,8 +10,6 @@ import java.util.UUID;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@AllArgsConstructor(access = AccessLevel.PROTECTED)
-@Builder
 @Table(name = "p_slack_messages", schema = "message_service")
 public class SlackMessage extends BaseEntity {
 
@@ -26,14 +24,12 @@ public class SlackMessage extends BaseEntity {
     @Column(name = "message", nullable = false)
     private String message;
 
-    @Builder.Default
     @Column(name = "send_status", nullable = false, length = 20)
     @Enumerated(EnumType.STRING)
-    private SendStatus sendStatus = SendStatus.PENDING;
+    private SendStatus sendStatus;
 
-    @Builder.Default
     @Column(name = "retry_count", nullable = false)
-    private Integer retryCount = 0;
+    private Integer retryCount;
 
     @Column(name = "sent_at")
     private LocalDateTime sentAt;
@@ -41,4 +37,29 @@ public class SlackMessage extends BaseEntity {
     @Column(name = "source_type", length = 20)
     @Enumerated(EnumType.STRING)
     private SourceType sourceType;
+
+    private SlackMessage(String receiverSlackId, String message, SourceType sourceType) {
+        this.receiverSlackId = receiverSlackId;
+        this.message = message;
+        this.sourceType = sourceType;
+        this.sendStatus = SendStatus.PENDING;
+        this.retryCount = 0;
+    }
+
+    /* 발송 전 상태로만 생성된다. SUCCESS 상태의 레코드는 이 경로로 만들 수 없다. */
+    public static SlackMessage pending(String receiverSlackId, String message, SourceType sourceType) {
+        return new SlackMessage(receiverSlackId, message, sourceType);
+    }
+
+    public void markSuccess(LocalDateTime sentAt) {
+        this.sendStatus = SendStatus.SUCCESS;
+        this.sentAt = sentAt;
+    }
+
+    /* SUCCESS가 아니면 sent_at은 반드시 null이다. */
+    public void markFailed(int retryCount) {
+        this.sendStatus = SendStatus.FAILED;
+        this.retryCount = retryCount;
+        this.sentAt = null;
+    }
 }

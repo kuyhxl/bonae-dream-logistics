@@ -15,6 +15,10 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # 블랙리스트 조회는 fail-open이므로, 장애 시 기본값(60초)만큼 기다리면
+      # 통과시키기 전에 요청이 먼저 묶인다. 짧게 끊고 바로 통과시킨다.
+      timeout: 300ms
+      connect-timeout: 300ms
 
   cloud:
     gateway:
