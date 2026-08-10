@@ -39,5 +39,7 @@ public interface HubRouteRepository extends JpaRepository<HubRoute, UUID> {
           )
         """)
     List<HubRoute> findAllActiveByHubId(@Param("hubId") UUID hubId);
+    List<HubRoute> findAllByDeletedAtIsNull();
+
 }
 
