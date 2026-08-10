@@ -76,8 +76,12 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
         // onErrorResume은 조회 구간에만 걸어서 이후 라우팅 단계의 오류까지 삼키지 않도록
         return blacklistChecker.isBlacklisted(claims.jti())
                 .onErrorResume(e -> {
-                    log.error("블랙리스트 조회 실패 - {} {}", request.getMethod(), path, e);
-                    return Mono.error(new BlacklistUnavailableException(e));
+                    // Redis 장애로 조회가 불가능하면 통과시킨다(fail-open).
+                    // 로그아웃된 토큰이 만료까지 살아남을 수 있으나, 인증이 필요한 모든 API가
+                    // 함께 멈추는 것보다 가용성을 우선한다는 팀 결정에 따른다.
+                    // 노출 창은 액세스 토큰 만료시간으로 제한된다.
+                    log.error("블랙리스트 조회 실패, 통과 처리 - {} {}", request.getMethod(), path, e);
+                    return Mono.just(false);
                 })
                 .flatMap(blacklisted -> {
                     if (blacklisted) {
@@ -85,16 +89,7 @@ public class JwtAuthenticationFilter implements GlobalFilter, Ordered {
                         return errorWriter.unauthorized(exchange);
                     }
                     return chain.filter(withUserHeaders(exchange, validated));
-                })
-                .onErrorResume(BlacklistUnavailableException.class,
-                        e -> errorWriter.serviceUnavailable(exchange));
-    }
-
-    // 블랙리스트 조회 실패를 라우팅 단계의 오류랑 구별하기 위한 내부 신호입미다
-    private static class BlacklistUnavailableException extends RuntimeException {
-        BlacklistUnavailableException(Throwable cause) {
-            super(cause);
-        }
+                });
     }
 
     private boolean isPermitAll(String path) {
