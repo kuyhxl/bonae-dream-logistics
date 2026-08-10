@@ -1,0 +1,2 @@
+ALTER TABLE p_orders ADD COLUMN product_name VARCHAR(100) NOT NULL DEFAULT '';
+ALTER TABLE p_orders ALTER COLUMN requester_company_id DROP NOT NULL;
