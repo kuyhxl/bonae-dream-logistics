@@ -160,6 +160,20 @@ class CompanyControllerTest {
     }
 
     @Test
+    @DisplayName("GET /api/companies/search_존재하지않는hubId일때_404를응답한다")
+    void searchCompanies_존재하지않는hubId일때_404를응답한다() throws Exception {
+        UUID hubId = UUID.randomUUID();
+        when(companyService.searchCompanies(any(PageRequestDto.class), any(), anyString(), eq(hubId)))
+                .thenThrow(new BusinessException(ErrorCode.HUB_NOT_FOUND));
+
+        mockMvc.perform(get("/api/companies/search")
+                        .header("X-User-Role", "MASTER")
+                        .param("hubId", hubId.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("HUB_NOT_FOUND"));
+    }
+
+    @Test
     @DisplayName("GET /api/companies/{companyId}_정상요청시_업체정보를_응답한다")
     void getCompany_정상요청시_업체정보를_응답한다() throws Exception {
         UUID companyId = UUID.randomUUID();

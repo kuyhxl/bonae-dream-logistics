@@ -318,6 +318,7 @@ class CompanyServiceTest {
         UUID hubId = UUID.randomUUID();
         Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
 
+        when(hubClient.getHub(hubId)).thenReturn(ResponseEntity.ok().build());
         when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
                 isNull(), isNull(), eq(hubId), any(Pageable.class))).thenReturn(emptyPage);
 
@@ -325,6 +326,37 @@ class CompanyServiceTest {
 
         verify(companyRepository).searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
                 isNull(), isNull(), eq(hubId), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchCompanies_hubId가없으면_hub존재확인을하지않는다")
+    void searchCompanies_hubId가없으면_hub존재확인을하지않는다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Company> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        companyService.searchCompanies(pageRequestDto, null, "ALL", null);
+
+        verify(hubClient, never()).getHub(any());
+    }
+
+    @Test
+    @DisplayName("searchCompanies_존재하지않는hubId로검색시_예외발생")
+    void searchCompanies_존재하지않는hubId로검색시_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        UUID hubId = UUID.randomUUID();
+
+        when(hubClient.getHub(hubId)).thenThrow(hubNotFoundException(hubId));
+
+        assertThatThrownBy(() -> companyService.searchCompanies(pageRequestDto, null, "ALL", hubId))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.HUB_NOT_FOUND);
+
+        verify(companyRepository, never())
+                .searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(any(), any(), any(), any());
     }
 
     @Test
