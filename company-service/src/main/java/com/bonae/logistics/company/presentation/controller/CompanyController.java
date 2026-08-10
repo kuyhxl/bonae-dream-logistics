@@ -10,6 +10,7 @@ import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,6 +56,17 @@ public class CompanyController {
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     public ResponseEntity<ResGetCompanyDto> getCompany(@PathVariable UUID companyId) {
         ResGetCompanyDto resDto = companyService.getCompany(companyId);
+        return ResponseEntity.status(HttpStatus.OK).body(resDto);
+    }
+
+    @GetMapping("/search")
+    @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
+    public ResponseEntity<PageResponseDto<ResSearchCompanyDto>> searchCompanies(
+            @ModelAttribute PageRequestDto pageRequestDto,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "ALL") String type,
+            @RequestParam(required = false) UUID hubId) {
+        PageResponseDto<ResSearchCompanyDto> resDto = companyService.searchCompanies(pageRequestDto, keyword, type, hubId);
         return ResponseEntity.status(HttpStatus.OK).body(resDto);
     }
 
