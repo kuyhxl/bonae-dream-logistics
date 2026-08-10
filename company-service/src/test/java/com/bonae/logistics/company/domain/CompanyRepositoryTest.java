@@ -149,33 +149,6 @@ class CompanyRepositoryTest {
     }
 
     @Test
-    @DisplayName("existsByAddressAndDeletedAtIsNullAndIdNot_자기자신만같은주소를가질때_false반환")
-    void existsByAddressAndDeletedAtIsNullAndIdNot_자기자신만같은주소를가질때_false반환() {
-        Company savedCompany = companyRepository.save(
-                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
-        );
-
-        boolean exists = companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(
-                "서울시 강남구 테헤란로 1", savedCompany.getId());
-
-        assertThat(exists).isFalse();
-    }
-
-    @Test
-    @DisplayName("existsByAddressAndDeletedAtIsNullAndIdNot_다른업체가이름은다르지만같은주소를가질때_true반환")
-    void existsByAddressAndDeletedAtIsNullAndIdNot_다른업체가이름은다르지만같은주소를가질때_true반환() {
-        companyRepository.save(new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
-        Company anotherCompany = companyRepository.save(
-                new Company("배송센터B", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 송파구 올림픽로 1")
-        );
-
-        boolean exists = companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(
-                "서울시 강남구 테헤란로 1", anotherCompany.getId());
-
-        assertThat(exists).isTrue();
-    }
-
-    @Test
     @DisplayName("update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다")
     void update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다() throws InterruptedException {
         Company company = companyRepository.saveAndFlush(

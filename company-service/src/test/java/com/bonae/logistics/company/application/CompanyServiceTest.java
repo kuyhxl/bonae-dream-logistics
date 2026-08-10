@@ -325,8 +325,6 @@ class CompanyServiceTest {
         when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(any(), any(), eq(company.getId())))
                 .thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(any(), eq(company.getId())))
-                .thenReturn(false);
 
         ResUpdateCompanyDto resDto = companyService.updateCompany(company.getId(), reqDto, UserRole.MASTER, USERNAME);
 
@@ -396,8 +394,6 @@ class CompanyServiceTest {
         when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(hubId, null));
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(any(), any(), eq(company.getId())))
                 .thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(any(), eq(company.getId())))
-                .thenReturn(false);
 
         ResUpdateCompanyDto resDto = companyService.updateCompany(company.getId(), reqDto, UserRole.HUB_MANAGER, USERNAME);
 
@@ -430,8 +426,6 @@ class CompanyServiceTest {
         when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
         when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(null, company.getId()));
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(any(), any(), eq(company.getId())))
-                .thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(any(), eq(company.getId())))
                 .thenReturn(false);
 
         ResUpdateCompanyDto resDto =
@@ -478,26 +472,6 @@ class CompanyServiceTest {
     }
 
     @Test
-    @DisplayName("updateCompany_주소만같은다른업체가있을때_예외발생")
-    void updateCompany_주소만같은다른업체가있을때_예외발생() {
-        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
-        ReqUpdateCompanyDto reqDto = ReqUpdateCompanyDto.builder().address("서울시 송파구 올림픽로 1").build();
-
-        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
-        when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(
-                "배송센터A", "서울시 송파구 올림픽로 1", company.getId())).thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(
-                "서울시 송파구 올림픽로 1", company.getId())).thenReturn(true);
-
-        assertThatThrownBy(() -> companyService.updateCompany(company.getId(), reqDto, UserRole.MASTER, USERNAME))
-                .isInstanceOf(BusinessException.class)
-                .extracting(exception -> ((BusinessException) exception).getErrorCode())
-                .isEqualTo(ErrorCode.COMPANY_ADDRESS_DUPLICATED);
-
-        verify(companyRepository, never()).saveAndFlush(any(Company.class));
-    }
-
-    @Test
     @DisplayName("updateCompany_일부필드만요청에포함될때_포함되지않은필드는유지된다")
     void updateCompany_일부필드만요청에포함될때_포함되지않은필드는유지된다() {
         UUID hubId = UUID.randomUUID();
@@ -506,8 +480,6 @@ class CompanyServiceTest {
 
         when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(any(), any(), eq(company.getId())))
-                .thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(any(), eq(company.getId())))
                 .thenReturn(false);
 
         ResUpdateCompanyDto resDto = companyService.updateCompany(company.getId(), reqDto, UserRole.MASTER, USERNAME);
@@ -527,8 +499,6 @@ class CompanyServiceTest {
 
         when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
         when(companyRepository.existsByNameAndAddressAndDeletedAtIsNullAndIdNot(any(), any(), eq(company.getId())))
-                .thenReturn(false);
-        when(companyRepository.existsByAddressAndDeletedAtIsNullAndIdNot(any(), eq(company.getId())))
                 .thenReturn(false);
         doThrow(duplicateKeyException("ux_p_companies_name_address_active"))
                 .when(companyRepository).saveAndFlush(any(Company.class));
@@ -564,5 +534,17 @@ class CompanyServiceTest {
                 null
         );
         return new FeignException.NotFound("hub not found", request, null, Collections.emptyMap());
+    }
+
+    private FeignException.NotFound userNotFoundException(String username) {
+        Request request = Request.create(
+                Request.HttpMethod.GET,
+                "http://user-service/api/internal/users/" + username,
+                Collections.emptyMap(),
+                null,
+                StandardCharsets.UTF_8,
+                null
+        );
+        return new FeignException.NotFound("user not found", request, null, Collections.emptyMap());
     }
 }
