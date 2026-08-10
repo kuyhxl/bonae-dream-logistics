@@ -112,16 +112,16 @@ public class UserService {
         user.delete(requester); // BaseEntity.delete()
     }
 
-    // 가입 요청 목록. 129에서 만든 searchUsers 쿼리를 role·hubId 조건 없이 재사용한다.
+    // 가입 요청 목록. dev에 있는 searchUsers 쿼리를 role·hubId 조건 없이 재사용한다.
     public PageResponseDto<SignupRequestSummaryResponse> searchSignupRequests(
             SignupRequestSearchCondition condition,
             PageRequestDto pageRequestDto
     ) {
         Page<User> users = userRepository.searchUsers(
                 condition.getKeyword(),
-                null,                       // role: 가입 요청 시점엔 확정되지 않아 조건으로 쓰지 않는다
+                null, // role: 가입 요청 시점엔 확정되지 않아 조건으로 쓰지 않는다
                 condition.toStatus(),
-                null,                       // hubId: 동일
+                null, // hubId: 동일
                 pageRequestDto.toPageable()
         );
 

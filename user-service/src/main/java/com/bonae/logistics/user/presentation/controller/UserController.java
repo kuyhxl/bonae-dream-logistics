@@ -13,7 +13,6 @@ import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -73,8 +72,8 @@ public class UserController {
     @GetMapping("/users/signup-requests")
     @RoleCheck({Role.MASTER, Role.HUB_MANAGER})
     public ResponseEntity<PageResponseDto<SignupRequestSummaryResponse>> searchSignupRequests(
-            @ParameterObject @ModelAttribute PageRequestDto pageRequestDto,
-            @ParameterObject @ModelAttribute SignupRequestSearchCondition condition
+            @ModelAttribute PageRequestDto pageRequestDto,
+            @ModelAttribute SignupRequestSearchCondition condition
     ) {
         return ResponseEntity.ok(userService.searchSignupRequests(condition, pageRequestDto));
     }
