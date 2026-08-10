@@ -125,6 +125,25 @@ public class CompanyService {
         return ResUpdateCompanyDto.from(company);
     }
 
+    //@Transactional 제거 (외부 서비스 호출을 트랜잭션 밖에서 수행)
+    public void deleteCompany(UUID companyId, UserRole userRole, String username) {
+        // 존재 여부(삭제 여부 포함)와 접근권한을 먼저 확인.
+        Company target = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+        authorizeDelete(target, userRole, username);
+
+        // 실제 DB 작업만 트랜잭션으로 처리
+        transactionTemplate.executeWithoutResult(status -> {
+            // authorizeDelete(user-service 호출)가 끝날 때까지 시간이 걸리는 동안 다른 요청이
+            // 이 업체를 먼저 삭제했을 수 있으므로, 실제 삭제 직전에 managed 엔티티를 다시 조회해 재검증
+            Company managedCompany = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+            managedCompany.delete(username);
+        });
+    }
+
     @Transactional(readOnly = true)
     //삭제되지 않은 업체를 페이징 조회한다. type이 ALL이면 전체, 아니면 해당 유형만 조회한다.
     public PageResponseDto<ResGetCompanyListDto> getCompanies(PageRequestDto pageRequestDto, String type) {
@@ -168,16 +187,30 @@ public class CompanyService {
             return;
         }
 
-        UserInfoDto userInfo = getUserInfo(username);
-
         if (userRole == UserRole.HUB_MANAGER) {
-            if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
-                throw new BusinessException(ErrorCode.FORBIDDEN);
-            }
+            requireOwnHub(company, username);
         } else {
+            UserInfoDto userInfo = getUserInfo(username);
             if (userInfo.companyId() == null || !userInfo.companyId().equals(company.getId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
             }
+        }
+    }
+
+    // HUB_MANAGER는 담당 허브 소속 업체만 삭제할 수 있다. MASTER는 제한 없음.
+    private void authorizeDelete(Company company, UserRole userRole, String username) {
+        if (userRole != UserRole.HUB_MANAGER) {
+            return;
+        }
+
+        requireOwnHub(company, username);
+    }
+
+    // 요청자(username)의 소속 허브가 대상 업체의 허브와 같은지 확인한다. HUB_MANAGER 권한 검증에 공통으로 쓰인다.
+    private void requireOwnHub(Company company, String username) {
+        UserInfoDto userInfo = getUserInfo(username);
+        if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
     }
 
