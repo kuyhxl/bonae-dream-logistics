@@ -50,15 +50,17 @@ class DeliveryManagerServiceTest {
     private DeliveryManagerService deliveryManagerService;
 
     @Test
-    @DisplayName("createDeliveryManager_정상 요청이면 배송 담당자를 생성한다")
+    @DisplayName("배송 담당자 생성 시 요청한 ID를 그대로 사용한다")
     void createDeliveryManager_success() {
+        UUID deliveryManagerId = UUID.randomUUID();
         ReqCreateDeliveryManagerDto reqDto = ReqCreateDeliveryManagerDto.builder()
+                .deliveryManagerId(deliveryManagerId)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
 
         DeliveryManager savedDeliveryManager = DeliveryManager.create(
-                UUID.randomUUID(),
+                deliveryManagerId,
                 null,
                 ManagerType.HUB_DELIVERY,
                 0
@@ -68,16 +70,17 @@ class DeliveryManagerServiceTest {
 
         ResDeliveryManagerDto resDto = deliveryManagerService.createDeliveryManager(reqDto);
 
-        assertThat(resDto.getDeliveryManagerId()).isEqualTo(savedDeliveryManager.getId());
+        assertThat(resDto.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
         assertThat(resDto.getManagerType()).isEqualTo(ManagerType.HUB_DELIVERY);
         assertThat(resDto.getDeliverySequence()).isEqualTo(0);
         verify(deliveryManagerRepository).saveAndFlush(any(DeliveryManager.class));
     }
 
     @Test
-    @DisplayName("createDeliveryManager_순번 유니크 충돌이면 비즈니스 예외로 변환한다")
+    @DisplayName("배송 담당자 순번 중복은 비즈니스 예외로 변환한다")
     void createDeliveryManager_duplicateSequence() {
         ReqCreateDeliveryManagerDto reqDto = ReqCreateDeliveryManagerDto.builder()
+                .deliveryManagerId(UUID.randomUUID())
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
@@ -92,7 +95,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("getDeliveryManager_삭제되지 않은 배송 담당자를 조회한다")
+    @DisplayName("배송 담당자 단건 조회에 성공한다")
     void getDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -112,7 +115,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("getDeliveryManager_존재하지 않으면 예외가 발생한다")
+    @DisplayName("배송 담당자가 없으면 예외가 발생한다")
     void getDeliveryManager_notFound() {
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
@@ -125,7 +128,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("getDeliveryManagers_페이지 조회 결과를 공통 응답으로 반환한다")
+    @DisplayName("배송 담당자 목록 조회 결과를 공통 응답으로 반환한다")
     void getDeliveryManagers_success() {
         PageRequestDto pageRequestDto = new PageRequestDto();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -145,7 +148,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("updateDeliveryManager_정상 요청이면 배송 담당자 정보를 수정한다")
+    @DisplayName("배송 담당자 수정에 성공한다")
     void updateDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -172,7 +175,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("deleteDeliveryManager_현재 요청자를 삭제자로 기록한다")
+    @DisplayName("배송 담당자 삭제 시 삭제자를 기록한다")
     void deleteDeliveryManager_recordsAuditor() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -193,7 +196,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("deleteDeliveryManager_존재하지 않으면 삭제를 수행하지 않는다")
+    @DisplayName("삭제 대상 배송 담당자가 없으면 삭제자를 조회하지 않는다")
     void deleteDeliveryManager_notFound() {
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))

@@ -33,7 +33,7 @@ public class DeliveryManagerService {
     @Transactional
     public ResDeliveryManagerDto createDeliveryManager(ReqCreateDeliveryManagerDto reqDto) {
         DeliveryManager deliveryManager = DeliveryManager.create(
-                UUID.randomUUID(),
+                reqDto.getDeliveryManagerId(),
                 reqDto.getHubId(),
                 reqDto.getManagerType(),
                 reqDto.getDeliverySequence()
