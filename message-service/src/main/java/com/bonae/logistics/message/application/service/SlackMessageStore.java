@@ -48,7 +48,7 @@ public class SlackMessageStore {
                 .errorType(ErrorType.SLACK_SEND)
                 .sourceId(slackMessageId)
                 .attemptNo(Math.max(attempts, 1)) // 다시 시도한 횟수(첫 시도를 제외)
-                .errorCode(errorCode)
+                .errorCode(errorCode.length() > 50 ? errorCode.substring(0, 50) : errorCode)
                 .errorMessage("[수신자 슬랙 ID]: " + slackMessage.getReceiverSlackId() + ", [메세지 내용]: " + slackMessage.getMessage())
                 .traceId(traceId)
                 .build());
