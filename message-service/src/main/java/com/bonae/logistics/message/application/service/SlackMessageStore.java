@@ -26,6 +26,8 @@ public class SlackMessageStore {
 
     private final SlackMessageRepository slackMessageRepository;
     private final MessageAiErrorLogRepository errorLogRepository;
+    private static final int ERROR_CODE_MAX_LENGTH = 50;
+    private static final String UNKNOWN_ERROR_CODE = "UNKNOWN";
 
     @Transactional
     public SlackMessage savePending(String receiverSlackId, String message, SourceType sourceType) {
@@ -42,13 +44,13 @@ public class SlackMessageStore {
     @Transactional
     public SlackMessage markFailed(UUID slackMessageId, String errorCode, int attempts, String traceId){
         SlackMessage slackMessage = findById(slackMessageId);
-        slackMessage.markFailed(Math.max(attempts - 1, 0)); // 처음 시도를 포함한 전체 횟수
+        slackMessage.markFailed(Math.max(attempts - 1, 0)); // 다시 시도한 횟수(첫 시도를 제외)
 
         errorLogRepository.save(MessageAiErrorLog.builder()
                 .errorType(ErrorType.SLACK_SEND)
                 .sourceId(slackMessageId)
-                .attemptNo(Math.max(attempts, 1)) // 다시 시도한 횟수(첫 시도를 제외)
-                .errorCode(errorCode.length() > 50 ? errorCode.substring(0, 50) : errorCode)
+                .attemptNo(Math.max(attempts, 1)) // 처음 시도를 포함한 전체 횟수
+                .errorCode(normalizeErrorCode(errorCode))
                 .errorMessage("[수신자 슬랙 ID]: " + slackMessage.getReceiverSlackId() + ", [메세지 내용]: " + slackMessage.getMessage())
                 .traceId(traceId)
                 .build());
@@ -58,5 +60,14 @@ public class SlackMessageStore {
     private SlackMessage findById(UUID slackMessageId){
         return slackMessageRepository.findById(slackMessageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SLACK_MESSAGE_NOT_FOUND));
+    }
+
+    private String normalizeErrorCode(String errorCode) {
+        if (errorCode == null || errorCode.isBlank()) {
+            return UNKNOWN_ERROR_CODE;
+        }
+        return errorCode.length() > ERROR_CODE_MAX_LENGTH
+                ? errorCode.substring(0, ERROR_CODE_MAX_LENGTH)
+                : errorCode;
     }
 }
