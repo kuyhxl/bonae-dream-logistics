@@ -30,5 +30,6 @@ public interface HubRepository extends JpaRepository<Hub, UUID> {
 
     boolean existsByNameAndDeletedAtIsNullAndIdNot(String name, UUID id);
     boolean existsByAddressAndDeletedAtIsNullAndIdNot(String address, UUID id);
+    boolean existsByIdAndDeletedAtIsNull(UUID id);
 }
 
