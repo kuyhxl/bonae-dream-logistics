@@ -8,10 +8,19 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Optional;
 import java.util.UUID;
 
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
     boolean existsByNameAndAddressAndDeletedAtIsNull(String name, String address);
+
+    Optional<Company> findByIdAndDeletedAtIsNull(UUID id);
+
+    // 자기 자신(id)은 제외하고 동일한 이름+주소를 가진 삭제되지 않은 업체가 있는지 확인 (수정 시 중복 검증용)
+    boolean existsByNameAndAddressAndDeletedAtIsNullAndIdNot(String name, String address, UUID id);
+
+    // 자기 자신(id)은 제외하고 동일한 주소를 가진 삭제되지 않은 업체가 있는지 확인 (수정 시 주소 중복 검증용)
+    boolean existsByAddressAndDeletedAtIsNullAndIdNot(String address, UUID id);
 
     // type이 null이면 전체 조회, 값이 있으면 해당 유형만 조회
     @Query("SELECT c FROM Company c WHERE c.deletedAt IS NULL AND (:type IS NULL OR c.type = :type)")
