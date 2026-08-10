@@ -6,8 +6,10 @@ import com.bonae.logistics.message.application.service.SlackMessageAdminService;
 import com.bonae.logistics.message.domain.entity.UserRole;
 import com.bonae.logistics.message.presentation.auth.RoleCheck;
 import com.bonae.logistics.message.presentation.dto.request.SlackMessageSearchCondition;
+import com.bonae.logistics.message.presentation.dto.request.SlackMessageUpdateRequest;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageDetailResponse;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageListItemResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
@@ -37,5 +39,15 @@ public class SlackMessageController {
     @RoleCheck(UserRole.MASTER)
     public ResponseEntity<SlackMessageDetailResponse> getDetail(@PathVariable UUID slackMessageId) {
         return ResponseEntity.ok(slackMessageAdminService.getDetail(slackMessageId));
+    }
+
+    /* 슬랙 메시지 수정. PENDING 상태만 가능하며 마스터 전용 */
+    @PatchMapping("/{slackMessageId}")
+    @RoleCheck(UserRole.MASTER)
+    public ResponseEntity<SlackMessageDetailResponse> update(
+            @PathVariable UUID slackMessageId,
+            @Valid @RequestBody SlackMessageUpdateRequest request
+    ) {
+        return ResponseEntity.ok(slackMessageAdminService.update(slackMessageId, request));
     }
 }

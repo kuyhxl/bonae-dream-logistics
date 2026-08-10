@@ -13,6 +13,7 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.message.domain.entity.SlackMessage;
 import com.bonae.logistics.message.domain.repository.SlackMessageRepository;
 import com.bonae.logistics.message.presentation.dto.request.SlackMessageSearchCondition;
+import com.bonae.logistics.message.presentation.dto.request.SlackMessageUpdateRequest;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageDetailResponse;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageListItemResponse;
 import lombok.RequiredArgsConstructor;
@@ -43,5 +44,12 @@ public class SlackMessageAdminService {
     private SlackMessage findActive(UUID slackMessageId) {
         return slackMessageRepository.findByIdAndDeletedAtIsNull(slackMessageId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.SLACK_MESSAGE_NOT_FOUND));
+    }
+
+    @Transactional
+    public SlackMessageDetailResponse update(UUID slackMessageId, SlackMessageUpdateRequest request) {
+        SlackMessage slackMessage = findActive(slackMessageId);
+        slackMessage.update(request.receiverSlackId(), request.message());
+        return SlackMessageDetailResponse.from(slackMessage);
     }
 }
