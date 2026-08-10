@@ -31,6 +31,7 @@ public class DispatchDeadlinePromptFactory {
                 발송지 허브: %s
                 경유지 허브: %s
                 도착지 주소: %s
+                허브 간 총 예상 소요시간: %d분
 
                 [출력 형식]
                 다른 설명 없이 아래 JSON 한 줄만 출력해라.
@@ -43,7 +44,8 @@ public class DispatchDeadlinePromptFactory {
                 orDash(c.requestNote()),
                 c.originHubName(),
                 c.waypointHubNames().isEmpty() ? "없음" : String.join(", ", c.waypointHubNames()),
-                c.destinationAddress()
+                c.destinationAddress(),
+                c.totalDurationMin()
         );
     }
 
