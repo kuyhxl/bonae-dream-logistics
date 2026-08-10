@@ -8,8 +8,13 @@ import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
+import com.bonae.logistics.delivery.infrastructure.client.UserClient;
+import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -39,18 +44,33 @@ class DeliveryServiceTest {
     @Mock
     private DeliveryRepository deliveryRepository;
 
+    @Mock
+    private CompanyClient companyClient;
+
+    @Mock
+    private UserClient userClient;
+
     @InjectMocks
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("배송 생성은 오케스트레이션 구현 전까지 스켈레톤으로 유지한다")
-    void createDelivery_skeleton() throws Exception {
+    @DisplayName("배송 생성에 성공한다")
+    void createDelivery_success() throws Exception {
         DeliveryCreateRequest reqDto = createRequest();
+        when(companyClient.getCompany(reqDto.getSupplierCompanyId()))
+                .thenReturn(createCompanyInfo(UUID.randomUUID(), "공급 업체 주소"));
+        when(companyClient.getCompany(reqDto.getReceiverCompanyId()))
+                .thenReturn(createCompanyInfo(UUID.randomUUID(), "수령 업체 주소"));
+        when(userClient.getUserInfo(reqDto.getReceiverUsername()))
+                .thenReturn(createUserInfo("receiver01", "홍길동", "U08ABCD1234"));
+        when(deliveryRepository.saveAndFlush(any(Delivery.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
 
-        assertThatThrownBy(() -> deliveryService.createDelivery(reqDto))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.SERVICE_UNAVAILABLE);
+        DeliveryCreateResponse result = deliveryService.createDelivery(reqDto);
+
+        assertThat(result.getDeliveryId()).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.READY);
+        assertThat(result.getRouteCount()).isZero();
     }
 
     @Test
@@ -166,6 +186,7 @@ class DeliveryServiceTest {
         setField(reqDto, "orderId", UUID.randomUUID());
         setField(reqDto, "supplierCompanyId", UUID.randomUUID());
         setField(reqDto, "receiverCompanyId", UUID.randomUUID());
+        setField(reqDto, "receiverUsername", " receiver01 ");
         setField(reqDto, "productInfo", "  마른 오징어 50박스  ");
         setField(reqDto, "requestNote", "  12월 12일 3시까지 부탁드립니다.  ");
         return reqDto;
@@ -181,6 +202,23 @@ class DeliveryServiceTest {
                 "hong123",
                 "서울시 강남구 테헤란로 1"
         );
+    }
+
+    private CompanyInfoClientResponse createCompanyInfo(UUID hubId, String address) {
+        return CompanyInfoClientResponse.builder()
+                .companyId(UUID.randomUUID())
+                .hubId(hubId)
+                .address(address)
+                .build();
+    }
+
+    private UserInfoClientResponse createUserInfo(String username, String name, String slackId) {
+        return UserInfoClientResponse.builder()
+                .username(username)
+                .name(name)
+                .slackId(slackId)
+                .role("COMPANY_MANAGER")
+                .build();
     }
 
     private void setField(Object target, String fieldName, Object value) throws Exception {
