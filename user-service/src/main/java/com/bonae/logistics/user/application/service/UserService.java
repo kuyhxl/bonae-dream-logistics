@@ -2,13 +2,18 @@ package com.bonae.logistics.user.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.user.domain.entity.DeliveryManagerType;
 import com.bonae.logistics.user.domain.entity.Status;
 import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
+import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
 import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserInfoResponse;
+import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,5 +41,19 @@ public class UserService {
                 .findByUsernameAndStatusAndDeletedAtIsNull(username, Status.APPROVED)
                 .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
         return new UserInfoResponse(user);
+    }
+
+    // 사용자 목록·검색. 조건은 전부 선택이며, 생략된 조건은 필터에서 제외된다.
+    public PageResponseDto<UserSummaryResponse> searchUsers(UserSearchCondition condition,
+                                                            PageRequestDto pageRequestDto) {
+        Page<User> users = userRepository.searchUsers(
+                condition.getKeyword(),
+                condition.toRole(),
+                condition.toStatus(),
+                condition.toHubId(),
+                pageRequestDto.toPageable()
+        );
+
+        return PageResponseDto.from(users, UserSummaryResponse::from);
     }
 }

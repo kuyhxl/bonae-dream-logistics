@@ -169,6 +169,22 @@ class CompanyRepositoryTest {
         assertThat(company.getUpdatedBy()).isEqualTo("SYSTEM");
     }
 
+    @Test
+    @DisplayName("delete_호출후flush하면_deletedAt과deletedBy가저장된다")
+    void delete_호출후flush하면_deletedAt과deletedBy가저장된다() {
+        Company company = companyRepository.saveAndFlush(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+
+        company.delete("tester");
+        companyRepository.saveAndFlush(company);
+
+        Company reloaded = companyRepository.findById(company.getId()).orElseThrow();
+        assertThat(reloaded.getDeletedAt()).isNotNull();
+        assertThat(reloaded.getDeletedBy()).isEqualTo("tester");
+        assertThat(reloaded.isDeleted()).isTrue();
+    }
+
     // 아래 검색 테스트들은 이 테스트가 만든 데이터끼리만 매칭되도록 각 테스트마다 새로 발급한 hubId로 결과 범위를 좁힌다.
     // 실제 개발 DB(@AutoConfigureTestDatabase Replace.NONE)를 공유하는 환경이라
     // 다른 세션/수동 테스트로 남아있을 수 있는 기존 데이터와 키워드/타입이 우연히 겹쳐도 영향받지 않게 하기 위함이다.
