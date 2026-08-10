@@ -17,6 +17,7 @@ public record AiDispatchCommand(
         String originHubName,
         List<String> waypointHubNames,
         String destinationAddress,
+        Integer totalDurationMin,
         String managerSlackId
 ) {
     /* 경유지는 선택값이다. null 방어를 호출부마다 하지 않도록 여기서 정규화한다. */
