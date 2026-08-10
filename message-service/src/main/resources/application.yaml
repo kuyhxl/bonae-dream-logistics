@@ -57,3 +57,23 @@ springdoc:
     path: /swagger-ui.html
   paths-to-exclude:
     - /api/internal/**  # 서비스 간 내부 API는 공개 문서에서 제외
+
+slack:
+  bot-token: ${SLACK_TOKEN:dummy} # api.slack.com/apps -> OAuth & Permissions -> Bot User OAuth Token
+  api-url: https://slack.com/api
+  mock: ${SLACK_MOCK:true} # 토큰 없이 개발할 때
+  max-attempts: 3
+  connect-timeout: 2000ms  # 연결 수립까지
+  read-timeout: 2000ms     # 응답 대기까지
+
+resilience4j:
+  retry:
+    instances:
+      slack:
+        max-attempts: ${slack.max-attempts}
+        wait-duration: 500ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.bonae.logistics.message.infrastructure.slack.SlackTransientException # 재시도 에러
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
