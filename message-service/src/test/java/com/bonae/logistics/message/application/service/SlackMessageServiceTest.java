@@ -56,7 +56,7 @@ class SlackMessageServiceTest {
     }
 
     @Test
-    @DisplayName("markFailed는 sentAt을 남기지 않는다 (DB 체크 제약)")
+    @DisplayName("markFailed는 sentAt을 남기지 않는다")
     void failedHasNoSentAt() {
         SlackMessage m = SlackMessage.pending("U01", "hi", SourceType.USER);
         m.markFailed(2);
