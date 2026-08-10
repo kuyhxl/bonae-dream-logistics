@@ -60,7 +60,6 @@ public class AuthService {
         }
     }
 
-    @Transactional(readOnly = true)
     public LoginResponse login(@Valid LoginRequest loginRequest) {
 
         // 검토
@@ -131,8 +130,7 @@ public class AuthService {
                 .ifPresent(claims -> tokenBlacklistStore.add(claims.getId(), jwtProvider.remainingMillis(claims)));
     }
 
-    @Transactional(readOnly = true)
-    public TokenResponse refresh(RefreshRequest refreshRequest) {
+    public TokenResponse refresh(String authorizationHeader, RefreshRequest refreshRequest) {
         String refreshToken = refreshRequest.getRefreshToken();
 
         // 1. 서명·만료·타입(typ=REFRESH) 검증 후 username 추출
@@ -159,6 +157,9 @@ public class AuthService {
         // 6. refreshToken도 함께 교체 (RTR: Refresh Token Rotation)
         String newRefreshToken = jwtProvider.createRefreshToken(user.getUsername());
         refreshTokenStore.save(user.getUsername(), newRefreshToken, jwtProperties.getRefreshTokenExpiration()); // refreshTokenStore.save()로 덮어쓰기 -> 기존 refreshToken은 자동으로 무효화됩니다.
+
+        // 7. 회전 전 accessToken 즉시 무효화 -> 한 사용자에게 유효한 accessToken이 둘 이상 존재하지 않게 한다
+        blacklistAccessToken(authorizationHeader);
 
         return TokenResponse.builder()
                 .accessToken(newAccessToken)

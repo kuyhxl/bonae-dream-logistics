@@ -41,8 +41,10 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("auth/refresh")
-    public ResponseEntity<TokenResponse> refresh(@RequestBody @Valid RefreshRequest refreshRequest) {
-        return ResponseEntity.ok(authService.refresh(refreshRequest));
+    @PostMapping("/auth/refresh")
+    public ResponseEntity<TokenResponse> refresh(
+            @RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
+            @RequestBody @Valid RefreshRequest refreshRequest) {
+        return ResponseEntity.ok(authService.refresh(authorizationHeader, refreshRequest));
     }
 }
