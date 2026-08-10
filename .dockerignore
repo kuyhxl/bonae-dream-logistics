@@ -1,0 +1,45 @@
+# 빌드 산출물
+build/
+**/build/
+.gradle/
+**/.gradle/
+out/
+**/out/
+bin/
+**/bin/
+
+# VCS
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# IDE
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+
+# 환경변수
+.env
+*.env
+!.env.template
+
+# 로그
+*.log
+logs/
+
+# OS
+.DS_Store
+**/.DS_Store
+
+# 문서 / 도구 설정
+docs/
+*.md
+!README.md
+
+# 컨테이너 구성
+docker-compose.yml
+Dockerfile
+.dockerignore

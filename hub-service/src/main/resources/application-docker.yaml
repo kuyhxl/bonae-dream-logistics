@@ -1,0 +1,22 @@
+# 컨테이너 실행 전용 오버라이드. 기본값(application.yaml)은 로컬 개발 기준을 유지한다.
+# 호스트에서는 포트 매핑(15432)을 쓰지만 컨테이너 간에는 내부 포트(5432)를 쓴다.
+spring:
+  datasource:
+    url: jdbc:postgresql://postgres:5432/${POSTGRES_DB:bonae}?currentSchema=hub_service
+  data:
+    redis:
+      host: redis
+      port: 6379
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://eureka-server:8761/eureka/
+  instance:
+    # 컨테이너 호스트명은 서비스 간 조회가 안되므로 IP로 등록한다
+    prefer-ip-address: true
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans

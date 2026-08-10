@@ -1,0 +1,5 @@
+# 컨테이너 실행 전용 오버라이드. 기본값(application.yaml)은 로컬 개발 기준을 유지한다.
+management:
+  zipkin:
+    tracing:
+      endpoint: http://zipkin:9411/api/v2/spans
