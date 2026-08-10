@@ -8,6 +8,7 @@ import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import jakarta.validation.Valid;
@@ -47,6 +48,13 @@ public class CompanyController {
             @ModelAttribute PageRequestDto pageRequestDto,
             @RequestParam(defaultValue = "ALL") String type) {
         PageResponseDto<ResGetCompanyListDto> resDto = companyService.getCompanies(pageRequestDto, type);
+        return ResponseEntity.status(HttpStatus.OK).body(resDto);
+    }
+
+    @GetMapping("/{companyId}")
+    @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
+    public ResponseEntity<ResGetCompanyDto> getCompany(@PathVariable UUID companyId) {
+        ResGetCompanyDto resDto = companyService.getCompany(companyId);
         return ResponseEntity.status(HttpStatus.OK).body(resDto);
     }
 

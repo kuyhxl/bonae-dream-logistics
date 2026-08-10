@@ -9,6 +9,7 @@ import com.bonae.logistics.company.application.CompanyService;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.CompanyType;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import io.micrometer.tracing.Tracer;
@@ -96,6 +97,56 @@ class CompanyControllerTest {
         mockMvc.perform(get("/api/companies"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/{companyId}_정상요청시_업체정보를_응답한다")
+    void getCompany_정상요청시_업체정보를_응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        ResGetCompanyDto resDto = ResGetCompanyDto.builder()
+                .companyId(companyId)
+                .name("삼성전자")
+                .type(CompanyType.PRODUCER)
+                .hubId(UUID.randomUUID())
+                .address("경기도 수원시 영통구")
+                .createdAt(LocalDateTime.now())
+                .createdBy("admin-id")
+                .updatedAt(LocalDateTime.now())
+                .updatedBy("admin02")
+                .build();
+
+        when(companyService.getCompany(companyId)).thenReturn(resDto);
+
+        mockMvc.perform(get("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+                .andExpect(jsonPath("$.name").value("삼성전자"))
+                .andExpect(jsonPath("$.type").value("PRODUCER"))
+                .andExpect(jsonPath("$.hubId").value(resDto.getHubId().toString()))
+                .andExpect(jsonPath("$.address").value("경기도 수원시 영통구"))
+                .andExpect(jsonPath("$.createdBy").value("admin-id"))
+                .andExpect(jsonPath("$.updatedBy").value("admin02"));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/{companyId}_권한헤더가없을때_403을응답한다")
+    void getCompany_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(get("/api/companies/{companyId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/companies/{companyId}_존재하지않거나삭제된업체일때_404를응답한다")
+    void getCompany_존재하지않거나삭제된업체일때_404를응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        when(companyService.getCompany(companyId)).thenThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+
+        mockMvc.perform(get("/api/companies/{companyId}", companyId)
+                        .header("X-User-Role", "MASTER"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("COMPANY_NOT_FOUND"));
     }
 
     @Test

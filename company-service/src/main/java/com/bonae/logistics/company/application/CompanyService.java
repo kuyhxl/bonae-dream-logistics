@@ -14,6 +14,8 @@ import com.bonae.logistics.company.infrastructure.UserInfoDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import feign.FeignException;
@@ -132,6 +134,22 @@ public class CompanyService {
         CompanyType companyType = parseCompanyType(type);
         Page<Company> companies = companyRepository.findAllByTypeAndDeletedAtIsNull(companyType, pageRequestDto.toPageable());
         return PageResponseDto.from(companies, ResGetCompanyListDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    //삭제되지 않은 업체를 단건 조회한다. 없거나 삭제된 업체는 COMPANY_NOT_FOUND로 응답한다.
+    public ResGetCompanyDto getCompany(UUID companyId) {
+        Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+        return ResGetCompanyDto.from(company);
+    }
+
+    @Transactional(readOnly = true)
+    //다른 서비스 내부 호출용 업체 단건 조회. 삭제된 업체는 없는 업체와 동일하게 COMPANY_NOT_FOUND로 응답한다.
+    public ResGetCompanyInternalDto getCompanyInternal(UUID companyId) {
+        Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+        return ResGetCompanyInternalDto.from(company);
     }
 
     //업체 타입 변환 메서드(String -> CompanyType)

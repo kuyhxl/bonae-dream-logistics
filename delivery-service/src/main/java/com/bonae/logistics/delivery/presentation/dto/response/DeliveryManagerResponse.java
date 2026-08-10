@@ -12,7 +12,7 @@ import java.util.UUID;
 @Getter
 @Builder
 @AllArgsConstructor
-public class ResDeliveryManagerDto {
+public class DeliveryManagerResponse {
 
     private UUID deliveryManagerId;
     private UUID hubId;
@@ -21,8 +21,8 @@ public class ResDeliveryManagerDto {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public static ResDeliveryManagerDto from(DeliveryManager deliveryManager) {
-        return ResDeliveryManagerDto.builder()
+    public static DeliveryManagerResponse from(DeliveryManager deliveryManager) {
+        return DeliveryManagerResponse.builder()
                 .deliveryManagerId(deliveryManager.getId())
                 .hubId(deliveryManager.getHubId())
                 .managerType(deliveryManager.getManagerType())
