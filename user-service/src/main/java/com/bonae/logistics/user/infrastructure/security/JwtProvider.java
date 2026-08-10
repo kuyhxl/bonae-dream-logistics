@@ -26,6 +26,8 @@ public class JwtProvider {
     private static final String CLAIM_TYPE = "typ";
     private static final String TYPE_ACCESS = "ACCESS";
     private static final String TYPE_REFRESH = "REFRESH";
+    private static final String CLAIM_HUB_ID = "hubId";
+    private static final String CLAIM_COMPANY_ID = "companyId";
 
     private final JwtProperties jwtProperties;
 
@@ -36,15 +38,15 @@ public class JwtProvider {
         secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtProperties.getSecret()));
     }
 
-    public String createAccessToken(String username, Role role) {
-        return createToken(username, role, TYPE_ACCESS, jwtProperties.getAccessTokenExpiration());
+    public String createAccessToken(String username, Role role, UUID hubId, UUID companyId) {
+        return createToken(username, role, hubId, companyId, TYPE_ACCESS, jwtProperties.getAccessTokenExpiration());
     }
 
     public String createRefreshToken(String username) {
-        return createToken(username, null, TYPE_REFRESH, jwtProperties.getRefreshTokenExpiration());
+        return createToken(username, null, null, null, TYPE_REFRESH, jwtProperties.getRefreshTokenExpiration());
     }
 
-    private String createToken(String username, Role role, String type, long expirationMillis) {
+    private String createToken(String username, Role role, UUID hubId, UUID companyId, String type, long expirationMillis) {
         Date now = new Date();
         Date expiration = new Date(now.getTime() + expirationMillis);
 
@@ -57,6 +59,13 @@ public class JwtProvider {
 
         if (role != null) {
             builder.claim(CLAIM_ROLE, role.name());
+        }
+        // 소속이 없는 역할(MASTER 등)은 클레임 자체를 넣지 않는다
+        if (hubId != null) {
+            builder.claim(CLAIM_HUB_ID, hubId.toString());
+        }
+        if (companyId != null) {
+            builder.claim(CLAIM_COMPANY_ID, companyId.toString());
         }
 
         return builder.signWith(secretKey, Jwts.SIG.HS256).compact();
