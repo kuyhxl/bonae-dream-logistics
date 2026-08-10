@@ -10,12 +10,10 @@ import com.bonae.logistics.user.domain.entity.Role;
 import com.bonae.logistics.user.domain.entity.Status;
 import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
+import com.bonae.logistics.user.presentation.dto.request.SignupRequestSearchCondition;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
 import com.bonae.logistics.user.presentation.dto.request.UserUpdateRequest;
-import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
-import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
-import com.bonae.logistics.user.presentation.dto.response.UserInfoResponse;
-import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
+import com.bonae.logistics.user.presentation.dto.response.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -112,5 +110,21 @@ public class UserService {
         }
 
         user.delete(requester); // BaseEntity.delete()
+    }
+
+    // 가입 요청 목록. 129에서 만든 searchUsers 쿼리를 role·hubId 조건 없이 재사용한다.
+    public PageResponseDto<SignupRequestSummaryResponse> searchSignupRequests(
+            SignupRequestSearchCondition condition,
+            PageRequestDto pageRequestDto
+    ) {
+        Page<User> users = userRepository.searchUsers(
+                condition.getKeyword(),
+                null,                       // role: 가입 요청 시점엔 확정되지 않아 조건으로 쓰지 않는다
+                condition.toStatus(),
+                null,                       // hubId: 동일
+                pageRequestDto.toPageable()
+        );
+
+        return PageResponseDto.from(users, SignupRequestSummaryResponse::from);
     }
 }

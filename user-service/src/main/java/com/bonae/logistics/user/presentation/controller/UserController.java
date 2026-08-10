@@ -5,12 +5,15 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.user.application.service.UserService;
 import com.bonae.logistics.user.domain.entity.Role;
 import com.bonae.logistics.user.infrastructure.auth.RoleCheck;
+import com.bonae.logistics.user.presentation.dto.request.SignupRequestSearchCondition;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
 import com.bonae.logistics.user.presentation.dto.request.UserUpdateRequest;
+import com.bonae.logistics.user.presentation.dto.response.SignupRequestSummaryResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -63,5 +66,16 @@ public class UserController {
     public ResponseEntity<Void> deleteUser(@PathVariable UUID userId) {
         userService.deleteUser(userId);
         return ResponseEntity.noContent().build();
+    }
+
+    // 가입 요청 목록 조회 (MASTER, HUB_MANAGER)
+    // 리터럴 경로가 /users/{userId}보다 구체적이라 Spring이 이쪽을 먼저 매칭한다.
+    @GetMapping("/users/signup-requests")
+    @RoleCheck({Role.MASTER, Role.HUB_MANAGER})
+    public ResponseEntity<PageResponseDto<SignupRequestSummaryResponse>> searchSignupRequests(
+            @ParameterObject @ModelAttribute PageRequestDto pageRequestDto,
+            @ParameterObject @ModelAttribute SignupRequestSearchCondition condition
+    ) {
+        return ResponseEntity.ok(userService.searchSignupRequests(condition, pageRequestDto));
     }
 }
