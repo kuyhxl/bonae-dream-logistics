@@ -81,7 +81,7 @@ public class User extends BaseEntity {
         if (role != null) {
             this.role = role;
         }
-        // 한쪽 소속을 지정하면 반대쪽은 비운다. 허브 담당자였다가 업체 담당자로 옮기는 경우 대비.
+        // 한쪽 소속을 지정하면 반대쪽은 비운다. 허브 담당자 -> 업체 담당자 이동 대비.
         if (hubId != null) {
             this.hubId = hubId;
             this.companyId = null;
