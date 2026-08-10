@@ -52,4 +52,10 @@ public class SlackMessageAdminService {
         slackMessage.update(request.receiverSlackId(), request.message());
         return SlackMessageDetailResponse.from(slackMessage);
     }
+
+    @Transactional
+    public void delete(UUID slackMessageId) {
+        // deleted_at, deleted_by(= X-User-Id)를 기록한다. 물리 삭제하지 않는다.
+        findActive(slackMessageId).delete(currentAuditorProvider.getCurrentAuditorOrSystem());
+    }
 }

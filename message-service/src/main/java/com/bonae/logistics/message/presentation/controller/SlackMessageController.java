@@ -50,4 +50,12 @@ public class SlackMessageController {
     ) {
         return ResponseEntity.ok(slackMessageAdminService.update(slackMessageId, request));
     }
+
+    /* 슬랙 메시지 논리 삭제. 마스터 전용 */
+    @DeleteMapping("/{slackMessageId}")
+    @RoleCheck(UserRole.MASTER)
+    public ResponseEntity<Void> delete(@PathVariable UUID slackMessageId) {
+        slackMessageAdminService.delete(slackMessageId);
+        return ResponseEntity.noContent().build();
+    }
 }
