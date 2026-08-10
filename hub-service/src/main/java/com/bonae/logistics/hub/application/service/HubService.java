@@ -16,6 +16,7 @@ import com.bonae.logistics.hub.presentation.dto.response.HubListItemResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
@@ -32,6 +33,7 @@ public class HubService {
 
     private static final String HUB_NAME_UNIQUE_CONSTRAINT = "uk_p_hubs_active_name";
     private static final String HUB_ADDRESS_UNIQUE_CONSTRAINT = "uk_p_hubs_active_address";
+    private static final String HUB_DETAIL_CACHE = "hubDetail";
 
     private final HubRepository hubRepository;
     private final HubRouteRepository hubRouteRepository;
@@ -76,6 +78,7 @@ public class HubService {
     }
 
     // 공개 API(GET /api/hubs/{hubId})용 상세 조회
+    @Cacheable(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
     @Transactional(readOnly = true)
     public HubDetailResponse getHubDetail(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
@@ -83,6 +86,7 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
+    @Cacheable(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
     @Transactional
     public HubDetailResponse update(UUID hubId, HubUpdateRequest request) {
         if (request.isEmpty()) {
@@ -115,6 +119,7 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
+    @Cacheable(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
     @Transactional
     public void delete(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
