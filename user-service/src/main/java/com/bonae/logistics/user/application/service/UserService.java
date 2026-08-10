@@ -5,11 +5,13 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.user.domain.entity.DeliveryManagerType;
+import com.bonae.logistics.user.domain.entity.Role;
 import com.bonae.logistics.user.domain.entity.Status;
 import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
 import com.bonae.logistics.user.presentation.dto.response.DeliveryManagerResponse;
+import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserInfoResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
 import lombok.RequiredArgsConstructor;
@@ -55,5 +57,29 @@ public class UserService {
         );
 
         return PageResponseDto.from(users, UserSummaryResponse::from);
+    }
+
+    // 사용자 단건 조회. MASTER는 전체, 그 외 역할은 본인 것만 볼 수 있다.
+    public UserDetailResponse getUser(UUID userId, String requesterUsername, Role requesterRole) {
+        User user = findActive(userId);
+        validateSelfOrMaster(user, requesterUsername, requesterRole);
+        return UserDetailResponse.from(user);
+    }
+
+    // 논리 삭제된 사용자는 존재하지 않는 것으로 본다. 수정·삭제에서도 공용으로 쓴다.
+    private User findActive(UUID userId) {
+        return userRepository.findByIdAndDeletedAtIsNull(userId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.USER_NOT_FOUND));
+    }
+
+    // 존재 확인 후 권한을 본다. 404/403이 갈리면 계정 존재 여부가 새어나가지만,
+    // userId는 MASTER만 알 수 있는 값이라 여기서는 응답 일관성을 우선한다.
+    private void validateSelfOrMaster(User user, String requesterUsername, Role requesterRole) {
+        if (requesterRole == Role.MASTER) {
+            return;
+        }
+        if (!user.getUsername().equals(requesterUsername)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
     }
 }
