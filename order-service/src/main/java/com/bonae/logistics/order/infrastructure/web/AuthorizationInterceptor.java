@@ -1,7 +1,9 @@
-package com.bonae.logistics.company.auth;
+package com.bonae.logistics.order.infrastructure.web;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.order.presentation.auth.RoleCheck;
+import com.bonae.logistics.order.presentation.auth.UserRole;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.stereotype.Component;
@@ -10,14 +12,14 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.util.Arrays;
 
-// 게이트웨이가 JWT 검증 후 전달한 X-User-Role 헤더로 인가를 수행한다.
 @Component
 public class AuthorizationInterceptor implements HandlerInterceptor {
 
     private static final String USER_ROLE_HEADER = "X-User-Role";
+    private static final String USER_ID_HEADER = "X-User-Id";
 
     @Override
-    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
+    public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!(handler instanceof HandlerMethod handlerMethod)) {
             return true;
         }
@@ -36,9 +38,8 @@ public class AuthorizationInterceptor implements HandlerInterceptor {
     }
 
     private UserRole parseUserRole(String headerValue) {
-        // 헤더 자체가 없으면 인증되지 않은 요청(401), 값은 있는데 알 수 없는 role이면 권한 없음(403)으로 구분한다.
-        if (headerValue == null || headerValue.isBlank()) {
-            throw new BusinessException(ErrorCode.UNAUTHORIZED);
+        if (headerValue == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         try {
             return UserRole.valueOf(headerValue);
