@@ -34,6 +34,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -43,6 +44,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -77,6 +79,11 @@ class CompanyServiceTest {
                     TransactionCallback<?> callback = invocation.getArgument(0);
                     return callback.doInTransaction(null);
                 });
+        lenient().doAnswer(invocation -> {
+            Consumer<TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
     }
 
     @Test
@@ -507,6 +514,92 @@ class CompanyServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.COMPANY_DUPLICATED);
+    }
+
+    @Test
+    @DisplayName("deleteCompany_존재하지않거나삭제된업체일때_예외발생")
+    void deleteCompany_존재하지않거나삭제된업체일때_예외발생() {
+        UUID companyId = UUID.randomUUID();
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(companyId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> companyService.deleteCompany(companyId, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("deleteCompany_MASTER는_소속조회없이제한없이삭제가능하다")
+    void deleteCompany_MASTER는_소속조회없이제한없이삭제가능하다() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+
+        companyService.deleteCompany(company.getId(), UserRole.MASTER, USERNAME);
+
+        assertThat(company.getDeletedAt()).isNotNull();
+        assertThat(company.getDeletedBy()).isEqualTo(USERNAME);
+        verify(userClient, never()).getUserInfo(any());
+    }
+
+    @Test
+    @DisplayName("deleteCompany_HUB_MANAGER가_담당허브가아닌업체를삭제하려할때_예외발생")
+    void deleteCompany_HUB_MANAGER가_담당허브가아닌업체를삭제하려할때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(UUID.randomUUID(), null));
+
+        assertThatThrownBy(() -> companyService.deleteCompany(company.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        assertThat(company.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("deleteCompany_HUB_MANAGER가_소속허브가없을때_예외발생")
+    void deleteCompany_HUB_MANAGER가_소속허브가없을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(null, null));
+
+        assertThatThrownBy(() -> companyService.deleteCompany(company.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("deleteCompany_HUB_MANAGER가_담당허브업체를삭제할때_정상삭제된다")
+    void deleteCompany_HUB_MANAGER가_담당허브업체를삭제할때_정상삭제된다() {
+        UUID hubId = UUID.randomUUID();
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, hubId, "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(hubId, null));
+
+        companyService.deleteCompany(company.getId(), UserRole.HUB_MANAGER, USERNAME);
+
+        assertThat(company.getDeletedAt()).isNotNull();
+        assertThat(company.getDeletedBy()).isEqualTo(USERNAME);
+    }
+
+    @Test
+    @DisplayName("deleteCompany_소속조회대상사용자를찾을수없을때_예외발생")
+    void deleteCompany_소속조회대상사용자를찾을수없을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenThrow(userNotFoundException(USERNAME));
+
+        assertThatThrownBy(() -> companyService.deleteCompany(company.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
     }
 
     private Company companyWithId(String name, CompanyType type, UUID hubId, String address) {
