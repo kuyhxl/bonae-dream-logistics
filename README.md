@@ -1,6 +1,6 @@
 <div align="center">
   <br>
-  <h1> 📦 보내드림 물류</h1>
+  <h1> 🚛 보내드림 물류</h1>
   <strong>MSA 기반 국내 물류 관리 및 배송 시스템</strong>
   <br>
   <em>bonae-dream-logistics</em>
@@ -41,6 +41,7 @@
   - [3. 빌드](#3-빌드)
   - [4. 실행](#4-실행)
   - [5. 동작 확인](#5-동작-확인)
+- [전체 컨테이너 실행](#-전체-컨테이너-실행)
 - [API 문서 (Swagger)](#-api-문서-swagger)
 - [포트 목록](#-포트-목록)
 
@@ -132,7 +133,7 @@ cp .env.template .env
 ### 2. 인프라 기동
 
 ```bash
-docker compose up -d
+docker compose up -d postgres redis zipkin
 docker compose ps        # 3개 컨테이너가 Up 상태인지 확인
 ```
 
@@ -143,7 +144,9 @@ docker compose ps        # 3개 컨테이너가 Up 상태인지 확인
 | `bonae-zipkin` | 9411 | 분산 추적 |
 
 > 💡 로컬 PostgreSQL이 5432를 쓰고 있어도 무방합니다 (호스트 포트 15432 사용).
-> `.env`를 바꾼 뒤에는 `docker compose down -v && docker compose up -d` — 볼륨이 비어야 계정이 재생성됩니다.
+> `.env`를 바꾼 뒤에는 `docker compose down -v && docker compose up -d postgres redis zipkin` — 볼륨이 비어야 계정이 재생성됩니다.
+
+> 📦 애플리케이션까지 컨테이너로 한 번에 띄우려면 [전체 컨테이너 실행](#-전체-컨테이너-실행)을 참고하세요.
 
 ### 3. 빌드
 
@@ -179,6 +182,50 @@ curl localhost:8080/api/users/ping      # 게이트웨이 경유
 |---|---|
 | http://localhost:8761 | Eureka 대시보드 (등록된 서비스 확인) |
 | http://localhost:9411 | Zipkin UI (분산 추적) |
+
+---
+
+## 📦 전체 컨테이너 실행
+
+인프라와 애플리케이션 8개를 한 번에 띄웁니다. **통합 테스트나 전체 흐름 확인이 필요할 때** 사용하세요.
+
+```bash
+docker compose up -d --build      # 최초 실행 (이미지 빌드 포함)
+docker compose ps                 # 11개 컨테이너 상태 확인
+```
+
+| 자주 쓰는 명령 | 설명 |
+|---|---|
+| `docker compose logs -f gateway` | 특정 서비스 로그 실시간 확인 |
+| `docker compose restart user-service` | 한 서비스만 재시작 |
+| `docker compose up -d --build hub-service` | 코드 수정 후 해당 서비스만 재빌드 |
+| `docker compose down` | 전체 종료 (데이터 유지) |
+| `docker compose down -v` | 전체 종료 + 볼륨 삭제 |
+
+### 로컬 실행과의 차이
+
+| | 로컬 (`bootRun` / IDE) | 컨테이너 (`docker compose`) |
+|---|---|---|
+| 활성 프로파일 | 기본값 | `docker` |
+| DB 주소 | `localhost:15432` | `postgres:5432` |
+| Eureka | `localhost:8761` | `eureka-server:8761` |
+| Redis / Zipkin | `localhost` | `redis` / `zipkin` |
+
+각 서비스의 `application-docker.yaml`이 컨테이너 환경 호스트를 덮어씁니다.
+기본 `application.yaml`은 **로컬 개발 기준을 그대로 유지**하므로, IDE 실행 방식은 변하지 않습니다.
+
+### 개발 중 권장 방식
+
+전체 컨테이너 실행은 코드를 고칠 때마다 재빌드가 필요해 개발 루프가 느립니다.
+**평소에는 인프라만 컨테이너로 띄우고 서비스는 IDE에서 실행**하는 편이 빠릅니다.
+
+```bash
+docker compose up -d postgres redis zipkin   # 인프라만
+./gradlew :user-service:bootRun              # 담당 서비스는 IDE/터미널에서
+```
+
+> ⚠️ `JWT_SECRET`은 게이트웨이와 user-service가 **같은 값**을 써야 서명 검증이 성립합니다.
+> `.env` 하나로 양쪽에 주입되므로 별도 설정은 필요 없습니다.
 
 ---
 

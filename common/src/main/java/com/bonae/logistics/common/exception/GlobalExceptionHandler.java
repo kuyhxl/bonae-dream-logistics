@@ -7,8 +7,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.List;
 
@@ -46,6 +48,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId(), fields));
+    }
+
+    // 필수 요청 파라미터 누락
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestParameter(MissingServletRequestParameterException e) {
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT;
+        log.warn("[{}] 필수 요청 파라미터 누락: parameter={}", errorCode.name(), e.getParameterName());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 요청 파라미터 타입 변환 실패
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleMethodArgumentTypeMismatch(MethodArgumentTypeMismatchException e) {
+        ErrorCode errorCode = ErrorCode.INVALID_INPUT;
+        log.warn("[{}] 요청 파라미터 타입 변환 실패: parameter={}", errorCode.name(), e.getName()
+        );
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
     }
 
     // 그 외 오류

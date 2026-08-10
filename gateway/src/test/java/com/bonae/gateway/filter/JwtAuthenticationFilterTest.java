@@ -298,28 +298,34 @@ class JwtAuthenticationFilterTest {
         }
 
         @Test
-        @DisplayName("Redis 조회에 실패하면 503을 반환한다")
-        void redisFailureReturnsServiceUnavailable() {
-            // 블랙리스트는 보안 통제이므로 확인할 수 없으면 통과시키지 않음
+        @DisplayName("Redis 조회에 실패해도 통과시킨다")
+        void redisFailurePasses() {
+            // Redis 장애가 인증이 필요한 모든 API를 멈추지 않도록 가용성을 우선한다(fail-open).
             given(blacklistChecker.isBlacklisted(anyString()))
                     .willReturn(Mono.error(new RuntimeException("redis down")));
 
-            assertThat(statusOf(MockServerHttpRequest.get("/api/companies")
+            ServerWebExchange forwarded = forwardedFor(MockServerHttpRequest.get("/api/companies")
                     .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
-                    .build()))
-                    .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+                    .build());
+
+            assertThat(forwarded).isNotNull();
+            assertThat(forwarded.getRequest().getHeaders().getFirst("X-User-Id")).isEqualTo(USERNAME);
         }
 
         @Test
-        @DisplayName("Redis 조회에 실패하면 체인으로 전달하지 않는다")
-        void redisFailureNotForwarded() {
+        @DisplayName("Redis 조회에 실패해도 사용자 헤더는 정상 주입된다")
+        void redisFailureStillInjectsHeaders() {
             given(blacklistChecker.isBlacklisted(anyString()))
                     .willReturn(Mono.error(new RuntimeException("redis down")));
 
-            assertThat(forwardedFor(MockServerHttpRequest.get("/api/companies")
+            ServerWebExchange forwarded = forwardedFor(MockServerHttpRequest.get("/api/companies")
                     .header("Authorization", "Bearer " + accessToken(ROLE, HUB_ID, COMPANY_ID))
-                    .build()))
-                    .isNull();
+                    .build());
+
+            var headers = forwarded.getRequest().getHeaders();
+            assertThat(headers.getFirst("X-User-Role")).isEqualTo(ROLE);
+            assertThat(headers.getFirst("X-User-Hub-Id")).isEqualTo(HUB_ID);
+            assertThat(headers.getFirst("X-User-Company-Id")).isEqualTo(COMPANY_ID);
         }
 
         @Test

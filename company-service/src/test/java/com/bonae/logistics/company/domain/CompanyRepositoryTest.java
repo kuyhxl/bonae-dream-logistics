@@ -87,4 +87,37 @@ class CompanyRepositoryTest {
 
         assertThat(exists).isFalse();
     }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_삭제되지않은업체를_정상조회됨")
+    void findByIdAndDeletedAtIsNull_삭제되지않은업체를_정상조회됨() {
+        Company savedCompany = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1")
+        );
+
+        var foundCompany = companyRepository.findByIdAndDeletedAtIsNull(savedCompany.getId());
+
+        assertThat(foundCompany).isPresent();
+        assertThat(foundCompany.get().getName()).isEqualTo("배송센터A");
+    }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_삭제된업체는_빈값반환")
+    void findByIdAndDeletedAtIsNull_삭제된업체는_빈값반환() {
+        Company deletedCompany = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        deletedCompany.delete("tester");
+        Company savedCompany = companyRepository.save(deletedCompany);
+
+        var foundCompany = companyRepository.findByIdAndDeletedAtIsNull(savedCompany.getId());
+
+        assertThat(foundCompany).isEmpty();
+    }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_존재하지않는id일때_빈값반환")
+    void findByIdAndDeletedAtIsNull_존재하지않는id일때_빈값반환() {
+        var foundCompany = companyRepository.findByIdAndDeletedAtIsNull(UUID.randomUUID());
+
+        assertThat(foundCompany).isEmpty();
+    }
 }

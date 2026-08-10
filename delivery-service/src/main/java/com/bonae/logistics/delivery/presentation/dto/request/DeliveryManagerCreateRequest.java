@@ -14,7 +14,10 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ReqUpdateDeliveryManagerDto {
+public class DeliveryManagerCreateRequest {
+
+    @NotNull(message = "배송 담당자 ID는 필수입니다.")
+    private UUID deliveryManagerId;
 
     private UUID hubId;
 
