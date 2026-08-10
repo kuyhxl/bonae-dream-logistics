@@ -27,6 +27,9 @@ public enum ErrorCode{
     EXPIRED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 만료되었습니다. 다시 로그인해주세요."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "리프레시 토큰을 찾을 수 없습니다."),
     USER_ALREADY_PROCESSED(HttpStatus.CONFLICT ,"이미 처리된 가입 요청입니다"),
+    MASTER_ROLE_NOT_ASSIGNABLE(HttpStatus.FORBIDDEN, "MASTER 권한은 부여할 수 없습니다."),
+    INVALID_AFFILIATION(HttpStatus.BAD_REQUEST, "허브와 업체 소속은 동시에 가질 수 없습니다."),
+    SELF_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "본인 계정은 삭제할 수 없습니다."),
 
     // 허브
     HUB_NOT_FOUND(HttpStatus.NOT_FOUND, "허브를 찾을 수 없습니다. "),
