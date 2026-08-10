@@ -1,8 +1,11 @@
 package com.bonae.logistics.user.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.*;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -54,4 +57,38 @@ public class User extends BaseEntity {
 
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
+
+    /*
+     * 마스터 관리자에 의한 사용자 정보 수정.
+     * null/공백은 "변경 없음"이므로 건드리지 않는다.
+     */
+    public void update(String name, String slackId, Role role, UUID hubId, UUID companyId) {
+        // 명세 "권한·소속 확정 정책": MASTER는 초기 데이터로만 만들고 API로는 부여하지 않는다.
+        if (role == Role.MASTER) {
+            throw new BusinessException(ErrorCode.MASTER_ROLE_NOT_ASSIGNABLE);
+        }
+        // 사용자는 허브 소속이거나 업체 소속이지 둘 다일 수는 없다.
+        if (hubId != null && companyId != null) {
+            throw new BusinessException(ErrorCode.INVALID_AFFILIATION);
+        }
+
+        if (StringUtils.hasText(name)) {
+            this.name = name;
+        }
+        if (StringUtils.hasText(slackId)) {
+            this.slackId = slackId;
+        }
+        if (role != null) {
+            this.role = role;
+        }
+        // 한쪽 소속을 지정하면 반대쪽은 비운다. 허브 담당자였다가 업체 담당자로 옮기는 경우 대비.
+        if (hubId != null) {
+            this.hubId = hubId;
+            this.companyId = null;
+        }
+        if (companyId != null) {
+            this.companyId = companyId;
+            this.hubId = null;
+        }
+    }
 }
