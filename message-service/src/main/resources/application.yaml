@@ -66,6 +66,22 @@ slack:
   connect-timeout: 2000ms  # 연결 수립까지
   read-timeout: 2000ms     # 응답 대기까지
 
+gemini:
+  api-key: ${GEMINI_API_KEY:dummy}   # aistudio.google.com -> Get API key
+  api-url: https://generativelanguage.googleapis.com/v1beta
+  model: gemini-2.0-flash
+  mock: ${GEMINI_MOCK:true} # 키 없이 개발할 때
+  max-attempts: 2
+  connect-timeout: 2000ms
+  read-timeout: 8000ms # 생성형 응답은 슬랙보다 느리다
+
+# AI 실패 시 사용할 산술 폴백 파라미터
+dispatch:
+  working-hour-start: 9
+  working-hour-end: 18
+  last-mile-minutes: 120     # 마지막 허브 -> 도착지 (허브 경로에 포함되지 않는 구간)
+  buffer-minutes: 60         # 안전 여유
+
 resilience4j:
   retry:
     instances:
@@ -75,5 +91,13 @@ resilience4j:
         exponential-backoff-multiplier: 2
         retry-exceptions:
           - com.bonae.logistics.message.infrastructure.slack.SlackTransientException # 재시도 에러
+          - org.springframework.web.client.HttpServerErrorException
+          - org.springframework.web.client.ResourceAccessException
+      gemini:
+        max-attempts: ${gemini.max-attempts}
+        wait-duration: 1000ms
+        exponential-backoff-multiplier: 2
+        retry-exceptions:
+          - com.bonae.logistics.message.infrastructure.ai.AiTransientException
           - org.springframework.web.client.HttpServerErrorException
           - org.springframework.web.client.ResourceAccessException
