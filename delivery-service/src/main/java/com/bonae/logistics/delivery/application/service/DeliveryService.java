@@ -38,7 +38,12 @@ public class DeliveryService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponseDto<DeliveryListItemResponse> getDeliveries(PageRequestDto pageRequestDto, UserRole userRole, UUID companyId, String username) {
+    public PageResponseDto<DeliveryListItemResponse> getDeliveries(
+            PageRequestDto pageRequestDto,
+            UserRole userRole,
+            UUID companyId,
+            String username
+    ) {
         Page<Delivery> deliveries = switch (userRole) {
             case MASTER -> deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
             case COMPANY_MANAGER -> deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(
@@ -83,11 +88,22 @@ public class DeliveryService {
         return DeliveryCancelResponse.from(delivery);
     }
 
+    @Transactional
+    public DeliveryCancelResponse cancelDeliveryByOrderId(UUID orderId) {
+        Delivery delivery = deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        delivery.cancel();
+        deliveryRepository.flush();
+        return DeliveryCancelResponse.from(delivery);
+    }
+
     private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId, String username) {
         if (userRole == UserRole.COMPANY_MANAGER) {
             return deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(deliveryId, requireCompanyId(companyId))
                     .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
         }
+
         Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
