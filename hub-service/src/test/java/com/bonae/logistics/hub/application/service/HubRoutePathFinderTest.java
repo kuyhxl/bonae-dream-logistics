@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -99,5 +100,24 @@ public class HubRoutePathFinderTest {
                         assertThat(((BusinessException) exception).getErrorCode())
                                 .isEqualTo(ErrorCode.HUB_ROUTE_NOT_FOUND)
                 );
+    }
+
+    @Test
+    @DisplayName("경로 역추적 중 이전 간선이 없으면 내부 상태 예외가 발생한다")
+    void throwsExceptionWhenPreviousEdgeIsMissing() {
+        Hub departureHub = createHub(1.0, 1.0);
+        Hub arrivalHub = createHub(2.0, 2.0);
+
+        Map<UUID, HubRoute> previous = Map.of();
+
+        assertThatThrownBy(() ->
+                hubRoutePathFinder.reconstructPath(
+                        departureHub.getId(),
+                        arrivalHub.getId(),
+                        previous
+                )
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining(arrivalHub.getId().toString());
     }
 }

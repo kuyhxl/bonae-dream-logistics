@@ -95,6 +95,13 @@ public class HubRoutePathFinder {
 
         while (!current.equals(departureHubId)) {
             HubRoute edge = previous.get(current);
+
+            if (edge == null) {
+                throw new IllegalStateException(
+                  "경로 역추적 중 이전 간선을 찾을 수 없습니다. currentHubId=" + current
+                );
+            }
+
             path.add(edge);
             current = edge.getDepartureHub().getId();
         }
