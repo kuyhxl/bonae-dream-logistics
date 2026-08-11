@@ -1,8 +1,10 @@
 package com.bonae.logistics.common.exception;
 
 import com.bonae.logistics.common.response.ErrorResponse;
+import feign.FeignException;
 import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
+import org.springframework.dao.DataIntegrityViolationException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -111,6 +113,26 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException e) {
         ErrorCode errorCode = ErrorCode.METHOD_NOT_ALLOWED;
         log.warn("[{}] 지원하지 않는 메서드: {}", errorCode.name(), e.getMethod());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // DB 제약조건 위반. 각 서비스가 제약조건명으로 구체적인 원인을 구분해 변환하고, 분류 못한 경우 (409)
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException e) {
+        ErrorCode errorCode = ErrorCode.DATA_CONFLICT;
+        log.warn("[{}] 데이터 제약조건 위반: {}", errorCode.name(), e.getMostSpecificCause().getMessage());
+        return ResponseEntity
+                .status(errorCode.getStatus())
+                .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // 서비스 간 호출 실패. FeignErrorDecoder가 하위 서비스의 ErrorCode를 복원하지 못한 경우 (502)
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> handleFeign(FeignException e) {
+        ErrorCode errorCode = ErrorCode.UPSTREAM_ERROR;
+        log.error("[{}] 서비스 간 호출 실패: status={}", errorCode.name(), e.status(), e);
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
