@@ -255,6 +255,34 @@ class ProductServiceTest {
     }
 
     @Test
+    @DisplayName("createProduct_가격의소수자릿수가컬럼스케일을초과할때_예외발생")
+    void createProduct_가격의소수자릿수가컬럼스케일을초과할때_예외발생() {
+        // price 컬럼은 decimal(12,2)라 소수 셋째 자리부터는 저장 시 조용히 반올림되어
+        // 응답값과 실제 저장값이 달라질 수 있으므로 요청 단계에서 막아야 한다.
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        UUID hubId = UUID.randomUUID();
+        ReqCreateProductDto reqDto = ReqCreateProductDto.builder()
+                .name("갤럭시 스마트폰")
+                .companyId(company.getId())
+                .price(new BigDecimal("1000.999"))
+                .hubId(hubId)
+                .quantity(10)
+                .build();
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(hubClient.getHub(hubId)).thenReturn(ResponseEntity.ok().build());
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> productService.createProduct(reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_PRICE);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
     @DisplayName("createProduct_이미존재하는상품명과업체조합일때_예외발생")
     void createProduct_이미존재하는상품명과업체조합일때_예외발생() {
         Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
