@@ -1,6 +1,8 @@
 package com.bonae.logistics.company.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -15,6 +17,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
@@ -22,6 +25,9 @@ import java.util.UUID;
 @Table(name = "p_products", schema = "company_service")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Product extends BaseEntity {
+
+    // price 컬럼 정의(decimal(12,2))가 허용하는 최댓값
+    private static final BigDecimal MAX_PRICE = new BigDecimal("9999999999.99");
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -38,13 +44,28 @@ public class Product extends BaseEntity {
     @Column(name = "price", nullable = false, precision = 12, scale = 2)
     private BigDecimal price;
 
-    public Product(
+    private Product(
             String name,
             Company company,
             BigDecimal price
     ) {
+        Objects.requireNonNull(company, "업체는 null일 수 없습니다");
+        validatePrice(price);
+
         this.name = name;
         this.company = company;
         this.price = price;
+    }
+
+    public static Product create(String name, Company company, BigDecimal price) {
+        return new Product(name, company, price);
+    }
+
+    //상품 가격(price)이 올바른 범위인지 검사하는 검증 메서드
+    // null이거나, 0보다 작거나, 최대 가격보다 크면 잘못된 가격으로 처리
+    private static void validatePrice(BigDecimal price) {
+        if (price == null || price.compareTo(BigDecimal.ZERO) < 0 || price.compareTo(MAX_PRICE) > 0) {
+            throw new BusinessException(ErrorCode.INVALID_PRICE);
+        }
     }
 }
