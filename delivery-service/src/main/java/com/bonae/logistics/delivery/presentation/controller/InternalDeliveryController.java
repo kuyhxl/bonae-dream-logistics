@@ -32,7 +32,7 @@ public class InternalDeliveryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PatchMapping
+    @PatchMapping("/order")
     public ResponseEntity<DeliveryDetailResponse> updateDeliveryByOrder(
             @Valid @RequestBody InternalDeliveryUpdateRequest request
     ) {
