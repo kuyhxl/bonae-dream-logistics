@@ -1,5 +1,6 @@
 package com.bonae.logistics.company.presentation.dto.response;
 
+import com.bonae.logistics.company.domain.entity.Inventory;
 import com.bonae.logistics.company.domain.entity.Product;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,15 +21,15 @@ public class ResCreateProductDto {
     private LocalDateTime createdAt;
     private String createdBy;
 
-    // hubId/quantity는 Product 엔티티(p_products) 컬럼이 아니라 함께 생성되는 재고 정보라 요청값을 그대로 반영
-    public static ResCreateProductDto from(Product product, UUID hubId, Integer quantity) {
+    // hubId/quantity는 Product 엔티티(p_products) 컬럼이 아니라 함께 생성된 Inventory(p_inventories)의 값을 반영
+    public static ResCreateProductDto from(Product product, Inventory inventory) {
         return ResCreateProductDto.builder()
                 .productId(product.getId())
                 .name(product.getName())
                 .companyId(product.getCompany().getId())
                 .price(product.getPrice())
-                .hubId(hubId)
-                .quantity(quantity)
+                .hubId(inventory.getHubId())
+                .quantity(inventory.getQuantity())
                 .createdAt(product.getCreatedAt())
                 .createdBy(product.getCreatedBy())
                 .build();

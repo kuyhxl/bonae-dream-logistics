@@ -4,6 +4,7 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.Company;
+import com.bonae.logistics.company.domain.entity.Inventory;
 import com.bonae.logistics.company.domain.entity.Product;
 import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.domain.repository.ProductRepository;
@@ -31,6 +32,7 @@ public class ProductService {
 
     private final ProductRepository productRepository;
     private final CompanyRepository companyRepository;
+    private final InventoryService inventoryService;
     private final UserClient userClient;
     private final HubClient hubClient;
     private final TransactionTemplate transactionTemplate;
@@ -48,8 +50,9 @@ public class ProductService {
 
         authorizeCreate(reqDto.getHubId(), company, userRole, username);
 
-        // 실제 DB 작업만 트랜잭션으로 처리
-        Product product = transactionTemplate.execute(status -> {
+        // 실제 DB 작업만 트랜잭션으로 처리.
+        // 상품 저장과 초기 재고 생성이 한 트랜잭션으로 묶여 재고 생성이 실패하면 상품 저장도 함께 롤백.
+        ProductCreationResult result = transactionTemplate.execute(status -> {
             if (productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId())) {
                 throw new BusinessException(ErrorCode.PRODUCT_DUPLICATED);
             }
@@ -67,10 +70,15 @@ public class ProductService {
                 throw e;
             }
 
-            return newProduct;
+            Inventory newInventory = inventoryService.createInventory(newProduct, reqDto.getHubId(), reqDto.getQuantity());
+
+            return new ProductCreationResult(newProduct, newInventory);
         });
 
-        return ResCreateProductDto.from(product, reqDto.getHubId(), reqDto.getQuantity());
+        return ResCreateProductDto.from(result.product(), result.inventory());
+    }
+
+    private record ProductCreationResult(Product product, Inventory inventory) {
     }
 
     // MASTER는 제한 없음.
