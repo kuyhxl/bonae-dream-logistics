@@ -14,6 +14,9 @@ public enum ErrorCode{
     FORBIDDEN(HttpStatus.FORBIDDEN, "해당 작업을 수행할 권한이 없습니다. "),
     RESOURCE_NOT_FOUND(HttpStatus.NOT_FOUND, "요청한 리소스를 찾을 수 없습니다. "),
     METHOD_NOT_ALLOWED(HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청 메서드입니다."),
+    DATA_CONFLICT(HttpStatus.CONFLICT, "이미 존재하거나 다른 데이터와 충돌하는 요청입니다."),
+    NOT_IMPLEMENTED(HttpStatus.NOT_IMPLEMENTED, "아직 제공하지 않는 기능입니다."),
+    UPSTREAM_ERROR(HttpStatus.BAD_GATEWAY, "연동 서비스 호출에 실패했습니다."),
     SERVICE_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "일시적으로 서비스를 사용할 수 없습니다. "),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "서버 오류가 발생했습니다. "),
     INVALID_STATUS_TRANSITION(HttpStatus.BAD_REQUEST, "잘못된 상태 변경입니다."),
@@ -95,7 +98,6 @@ public enum ErrorCode{
     // 슬렉/AI
     SLACK_SEND_FAILED(HttpStatus.BAD_GATEWAY, "슬렉 메시지 발송에 실패했습니다."),
     SLACK_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "슬렉 메시지 없음 또는 이미 삭제됨"),
-    SLACK_MESSAGE_ALREADY_SENT(HttpStatus.CONFLICT, "이미 발송 완료된 메시지 수정 시도"),
     SLACK_MESSAGE_NON_EDITABLE(HttpStatus.CONFLICT, "발송 전(PENDING) 메시지만 수정할 수 있습니다."),
     AI_GENERATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 응답 생성에 실패했습니다.");
 

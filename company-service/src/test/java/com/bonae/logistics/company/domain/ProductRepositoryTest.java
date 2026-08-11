@@ -105,4 +105,40 @@ class ProductRepositoryTest {
         assertThat(reloaded.getDeletedBy()).isEqualTo("tester");
         assertThat(reloaded.isDeleted()).isTrue();
     }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_삭제되지않은상품을_정상조회됨")
+    void findByIdAndDeletedAtIsNull_삭제되지않은상품을_정상조회됨() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product savedProduct = productRepository.save(
+                Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00")));
+
+        var foundProduct = productRepository.findByIdAndDeletedAtIsNull(savedProduct.getId());
+
+        assertThat(foundProduct).isPresent();
+        assertThat(foundProduct.get().getName()).isEqualTo("갤럭시 스마트폰");
+    }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_삭제된상품은_빈값반환")
+    void findByIdAndDeletedAtIsNull_삭제된상품은_빈값반환() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product deletedProduct = Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00"));
+        deletedProduct.delete("tester");
+        Product savedProduct = productRepository.save(deletedProduct);
+
+        var foundProduct = productRepository.findByIdAndDeletedAtIsNull(savedProduct.getId());
+
+        assertThat(foundProduct).isEmpty();
+    }
+
+    @Test
+    @DisplayName("findByIdAndDeletedAtIsNull_존재하지않는id일때_빈값반환")
+    void findByIdAndDeletedAtIsNull_존재하지않는id일때_빈값반환() {
+        var foundProduct = productRepository.findByIdAndDeletedAtIsNull(UUID.randomUUID());
+
+        assertThat(foundProduct).isEmpty();
+    }
 }

@@ -14,6 +14,7 @@ import java.util.UUID;
 @NoArgsConstructor
 @Builder
 public class UserInfoResponse {
+    private UUID id;
     private String username;
     private String name;
     private String slackId;
@@ -22,6 +23,7 @@ public class UserInfoResponse {
     private UUID companyId;
 
     public UserInfoResponse(User user) {
+        this.id = user.getId();
         this.username = user.getUsername();
         this.name = user.getName();
         this.slackId = user.getSlackId();
