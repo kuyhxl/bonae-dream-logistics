@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.util.UUID;
 
@@ -180,5 +183,86 @@ class CompanyRepositoryTest {
         assertThat(reloaded.getDeletedAt()).isNotNull();
         assertThat(reloaded.getDeletedBy()).isEqualTo("tester");
         assertThat(reloaded.isDeleted()).isTrue();
+    }
+
+    // 아래 검색 테스트들은 이 테스트가 만든 데이터끼리만 매칭되도록 각 테스트마다 새로 발급한 hubId로 결과 범위를 좁힌다.
+    // 실제 개발 DB(@AutoConfigureTestDatabase Replace.NONE)를 공유하는 환경이라
+    // 다른 세션/수동 테스트로 남아있을 수 있는 기존 데이터와 키워드/타입이 우연히 겹쳐도 영향받지 않게 하기 위함이다.
+
+    @Test
+    @DisplayName("searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_키워드가이름에포함되면_조회된다")
+    void searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_키워드가이름에포함되면_조회된다() {
+        UUID hubId = UUID.randomUUID();
+        companyRepository.save(new Company("삼성전자", CompanyType.PRODUCER, hubId, "경기도 수원시 영통구"));
+        companyRepository.save(new Company("LG전자", CompanyType.PRODUCER, hubId, "서울시 강서구"));
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Company> result = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                "%삼성%", null, hubId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("삼성전자");
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_타입으로필터링된다")
+    void searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_타입으로필터링된다() {
+        UUID hubId = UUID.randomUUID();
+        companyRepository.save(new Company("삼성전자", CompanyType.PRODUCER, hubId, "경기도 수원시 영통구"));
+        companyRepository.save(new Company("쿠팡물류센터", CompanyType.RECEIVER, hubId, "서울시 강서구"));
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Company> result = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                null, CompanyType.RECEIVER, hubId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("쿠팡물류센터");
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_허브로필터링된다")
+    void searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_허브로필터링된다() {
+        UUID targetHubId = UUID.randomUUID();
+        companyRepository.save(new Company("삼성전자", CompanyType.PRODUCER, targetHubId, "경기도 수원시 영통구"));
+        companyRepository.save(new Company("LG전자", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강서구"));
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Company> result = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                null, null, targetHubId, pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("삼성전자");
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_삭제된업체는_결과에서제외된다")
+    void searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_삭제된업체는_결과에서제외된다() {
+        UUID hubId = UUID.randomUUID();
+        Company deletedCompany = new Company("삼성전자", CompanyType.PRODUCER, hubId, "경기도 수원시 영통구");
+        deletedCompany.delete("tester");
+        companyRepository.save(deletedCompany);
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Company> result = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                "%삼성%", null, hubId, pageable);
+
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_조건이모두없으면_삭제되지않은업체가결과에포함된다")
+    void searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull_조건이모두없으면_삭제되지않은업체가결과에포함된다() {
+        Company saved1 = companyRepository.save(
+                new Company("삼성전자", CompanyType.PRODUCER, UUID.randomUUID(), "경기도 수원시 영통구"));
+        Company saved2 = companyRepository.save(
+                new Company("LG전자", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강서구"));
+        // 조건 없이 전체 조회하므로 기존 데이터와 섞일 수 있어, 정확한 개수 대신 이 둘이 포함되는지만 확인한다.
+        Pageable pageable = PageRequest.of(0, 100);
+
+        Page<Company> result = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                null, null, null, pageable);
+
+        assertThat(result.getContent()).extracting(Company::getId)
+                .contains(saved1.getId(), saved2.getId());
     }
 }
