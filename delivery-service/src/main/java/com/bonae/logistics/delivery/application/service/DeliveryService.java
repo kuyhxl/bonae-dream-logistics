@@ -88,12 +88,16 @@ public class DeliveryService {
             return deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(deliveryId, requireCompanyId(companyId))
                     .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
         }
-        if (userRole == UserRole.DELIVERY_MANAGER) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
-
         Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        if (userRole == UserRole.DELIVERY_MANAGER) {
+            UUID userId = requireUserId(username);
+            if (!userId.equals(delivery.getDeliveryManagerId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+            return delivery;
+        }
 
         if (userRole == UserRole.HUB_MANAGER) {
             UUID hubId = requireHubId(username);
@@ -113,16 +117,34 @@ public class DeliveryService {
     }
 
     private UUID requireHubId(String username) {
-        if (username == null || username.isBlank()) {
-            throw new BusinessException(ErrorCode.FORBIDDEN);
-        }
-
-        UserInfoClientResponse userInfo = userClient.getUserInfo(username);
+        UserInfoClientResponse userInfo = getRequiredUserInfo(username);
         if (userInfo.getHubId() == null) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         return userInfo.getHubId();
+    }
+
+    private UUID requireUserId(String username) {
+        UserInfoClientResponse userInfo = getRequiredUserInfo(username);
+        if (userInfo.getId() == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return userInfo.getId();
+    }
+
+    private UserInfoClientResponse getRequiredUserInfo(String username) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        UserInfoClientResponse userInfo = userClient.getUserInfo(username);
+        if (userInfo == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return userInfo;
     }
 
     private void validateCompanyMapping(CompanyInfoClientResponse supplierCompany, CompanyInfoClientResponse receiverCompany) {
