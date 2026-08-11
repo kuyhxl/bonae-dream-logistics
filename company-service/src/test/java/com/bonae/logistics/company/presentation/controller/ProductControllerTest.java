@@ -11,6 +11,7 @@ import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -102,6 +103,61 @@ class ProductControllerTest {
                 .thenThrow(new BusinessException(ErrorCode.INVALID_SORT_FIELD));
 
         mockMvc.perform(get("/api/products")
+                        .header("X-User-Role", "MASTER")
+                        .param("sort", "invalidField"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_SORT_FIELD"));
+    }
+
+    @Test
+    @DisplayName("GET /api/products/search_정상요청시_검색결과와페이지정보를_응답한다")
+    void searchProducts_정상요청시_검색결과와페이지정보를_응답한다() throws Exception {
+        UUID companyId = UUID.randomUUID();
+        ResSearchProductDto item = ResSearchProductDto.builder()
+                .productId(UUID.randomUUID())
+                .name("갤럭시 스마트폰")
+                .companyId(companyId)
+                .price(new BigDecimal("1200000.00"))
+                .build();
+
+        PageResponseDto<ResSearchProductDto> pageResponse = PageResponseDto.<ResSearchProductDto>builder()
+                .content(List.of(item))
+                .page(1)
+                .size(10)
+                .totalElements(1)
+                .totalPages(1)
+                .last(true)
+                .build();
+
+        when(productService.searchProducts(any(PageRequestDto.class), eq("갤럭시"), eq(companyId)))
+                .thenReturn(pageResponse);
+
+        mockMvc.perform(get("/api/products/search")
+                        .header("X-User-Role", "DELIVERY_MANAGER")
+                        .param("keyword", "갤럭시")
+                        .param("companyId", companyId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("갤럭시 스마트폰"))
+                .andExpect(jsonPath("$.content[0].companyId").value(companyId.toString()))
+                .andExpect(jsonPath("$.content[0].price").value(1200000.00));
+    }
+
+    @Test
+    @DisplayName("GET /api/products/search_권한헤더가없을때_401을응답한다")
+    void searchProducts_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(get("/api/products/search"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("GET /api/products/search_허용되지않은정렬기준일때_400을응답한다")
+    void searchProducts_허용되지않은정렬기준일때_400을응답한다() throws Exception {
+        when(productService.searchProducts(any(PageRequestDto.class), any(), any()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_SORT_FIELD));
+
+        mockMvc.perform(get("/api/products/search")
                         .header("X-User-Role", "MASTER")
                         .param("sort", "invalidField"))
                 .andExpect(status().isBadRequest())
