@@ -181,6 +181,33 @@ class DeliveryServiceTest {
                 .isEqualTo(ErrorCode.DELIVERY_ALREADY_COMPLETED);
     }
 
+    @Test
+    @DisplayName("주문 ID 기준으로 배송 취소에 성공한다")
+    void cancelDeliveryByOrderId_success() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
+        doNothing().when(deliveryRepository).flush();
+
+        DeliveryCancelResponse result = deliveryService.cancelDeliveryByOrderId(delivery.getOrderId());
+
+        verify(deliveryRepository).flush();
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
+        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("주문 ID 기준 배송이 없으면 예외가 발생한다")
+    void cancelDeliveryByOrderId_notFound() {
+        UUID orderId = UUID.randomUUID();
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> deliveryService.cancelDeliveryByOrderId(orderId))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
+    }
+
     private DeliveryCreateRequest createRequest() throws Exception {
         DeliveryCreateRequest reqDto = new DeliveryCreateRequest();
         setField(reqDto, "orderId", UUID.randomUUID());

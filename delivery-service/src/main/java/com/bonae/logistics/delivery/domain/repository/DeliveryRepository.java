@@ -12,6 +12,8 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
 
     Optional<Delivery> findByIdAndDeletedAtIsNull(UUID id);
 
+    Optional<Delivery> findByOrderIdAndDeletedAtIsNull(UUID orderId);
+
     Optional<Delivery> findByIdAndReceiverCompanyIdAndDeletedAtIsNull(UUID id, UUID receiverCompanyId);
 
     Page<Delivery> findAllByDeletedAtIsNull(Pageable pageable);
