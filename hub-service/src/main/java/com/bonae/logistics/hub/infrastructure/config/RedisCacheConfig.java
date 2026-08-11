@@ -1,5 +1,6 @@
 package com.bonae.logistics.hub.infrastructure.config;
 
+import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
@@ -9,6 +10,7 @@ import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
+import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -27,7 +29,18 @@ public class RedisCacheConfig {
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(new GenericJackson2JsonRedisSerializer(objectMapper)))
                 .disableCachingNullValues();
 
+        Jackson2JsonRedisSerializer<HubDetailResponse> hubDetailSerializer =
+                new Jackson2JsonRedisSerializer<>(
+                        objectMapper,
+                        HubDetailResponse.class
+                );
+
         RedisCacheConfiguration hubDetailConfig = defaultConfig
+                .serializeValuesWith(
+                        RedisSerializationContext.SerializationPair.fromSerializer(
+                                hubDetailSerializer
+                        )
+                )
                 .entryTtl(Duration.ofHours(24))
                 // 논리적 캐시 이름(hubDetail)과 실제 Redis 키 prefix(hub:detail:)를 분리
                 .computePrefixWith(cacheName -> "hub:detail:");
