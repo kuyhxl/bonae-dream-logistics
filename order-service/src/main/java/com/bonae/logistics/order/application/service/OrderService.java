@@ -100,10 +100,15 @@ public class OrderService {
 
         cancelDeliveryWithRetry(orderId);
 
-        InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
-        log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+        try {
+            InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
+            log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+            order.cancel(userId);
 
-        order.cancel(userId);
+        } catch (BusinessException e) {
+            log.error("재고 복원 최종 실패, 재고 정합성 이슈 상태이므로 주문은 취소 처리함: orderId={}", orderId, e);
+            order.markCancelledWithInventoryIssue(userId);
+        }
     }
 
     @Transactional

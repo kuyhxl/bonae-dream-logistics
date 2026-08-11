@@ -106,5 +106,13 @@ public class Order extends BaseEntity {
             this.remarks = remarks;
         }
     }
+
+    // 재고 복원이 최종 실패한 상태에서 호출됩니다!
+    // 재고 복원 실패 시점에서 배송은 이미 취소 되었으므로 Order도 CANCELLED로 반영하되,
+    // 재고 정합성이 깨진 상태(사람의 개입 필요하다는 의미)임을 코드상 명시하기 위해 별도 메서드로 분리합니다.
+    public void markCancelledWithInventoryIssue(String cancelledBy) {
+        this.status = OrderStatus.CANCELLED;
+        this.delete(cancelledBy);
+    }
 }
 
