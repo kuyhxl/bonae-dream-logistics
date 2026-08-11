@@ -93,13 +93,20 @@ public class HubRoutePathFinder {
         List<HubRoute> path = new ArrayList<>();
         UUID current = arrivalHubId;
 
+        // 역추적 중 방문한 허브 저장
+        Set<UUID> tracedHubIds = new HashSet<>();
+
         while (!current.equals(departureHubId)) {
+            // 현재 허브(current)를 Set에 추가하려고 했는데 이미 들어 있어서 추가되지 않았다면
+            // 재방문 이므로 순환으로 판단하고 예외 발생 -> 무한 루프 방지
+            if (!tracedHubIds.add(current)) {
+                throw new IllegalStateException("경로 역추적 중 순환이 감지되었습니다. currentHubId=" + current);
+            }
+
             HubRoute edge = previous.get(current);
 
             if (edge == null) {
-                throw new IllegalStateException(
-                  "경로 역추적 중 이전 간선을 찾을 수 없습니다. currentHubId=" + current
-                );
+                throw new IllegalStateException("경로 역추적 중 이전 간선을 찾을 수 없습니다. currentHubId=" + current);
             }
 
             path.add(edge);

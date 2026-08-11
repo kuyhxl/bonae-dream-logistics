@@ -7,6 +7,7 @@ import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -16,6 +17,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -119,5 +121,34 @@ public class HubRoutePathFinderTest {
         )
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining(arrivalHub.getId().toString());
+    }
+
+    @Test
+    @Timeout(value = 1, unit = TimeUnit.SECONDS)
+    @DisplayName("경로 역추적 중 이전 간선이 순환하면 내부 상태 예외가 발생한다")
+    void throwsExceptionWhenPreviousEdgesFormCycle() {
+        Hub departureHub = createHub(1.0, 1.0);
+        Hub hubA = createHub(2.0, 2.0);
+        Hub hubB = createHub(3.0, 3.0);
+
+        HubRoute routeBToA = createRoute(hubB, hubA, 5);
+        HubRoute routeAToB = createRoute(hubA, hubB, 5);
+
+        // 역추적이 hubA → hubB → hubA로 반복되어 출발 허브에 도달하지 않는 순환을 구성한다.
+        Map<UUID, HubRoute> previous = Map.of(
+                hubA.getId(), routeBToA,
+                hubB.getId(), routeAToB
+        );
+
+        assertThatThrownBy(() ->
+                hubRoutePathFinder.reconstructPath(
+                        departureHub.getId(),
+                        hubA.getId(),
+                        previous
+                )
+        )
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("순환")
+                .hasMessageContaining(hubA.getId().toString());
     }
 }
