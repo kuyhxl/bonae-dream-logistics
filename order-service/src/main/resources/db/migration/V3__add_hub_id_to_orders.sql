@@ -1,0 +1,1 @@
+ALTER TABLE p_orders ADD COLUMN hub_id UUID;

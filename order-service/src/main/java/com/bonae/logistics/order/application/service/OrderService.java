@@ -3,12 +3,10 @@ package com.bonae.logistics.order.application.service;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.order.domain.entity.Order;
+import com.bonae.logistics.order.domain.entity.OrderStatus;
 import com.bonae.logistics.order.domain.repository.OrderRepository;
 import com.bonae.logistics.order.infrastructure.client.*;
-import com.bonae.logistics.order.infrastructure.client.dto.request.DeliveryCreateRequestDto;
-import com.bonae.logistics.order.infrastructure.client.dto.request.InventoryDeductRequestDto;
-import com.bonae.logistics.order.infrastructure.client.dto.request.InventoryRestoreRequestDto;
-import com.bonae.logistics.order.infrastructure.client.dto.request.SlackMessageRequestDto;
+import com.bonae.logistics.order.infrastructure.client.dto.request.*;
 import com.bonae.logistics.order.infrastructure.client.dto.response.DeliveryCreateResponseDto;
 import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryDeductResponseDto;
 import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRestoreResponseDto;
@@ -39,7 +37,7 @@ public class OrderService {
     private final AlertProperties alertProperties;
 
     @Transactional
-    public OrderResponseDto createOrder(OrderCreateRequestDto request, UUID requesterCompanyId) {
+    public OrderResponseDto createOrder(OrderCreateRequestDto request, UUID requesterCompanyId, String userId) {
 
         UUID orderId = UUID.randomUUID();
 
@@ -55,7 +53,7 @@ public class OrderService {
 
         DeliveryCreateResponseDto deliveryResult;
         try {
-            deliveryResult = createDeliveryWithRetry(orderId, requesterCompanyId, request, productInfo);
+            deliveryResult = createDeliveryWithRetry(orderId, requesterCompanyId, userId, request, productInfo);
         } catch (BusinessException e) {
             log.error("배송 생성 실패, 보상 트랜잭션(재고 복원) 시작: orderId={}", orderId, e);
 
@@ -76,11 +74,32 @@ public class OrderService {
                 request.quantity(),
                 productInfo.price(),
                 request.dueDate(),
-                request.remarks()
+                request.remarks(),
+                deliveryResult.arrivalHubId()
         );
         orderRepository.save(order);
 
         return OrderResponseDto.from(order);
+    }
+
+    @Transactional
+    public void cancelOrder(UUID orderId, UUID requesterCompanyId,String userRole,UUID hubId, String userId) {
+        // 주문 조회
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        validateHubScopeIfNeeded(order, userRole, hubId);
+        // 상태 검증
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, "PENDING 상태의 주문만 취소할 수 있습니다.");
+        }
+
+        cancelDeliveryWithRetry(orderId);
+
+        InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
+        log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+
+        order.cancel(userId);
     }
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
@@ -96,7 +115,7 @@ public class OrderService {
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public DeliveryCreateResponseDto createDeliveryWithRetry(
-            UUID orderId, UUID requesterCompanyId, OrderCreateRequestDto request, ProductInfoResponseDto productInfo
+            UUID orderId, UUID requesterCompanyId, String userId, OrderCreateRequestDto request, ProductInfoResponseDto productInfo
     ) {
         String productInfoText = productInfo.name() + " " + request.quantity() + "개";
 
@@ -104,6 +123,7 @@ public class OrderService {
                 orderId,
                 productInfo.companyId(),
                 request.receiverCompanyId(),
+                userId,
                 productInfoText,
                 request.remarks()
         ));
@@ -151,6 +171,27 @@ public class OrderService {
     public ProductInfoResponseDto recoverProductInfo(BusinessException e, UUID productId) {
         log.error("상품 조회 재시도 모두 실패: productId={}", productId);
         throw e;
+    }
+
+
+    @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
+    public void cancelDeliveryWithRetry(UUID orderId) {
+        deliveryClient.cancelDelivery(new DeliveryCancelRequestDto(orderId));
+    }
+
+    @Recover
+    public void recoverCancelDelivery(BusinessException e, UUID orderId) {
+        log.error("배송 취소 재시도 모두 실패: orderId={}", orderId);
+        throw e;
+    }
+
+    //허브 관리자의 경우 본인 담당의 허브인지 검증
+    private void validateHubScopeIfNeeded(Order order, String UserRole, UUID hubId) {
+        if ("HUB_MANAGER".equals(UserRole)) {
+            if (hubId == null || !hubId.equals(order.getHubId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
     }
 }
 

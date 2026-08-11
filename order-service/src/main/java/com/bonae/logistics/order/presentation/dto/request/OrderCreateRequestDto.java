@@ -14,9 +14,6 @@ public record OrderCreateRequestDto(
         @NotNull(message = "수령업체는 필수입니다.")
         UUID receiverCompanyId,
 
-        @NotBlank(message = "수령인 username은 필수입니다.")
-        String receiverUsername,
-
         @NotNull(message = "상품은 필수입니다.")
         UUID productId,
 
