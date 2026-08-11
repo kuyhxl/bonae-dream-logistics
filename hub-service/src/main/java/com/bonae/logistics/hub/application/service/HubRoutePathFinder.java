@@ -29,6 +29,7 @@ public class HubRoutePathFinder {
         // 2. 인접 리스트(Graph) 구성
         List<HubRoute> routes = hubRouteRepository.findAllByDeletedAtIsNull();
 
+        // graph: 출발 허브 ID별로 해당 허브에서 나가는 간선을 저장한 인접 리스트
         Map<UUID, List<HubRoute>> graph = new HashMap<>();
         for (HubRoute route : routes) {
             UUID from = route.getDepartureHub().getId();
@@ -36,21 +37,28 @@ public class HubRoutePathFinder {
         }
 
         // 3. 다익스트라 자료구조 초기화
-        Map<UUID, Integer> distance = new HashMap<>();
+        // durations: 출발 허브부터 각 허브까지 현재까지 발견한 최소 누적시간
+        // previous: 각 허브의 현재 최단경로에서 직전에 사용한 간선
+        // visited: 최소 누적시간이 확정되어 탐색을 마친 허브
+        Map<UUID, Long> durations = new HashMap<>();
         Map<UUID, HubRoute> previous = new HashMap<>();
         Set<UUID> visited = new HashSet<>();
 
-        distance.put(departureHubId, 0);
+        durations.put(departureHubId, 0L);
 
         // 4. 최단 경로 찾기
         while (true) {
+            // current: 이번에 방문할 허브
+            // minDuration: 현재까지 확인한 최소 누적시간
             UUID current = null;
-            int min = Integer.MAX_VALUE;
+            Long minDuration = null;
 
-            // 아직 방문하지 않은 노드 중 최단 거리 노드 선택
-            for (UUID id : distance.keySet()) {
-                if (!visited.contains(id) && distance.get(id) < min) {
-                    min = distance.get(id);
+            // 발견한 허브 중 아직 방문하지 않은 최소 누적시간 허브를 선택한다.
+            for (UUID id : durations.keySet()) {
+                long currentDuration = durations.get(id);
+
+                if (!visited.contains(id) && (minDuration == null || currentDuration < minDuration)) {
+                    minDuration = currentDuration;
                     current = id;
                 }
             }
@@ -70,12 +78,17 @@ public class HubRoutePathFinder {
                 continue;
             }
 
-            // 인접 노드 갱신
+            // 현재 허브에서 이동할 수 있는 인접 허브의 누적시간을 갱신한다.
             for (HubRoute edge : edges) {
                 UUID next = edge.getArrivalHub().getId();
-                int newDist = distance.get(current) + edge.getDurationSeconds();
-                if (newDist < distance.getOrDefault(next, Integer.MAX_VALUE)) {
-                    distance.put(next, newDist);
+
+                long newDuration = durations.get(current) + edge.getDurationSeconds();
+
+                Long knownDuration = durations.get(next);
+
+                // 처음 발견한 허브이거나 기존 값보다 누적시간이 짧으면 최단경로 정보를 갱신한다.
+                if (knownDuration == null || newDuration < knownDuration) {
+                    durations.put(next, newDuration);
                     previous.put(next, edge);
                 }
             }
@@ -89,7 +102,7 @@ public class HubRoutePathFinder {
     }
 
     // 5. 역추적으로 최종 루트 완성
-    List<HubRoute> reconstructPath (UUID departureHubId, UUID arrivalHubId, Map<UUID, HubRoute> previous) {
+    List<HubRoute> reconstructPath(UUID departureHubId, UUID arrivalHubId, Map<UUID, HubRoute> previous) {
         List<HubRoute> path = new ArrayList<>();
         UUID current = arrivalHubId;
 
@@ -97,8 +110,7 @@ public class HubRoutePathFinder {
         Set<UUID> tracedHubIds = new HashSet<>();
 
         while (!current.equals(departureHubId)) {
-            // 현재 허브(current)를 Set에 추가하려고 했는데 이미 들어 있어서 추가되지 않았다면
-            // 재방문 이므로 순환으로 판단하고 예외 발생 -> 무한 루프 방지
+            // Set.add()가 false면 이미 방문한 허브이므로 경로 체인의 순환으로 판단한다.
             if (!tracedHubIds.add(current)) {
                 throw new IllegalStateException("경로 역추적 중 순환이 감지되었습니다. currentHubId=" + current);
             }
@@ -113,6 +125,7 @@ public class HubRoutePathFinder {
             current = edge.getDepartureHub().getId();
         }
 
+        // 도착→출발 순서로 수집했으므로 출발→도착 순서로 뒤집는다.
         Collections.reverse(path);
 
         return path;

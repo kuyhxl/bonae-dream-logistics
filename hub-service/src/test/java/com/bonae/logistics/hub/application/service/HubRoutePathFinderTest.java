@@ -151,4 +151,25 @@ public class HubRoutePathFinderTest {
                 .hasMessageContaining("순환")
                 .hasMessageContaining(hubA.getId().toString());
     }
+
+    @Test
+    @DisplayName("누적 이동시간이 int 범위를 넘어도 실제 소요시간이 짧은 경로를 선택한다")
+    void choosesCorrectPathWithLargeDurations() {
+        Hub hubA = createHub(1.0, 1.0);
+        Hub hubB = createHub(2.0, 2.0);
+        Hub hubC = createHub(3.0, 3.0);
+
+        HubRoute routeAC = createRoute(hubA, hubC, 2_000_000_000);
+        HubRoute routeAB = createRoute(hubA, hubB, 1_500_000_000);
+        HubRoute routeBC = createRoute(hubB, hubC, 1_500_000_000);
+
+        // A→B→C는 총 30억 초로 int 범위를 넘으므로, 총 20억 초인 A→C가 최단경로다.
+        when(hubRouteRepository.findAllByDeletedAtIsNull())
+                .thenReturn(List.of(routeAC, routeAB, routeBC));
+
+        List<HubRoute> result =
+                hubRoutePathFinder.findShortestPath(hubA.getId(), hubC.getId());
+
+        assertThat(result).containsExactly(routeAC);
+    }
 }
