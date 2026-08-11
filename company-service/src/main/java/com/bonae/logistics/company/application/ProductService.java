@@ -2,23 +2,27 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.Company;
 import com.bonae.logistics.company.domain.entity.Inventory;
 import com.bonae.logistics.company.domain.entity.Product;
 import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.domain.repository.ProductRepository;
-import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
-import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
 import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.infrastructure.UserClient;
 import com.bonae.logistics.company.infrastructure.UserInfoDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
+import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -39,6 +43,13 @@ public class ProductService {
     private final UserClient userClient;
     private final HubClient hubClient;
     private final TransactionTemplate transactionTemplate;
+
+    @Transactional(readOnly = true)
+    //삭제되지 않은 상품을 페이징 조회한다.
+    public PageResponseDto<ResGetProductListDto> getProducts(PageRequestDto pageRequestDto) {
+        Page<Product> products = productRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+        return PageResponseDto.from(products, ResGetProductListDto::from);
+    }
 
     @Transactional(readOnly = true)
     //삭제되지 않은 상품을 단건 조회한다. 없거나 삭제된 상품은 PRODUCT_NOT_FOUND로 응답한다.
