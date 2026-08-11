@@ -2,6 +2,7 @@ package com.bonae.logistics.hub.infrastructure.config;
 
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.cache.annotation.CachingConfigurer;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 import org.springframework.context.annotation.Bean;
@@ -18,7 +19,7 @@ import java.time.Duration;
 
 @Configuration
 @EnableCaching
-public class RedisCacheConfig {
+public class RedisCacheConfig implements CachingConfigurer {
 
     private static final String HUB_DETAIL_CACHE_NAME = "hubDetail";
 
@@ -52,9 +53,9 @@ public class RedisCacheConfig {
                 .build();
     }
 
-    // 캐시 오류를 전부 WARN 로그로만 남기고, 예외를 던지지 않아 DB 폴백이 그대로 진행되게 한다.
-    @Bean
-    public CacheErrorHandler cacheErrorHandler() {
+    //CachingConfigurer errorHandler()를 통해 annotation-driven cache가 사용할 오류 처리기를 명시
+    @Override
+    public CacheErrorHandler errorHandler() {
         return new HubCacheErrorHandler();
     }
 }
