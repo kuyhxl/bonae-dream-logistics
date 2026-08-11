@@ -42,7 +42,7 @@ public class RedisCacheConfig implements CachingConfigurer {
                                 hubDetailSerializer
                         )
                 )
-                .entryTtl(Duration.ofHours(24))
+                .entryTtl(Duration.ofMinutes(10))
                 // 논리적 캐시 이름(hubDetail)과 실제 Redis 키 prefix(hub:detail:)를 분리
                 .computePrefixWith(cacheName -> "hub:detail:");
 
