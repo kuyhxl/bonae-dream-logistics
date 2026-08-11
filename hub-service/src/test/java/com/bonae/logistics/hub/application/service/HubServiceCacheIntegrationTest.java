@@ -14,10 +14,12 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,6 +39,9 @@ class HubServiceCacheIntegrationTest {
 
     @Autowired
     private CacheManager cacheManager;
+
+    @Autowired
+    private StringRedisTemplate redisTemplate;
 
     private Hub hub;
 
@@ -103,6 +108,20 @@ class HubServiceCacheIntegrationTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
                         .isEqualTo(ErrorCode.HUB_NOT_FOUND));
+    }
+
+    @Test
+    @DisplayName("허브 단건 캐시는 10분 TTL로 저장된다")
+    void storesCacheWithTenMinuteTtl() {
+        hubService.getHubDetail(hub.getId());
+
+        Long ttl = redisTemplate.getExpire(
+                "hub:detail:" + hub.getId(),
+                TimeUnit.SECONDS
+        );
+
+        assertThat(ttl).isNotNull();
+        assertThat(ttl).isBetween(590L, 600L);
     }
 
     private HubUpdateRequest updateRequestWithName(String name) {
