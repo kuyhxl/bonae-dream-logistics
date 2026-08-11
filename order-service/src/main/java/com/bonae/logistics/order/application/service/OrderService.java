@@ -82,6 +82,26 @@ public class OrderService {
         return OrderResponseDto.from(order);
     }
 
+    @Transactional
+    public void cancelOrder(UUID orderId, UUID requesterCompanyId,String userRole,UUID hubId, String userId) {
+        // 주문 조회
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        validateHubScopeIfNeeded(order, userRole, hubId);
+        // 상태 검증
+        if (order.getStatus() != OrderStatus.PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, "PENDING 상태의 주문만 취소할 수 있습니다.");
+        }
+
+        cancelDeliveryWithRetry(orderId);
+
+        InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
+        log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+
+        order.cancel(userId);
+    }
+
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public InventoryDeductResponseDto deductStockWitRetry(UUID orderId, UUID productId, int quantity) {
         return inventoryClient.deductStock(productId, new InventoryDeductRequestDto(orderId, quantity));
@@ -107,26 +127,6 @@ public class OrderService {
                 productInfoText,
                 request.remarks()
         ));
-    }
-
-    @Transactional
-    public void cancelOrder(UUID orderId, UUID requesterCompanyId,String userRole,UUID hubId, String userId) {
-        // 주문 조회
-        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
-
-        validateHubScopeIfNeeded(order, userRole, hubId);
-        // 상태 검증
-        if (order.getStatus() != OrderStatus.PENDING) {
-            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, "PENDING 상태의 주문만 취소할 수 있습니다.");
-        }
-
-        cancelDeliveryWithRetry(orderId);
-
-        InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
-        log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
-
-        order.cancel(userId);
     }
 
     @Recover
