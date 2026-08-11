@@ -93,5 +93,18 @@ public class Order extends BaseEntity {
         this.status = OrderStatus.CANCELLED;
         this.delete(cancelledBy);
     }
+
+    public void update(LocalDateTime dueDate, String remarks) {
+        if(this.status != OrderStatus.PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    "PENDING 상태의 주문만 수정할 수 있습니다.");
+        }
+        if(dueDate != null) {
+           this.dueDate = dueDate;
+        }
+        if(remarks != null) {
+            this.remarks = remarks;
+        }
+    }
 }
 
