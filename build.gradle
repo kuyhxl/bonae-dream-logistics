@@ -31,6 +31,8 @@ subprojects {
         implementation 'org.springframework.boot:spring-boot-starter-actuator'
         implementation 'io.micrometer:micrometer-tracing-bridge-brave'
         implementation 'io.zipkin.reporter2:zipkin-reporter-brave'
+        // OpenFeign은 이 의존성이 없음녀 자동 계측되지 않는다.
+        implementation 'io.github.openfeign:feign-micrometer'
         implementation "org.springdoc:springdoc-openapi-starter-webflux-ui:${springdocVersion}"
 
         compileOnly 'org.projectlombok:lombok'
