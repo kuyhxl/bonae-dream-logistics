@@ -2,13 +2,13 @@ package com.bonae.logistics.order.infrastructure.client.dto;
 
 import java.util.UUID;
 
-//배송 생성 요청 Dto
+// 배송 생성 요청 DTO
 public record DeliveryCreateRequestDto(
         UUID orderId,
         UUID supplierCompanyId,
         UUID receiverCompanyId,
+        String receiverUsername,
         String productInfo,
-        String requestNote,  // Order의 remarks와 매핑됨
-        String deliveryAddress
+        String requestNote
 ) {
 }
