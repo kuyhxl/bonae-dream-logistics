@@ -31,6 +31,7 @@ public class AiDispatchService {
     private final SlackMessageStore slackMessageStore;
     private final SlackClient slackClient;
     private final Tracer tracer;
+    private static final String INVALID_DEADLINE_ERROR_CODE = "invalid_ai_deadline";
 
     /*
      * AI 시한 산출 -> (실패 시 산술 폴백) -> AI 로그 + 슬랙 메시지 PENDING 저장(한 트랜잭션)
@@ -44,14 +45,19 @@ public class AiDispatchService {
         LocalDateTime deadline;
         String responseContent;
 
-        if (ai.success()) {
+        if (ai.success() && deadlineCalculator.isAcceptable(ai.finalDispatchDeadline(), command.dueDate())) {
             deadline = ai.finalDispatchDeadline();
             responseContent = ai.responseContent();
         } else {
+            // 호출 실패와 "응답은 왔지만 조건 위반"을 구분해 기록한다.
+            String errorCode = ai.success() ? INVALID_DEADLINE_ERROR_CODE : ai.errorCode();
+            int attempts = ai.success() ? 1 : ai.attempts();
+
             deadline = deadlineCalculator.fallback(command.dueDate(), command.totalDurationMin());
-            responseContent = "[FALLBACK] errorCode=" + ai.errorCode() + ", deadline=" + deadline;
-            aiDispatchStore.saveAiErrorLog(command.orderId(), ai.errorCode(), ai.attempts(), prompt, currentTraceId());
-            log.warn("[AI] 산술 폴백 사용 orderId={} deadline={}", command.orderId(), deadline);
+            responseContent = "[FALLBACK] errorCode=" + errorCode
+                    + ", aiResponse=" + ai.responseContent() + ", deadline=" + deadline;
+            aiDispatchStore.saveAiErrorLog(command.orderId(), errorCode, attempts, prompt, currentTraceId());
+            log.warn("[AI] 산술 폴백 사용 orderId={} errorCode={} deadline={}", command.orderId(), errorCode, deadline);
         }
 
         String message = formatter.format(command, deadline, LocalDateTime.now());

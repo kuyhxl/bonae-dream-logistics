@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 /*
  * AI 호출·파싱이 실패했을 때 쓰는 산술 폴백.
@@ -36,5 +37,18 @@ public class DispatchDeadlineCalculator {
             return end;
         }
         return time;
+    }
+
+    /*
+     * AI 응답은 신뢰할 수 없는 입력이다. 프롬프트로 지시한 조건을 코드로 다시 검증한다.
+     * 위반하면 보정하지 않고 산술 폴백으로 대체한다(납기 역전은 보정으로 해결되지 않는다).
+     */
+    public boolean isAcceptable(LocalDateTime deadline, LocalDateTime dueDate) {
+        if (deadline == null || !deadline.isBefore(dueDate)) {
+            return false;
+        }
+        LocalTime time = deadline.toLocalTime();
+        return !time.isBefore(LocalTime.of(properties.workingHourStart(), 0))
+                && !time.isAfter(LocalTime.of(properties.workingHourEnd(), 0));
     }
 }

@@ -116,4 +116,30 @@ class AiDispatchServiceTest {
                 "경기 북부 센터", List.of("대전광역시 센터", "부산광역시 센터"),
                 "부산시 사하구 낙동대로 1번길 1 해산물월드", 720, "U08MANAGER01");
     }
+
+    @Test
+    @DisplayName("AI가 납기일 이후 시한을 반환하면 폴백값을 사용한다")
+    void rejectDeadlineAfterDueDate() {
+        when(aiDeadlineClient.generate(any()))
+                .thenReturn(AiDeadlineResult.ok(DUE_DATE.plusHours(1), "{}"));
+        when(slackClient.send(any(), any())).thenReturn(SlackSendResult.ok());
+
+        AiDispatchResult result = service.calculateAndNotify(command());
+
+        assertThat(result.finalDispatchDeadline()).isEqualTo(LocalDateTime.of(2026, 8, 11, 18, 0));
+        verify(aiDispatchStore).saveAiErrorLog(any(), eq("invalid_ai_deadline"), eq(1), any(), any());
+    }
+
+    @Test
+    @DisplayName("AI가 근무시간 밖 시한을 반환하면 폴백값을 사용한다")
+    void rejectDeadlineOutsideWorkingHour() {
+        when(aiDeadlineClient.generate(any()))
+                .thenReturn(AiDeadlineResult.ok(LocalDateTime.of(2026, 8, 10, 22, 0), "{}"));
+        when(slackClient.send(any(), any())).thenReturn(SlackSendResult.ok());
+
+        AiDispatchResult result = service.calculateAndNotify(command());
+
+        assertThat(result.finalDispatchDeadline()).isEqualTo(LocalDateTime.of(2026, 8, 11, 18, 0));
+        verify(aiDispatchStore).saveAiErrorLog(any(), eq("invalid_ai_deadline"), eq(1), any(), any());
+    }
 }
