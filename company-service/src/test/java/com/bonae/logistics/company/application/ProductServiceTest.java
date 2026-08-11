@@ -5,6 +5,7 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.domain.entity.Company;
 import com.bonae.logistics.company.domain.entity.CompanyType;
+import com.bonae.logistics.company.domain.entity.Inventory;
 import com.bonae.logistics.company.domain.entity.Product;
 import com.bonae.logistics.company.domain.repository.CompanyRepository;
 import com.bonae.logistics.company.domain.repository.ProductRepository;
@@ -51,6 +52,9 @@ class ProductServiceTest {
     private CompanyRepository companyRepository;
 
     @Mock
+    private InventoryService inventoryService;
+
+    @Mock
     private UserClient userClient;
 
     @Mock
@@ -92,6 +96,8 @@ class ProductServiceTest {
         when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
                 .thenReturn(false);
         when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryService.createInventory(any(Product.class), eq(hubId), eq(100)))
+                .thenReturn(inventoryWith(company, hubId, 100));
 
         ResCreateProductDto resDto = productService.createProduct(reqDto, UserRole.MASTER, USERNAME);
 
@@ -142,6 +148,8 @@ class ProductServiceTest {
         when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
                 .thenReturn(false);
         when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryService.createInventory(any(Product.class), eq(hubId), eq(0)))
+                .thenReturn(inventoryWith(company, hubId, 0));
 
         ResCreateProductDto resDto = productService.createProduct(reqDto, UserRole.MASTER, USERNAME);
 
@@ -370,6 +378,8 @@ class ProductServiceTest {
         when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
                 .thenReturn(false);
         when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryService.createInventory(any(Product.class), eq(requestHubId), eq(10)))
+                .thenReturn(inventoryWith(company, requestHubId, 10));
 
         ResCreateProductDto resDto = productService.createProduct(reqDto, UserRole.HUB_MANAGER, USERNAME);
 
@@ -421,6 +431,8 @@ class ProductServiceTest {
         when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
                 .thenReturn(false);
         when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryService.createInventory(any(Product.class), eq(hubId), eq(10)))
+                .thenReturn(inventoryWith(company, hubId, 10));
 
         ResCreateProductDto resDto = productService.createProduct(reqDto, UserRole.COMPANY_MANAGER, USERNAME);
 
@@ -453,10 +465,43 @@ class ProductServiceTest {
         verify(productRepository, never()).saveAndFlush(any(Product.class));
     }
 
+    @Test
+    @DisplayName("createProduct_재고가중복될때_예외발생")
+    void createProduct_재고가중복될때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        UUID hubId = UUID.randomUUID();
+        ReqCreateProductDto reqDto = ReqCreateProductDto.builder()
+                .name("갤럭시 스마트폰")
+                .companyId(company.getId())
+                .price(new BigDecimal("1000.00"))
+                .hubId(hubId)
+                .quantity(10)
+                .build();
+
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(hubClient.getHub(hubId)).thenReturn(ResponseEntity.ok().build());
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNull(reqDto.getName(), company.getId()))
+                .thenReturn(false);
+        when(productRepository.saveAndFlush(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(inventoryService.createInventory(any(Product.class), eq(hubId), eq(10)))
+                .thenThrow(new BusinessException(ErrorCode.INVENTORY_DUPLICATED));
+
+        assertThatThrownBy(() -> productService.createProduct(reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVENTORY_DUPLICATED);
+    }
+
     private Company companyWithId(String name, CompanyType type, UUID hubId, String address) {
         Company company = new Company(name, type, hubId, address);
         ReflectionTestUtils.setField(company, "id", UUID.randomUUID());
         return company;
+    }
+
+    // Inventory.create()는 product가 null이 아니기만 하면 되므로, 응답 매핑에 쓰이는 hubId/quantity만 의미 있게 채운다.
+    private Inventory inventoryWith(Company company, UUID hubId, Integer quantity) {
+        Product product = Product.create("더미상품", company, BigDecimal.ONE);
+        return Inventory.create(product, hubId, quantity);
     }
 
     private DataIntegrityViolationException duplicateKeyException(String constraintName) {
