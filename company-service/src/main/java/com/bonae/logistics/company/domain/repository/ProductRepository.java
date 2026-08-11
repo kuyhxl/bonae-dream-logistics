@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
     Optional<Product> findByIdAndDeletedAtIsNull(UUID id);
+    boolean existsByNameAndCompany_IdAndDeletedAtIsNull(String name, UUID companyId);
 }
