@@ -32,16 +32,22 @@ public class DeliveryService {
     private final UserClient userClient;
 
     @Transactional(readOnly = true)
-    public DeliveryDetailResponse getDelivery(UUID deliveryId, UserRole userRole, UUID companyId) {
-        Delivery delivery = findDeliveryByRole(deliveryId, userRole, companyId);
+    public DeliveryDetailResponse getDelivery(UUID deliveryId, UserRole userRole, UUID companyId, String username) {
+        Delivery delivery = findDeliveryByRole(deliveryId, userRole, companyId, username);
         return DeliveryDetailResponse.from(delivery);
     }
 
     @Transactional(readOnly = true)
-    public PageResponseDto<DeliveryListItemResponse> getDeliveries(PageRequestDto pageRequestDto, UserRole userRole, UUID companyId) {
-        Page<Delivery> deliveries = userRole == UserRole.COMPANY_MANAGER
-                ? deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(requireCompanyId(companyId), pageRequestDto.toPageable())
-                : deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+    public PageResponseDto<DeliveryListItemResponse> getDeliveries(PageRequestDto pageRequestDto, UserRole userRole, UUID companyId, String username) {
+        Page<Delivery> deliveries = switch (userRole) {
+            case MASTER, DELIVERY_MANAGER -> deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+            case COMPANY_MANAGER -> deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(
+                    requireCompanyId(companyId), pageRequestDto.toPageable()
+            );
+            case HUB_MANAGER -> deliveryRepository.findAllByHubIdAndDeletedAtIsNull(
+                    requireHubId(username), pageRequestDto.toPageable()
+            );
+        };
         return PageResponseDto.from(deliveries, DeliveryListItemResponse::from);
     }
 
@@ -68,23 +74,31 @@ public class DeliveryService {
     }
 
     @Transactional
-    public DeliveryCancelResponse cancelDelivery(UUID deliveryId) {
-        Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+    public DeliveryCancelResponse cancelDelivery(UUID deliveryId, UserRole userRole, String username) {
+        Delivery delivery = findDeliveryByRole(deliveryId, userRole, null, username);
 
         delivery.cancel();
         deliveryRepository.flush();
         return DeliveryCancelResponse.from(delivery);
     }
 
-    private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId) {
+    private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId, String username) {
         if (userRole == UserRole.COMPANY_MANAGER) {
             return deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(deliveryId, requireCompanyId(companyId))
                     .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
         }
 
-        return deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
+        Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        if (userRole == UserRole.HUB_MANAGER) {
+            UUID hubId = requireHubId(username);
+            if (!hubId.equals(delivery.getOriginHubId()) && !hubId.equals(delivery.getDestinationHubId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        }
+
+        return delivery;
     }
 
     private UUID requireCompanyId(UUID companyId) {
@@ -92,6 +106,19 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
         return companyId;
+    }
+
+    private UUID requireHubId(String username) {
+        if (username == null || username.isBlank()) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        UserInfoClientResponse userInfo = userClient.getUserInfo(username);
+        if (userInfo.getHubId() == null) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+
+        return userInfo.getHubId();
     }
 
     private void validateCompanyMapping(CompanyInfoClientResponse supplierCompany, CompanyInfoClientResponse receiverCompany) {

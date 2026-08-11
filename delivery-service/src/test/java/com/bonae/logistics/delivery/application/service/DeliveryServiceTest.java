@@ -79,7 +79,7 @@ class DeliveryServiceTest {
         Delivery delivery = createDelivery();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
 
-        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.MASTER, null);
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.MASTER, null, null);
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
@@ -92,7 +92,7 @@ class DeliveryServiceTest {
         UUID deliveryId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, UserRole.MASTER, null))
+        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, UserRole.MASTER, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
@@ -106,7 +106,7 @@ class DeliveryServiceTest {
         when(deliveryRepository.findAllByDeletedAtIsNull(any()))
                 .thenReturn(new PageImpl<>(List.of(delivery)));
 
-        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.MASTER, null);
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.MASTER, null, null);
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
@@ -121,9 +121,36 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(delivery.getId(), companyId))
                 .thenReturn(Optional.of(delivery));
 
-        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.COMPANY_MANAGER, companyId);
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.COMPANY_MANAGER, companyId, null);
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 본인 허브 배송만 단건 조회할 수 있다")
+    void getDelivery_hubManagerScoped() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("seoul-manager"))
+                .thenReturn(createUserInfo("seoul-manager", "서울담당자", "U01", delivery.getOriginHubId(), null));
+
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.HUB_MANAGER, null, "seoul-manager");
+
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 타 허브 배송을 단건 조회할 수 없다")
+    void getDelivery_hubManagerForbidden() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("busan-manager"))
+                .thenReturn(createUserInfo("busan-manager", "부산담당자", "U02", UUID.randomUUID(), null));
+
+        assertThatThrownBy(() -> deliveryService.getDelivery(delivery.getId(), UserRole.HUB_MANAGER, null, "busan-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -131,7 +158,7 @@ class DeliveryServiceTest {
     void getDeliveries_companyManagerWithoutCompanyId() {
         PageRequestDto pageRequestDto = new PageRequestDto();
 
-        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, null))
+        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, null, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.FORBIDDEN);
@@ -146,7 +173,24 @@ class DeliveryServiceTest {
         when(deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(any(), any()))
                 .thenReturn(new PageImpl<>(List.of(delivery)));
 
-        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, companyId);
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, companyId, null);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 본인 허브 기준으로 목록 조회한다")
+    void getDeliveries_hubManagerScoped() {
+        Delivery delivery = createDelivery();
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        UUID hubId = delivery.getOriginHubId();
+        when(userClient.getUserInfo("seoul-manager"))
+                .thenReturn(createUserInfo("seoul-manager", "서울담당자", "U01", hubId, null));
+        when(deliveryRepository.findAllByHubIdAndDeletedAtIsNull(any(), any()))
+                .thenReturn(new PageImpl<>(List.of(delivery)));
+
+        PageResponseDto<DeliveryListItemResponse> result = deliveryService.getDeliveries(pageRequestDto, UserRole.HUB_MANAGER, null, "seoul-manager");
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
@@ -159,7 +203,7 @@ class DeliveryServiceTest {
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
         doNothing().when(deliveryRepository).flush();
 
-        DeliveryCancelResponse result = deliveryService.cancelDelivery(delivery.getId());
+        DeliveryCancelResponse result = deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null);
 
         verify(deliveryRepository).flush();
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
@@ -175,10 +219,51 @@ class DeliveryServiceTest {
         setField(delivery, "completedAt", LocalDateTime.now());
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
 
-        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId()))
+        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.DELIVERY_ALREADY_COMPLETED);
+    }
+
+    @Test
+    @DisplayName("이동 중인 배송은 취소할 수 없다")
+    void cancelDelivery_movingForbidden() throws Exception {
+        Delivery delivery = createDelivery();
+        setField(delivery, "status", DeliveryStatus.HUB_MOVING);
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 본인 허브 배송만 취소할 수 있다")
+    void cancelDelivery_hubManagerScoped() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("seoul-manager"))
+                .thenReturn(createUserInfo("seoul-manager", "서울담당자", "U01", delivery.getOriginHubId(), null));
+        doNothing().when(deliveryRepository).flush();
+
+        DeliveryCancelResponse result = deliveryService.cancelDelivery(delivery.getId(), UserRole.HUB_MANAGER, "seoul-manager");
+
+        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 타 허브 배송을 취소할 수 없다")
+    void cancelDelivery_hubManagerForbidden() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("busan-manager"))
+                .thenReturn(createUserInfo("busan-manager", "부산담당자", "U02", UUID.randomUUID(), null));
+
+        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.HUB_MANAGER, "busan-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     private DeliveryCreateRequest createRequest() throws Exception {
@@ -218,6 +303,17 @@ class DeliveryServiceTest {
                 .name(name)
                 .slackId(slackId)
                 .role("COMPANY_MANAGER")
+                .build();
+    }
+
+    private UserInfoClientResponse createUserInfo(String username, String name, String slackId, UUID hubId, UUID companyId) {
+        return UserInfoClientResponse.builder()
+                .username(username)
+                .name(name)
+                .slackId(slackId)
+                .role("HUB_MANAGER")
+                .hubId(hubId)
+                .companyId(companyId)
                 .build();
     }
 
