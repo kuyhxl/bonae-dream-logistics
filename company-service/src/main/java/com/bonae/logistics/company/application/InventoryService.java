@@ -9,6 +9,8 @@ import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.UUID;
 
@@ -22,6 +24,8 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
 
     // 상품 생성과 함께 초기 재고를 만든다. 호출 측(ProductService)이 이미 시작한 트랜잭션 안에서 실행되어야 한다.
+    // MANDATORY로 강제해 트랜잭션 없이 호출되면 재고가 독립적으로 커밋되지 않고 즉시 IllegalTransactionStateException으로 실패하도록 한다.
+    @Transactional(propagation = Propagation.MANDATORY)
     public Inventory createInventory(Product product, UUID hubId, Integer quantity) {
         if (inventoryRepository.existsByProduct_IdAndHubIdAndDeletedAtIsNull(product.getId(), hubId)) {
             throw new BusinessException(ErrorCode.INVENTORY_DUPLICATED);
