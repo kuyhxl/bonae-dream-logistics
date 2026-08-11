@@ -40,13 +40,14 @@ public class DeliveryService {
     @Transactional(readOnly = true)
     public PageResponseDto<DeliveryListItemResponse> getDeliveries(PageRequestDto pageRequestDto, UserRole userRole, UUID companyId, String username) {
         Page<Delivery> deliveries = switch (userRole) {
-            case MASTER, DELIVERY_MANAGER -> deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
+            case MASTER -> deliveryRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
             case COMPANY_MANAGER -> deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(
                     requireCompanyId(companyId), pageRequestDto.toPageable()
             );
             case HUB_MANAGER -> deliveryRepository.findAllByHubIdAndDeletedAtIsNull(
                     requireHubId(username), pageRequestDto.toPageable()
             );
+            case DELIVERY_MANAGER -> throw new BusinessException(ErrorCode.FORBIDDEN);
         };
         return PageResponseDto.from(deliveries, DeliveryListItemResponse::from);
     }
@@ -86,6 +87,9 @@ public class DeliveryService {
         if (userRole == UserRole.COMPANY_MANAGER) {
             return deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(deliveryId, requireCompanyId(companyId))
                     .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+        }
+        if (userRole == UserRole.DELIVERY_MANAGER) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
 
         Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)

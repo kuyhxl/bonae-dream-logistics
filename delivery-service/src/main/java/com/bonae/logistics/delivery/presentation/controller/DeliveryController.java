@@ -50,7 +50,7 @@ public class DeliveryController {
     }
 
     @GetMapping("/{deliveryId}")
-    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER})
     @Operation(summary = "배송 단건 조회", description = "배송 ID로 배송 상세 정보를 조회합니다.")
     public ResponseEntity<DeliveryDetailResponse> getDelivery(
             @RequestHeader("X-User-Role") String userRoleHeader,
@@ -63,7 +63,7 @@ public class DeliveryController {
     }
 
     @GetMapping
-    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER})
     @Operation(summary = "배송 목록 조회", description = "배송 목록을 페이징하여 조회합니다.")
     @Parameters({
             @Parameter(name = "page", description = "페이지 번호(1-based)", example = "1"),

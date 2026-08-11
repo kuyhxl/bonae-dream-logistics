@@ -197,6 +197,26 @@ class DeliveryServiceTest {
     }
 
     @Test
+    @DisplayName("배송 담당자는 배송 단건 조회 권한이 없다")
+    void getDelivery_deliveryManagerForbidden() {
+        assertThatThrownBy(() -> deliveryService.getDelivery(UUID.randomUUID(), UserRole.DELIVERY_MANAGER, null, "delivery-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("배송 담당자는 배송 목록 조회 권한이 없다")
+    void getDeliveries_deliveryManagerForbidden() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+
+        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.DELIVERY_MANAGER, null, "delivery-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
     @DisplayName("배송 취소에 성공한다")
     void cancelDelivery_success() {
         Delivery delivery = createDelivery();
