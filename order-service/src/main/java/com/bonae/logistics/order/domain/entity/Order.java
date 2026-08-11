@@ -1,6 +1,8 @@
 package com.bonae.logistics.order.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -52,6 +54,9 @@ public class Order extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     private OrderStatus status;
 
+    @Column(name = "hub_id")
+    private UUID hubId;
+
     public static Order createPending(
             UUID id,
             UUID requesterCompanyId,
@@ -61,7 +66,8 @@ public class Order extends BaseEntity {
             int quantity,
             BigDecimal unitPrice,
             LocalDateTime dueDate,
-            String remarks
+            String remarks,
+            UUID hubId
     ) {
         Order order = new Order();
         order.id = id;
@@ -75,7 +81,17 @@ public class Order extends BaseEntity {
         order.dueDate = dueDate;
         order.remarks = remarks;
         order.status = OrderStatus.PENDING;
+        order.hubId = hubId;
         return order;
+    }
+
+    public void cancel(String cancelledBy) {
+        if (this.status != OrderStatus.PENDING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    "PENDING 상태의 주문만 취소할 수 있습니다.");
+        }
+        this.status = OrderStatus.CANCELLED;
+        this.delete(cancelledBy);
     }
 }
 
