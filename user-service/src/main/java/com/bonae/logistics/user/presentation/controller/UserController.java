@@ -2,13 +2,16 @@ package com.bonae.logistics.user.presentation.controller;
 
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.user.application.service.UserApprovalService;
 import com.bonae.logistics.user.application.service.UserService;
 import com.bonae.logistics.user.domain.entity.Role;
 import com.bonae.logistics.user.infrastructure.auth.RoleCheck;
 import com.bonae.logistics.user.presentation.dto.request.SignupRequestSearchCondition;
+import com.bonae.logistics.user.presentation.dto.request.UserApprovalRequest;
 import com.bonae.logistics.user.presentation.dto.request.UserSearchCondition;
 import com.bonae.logistics.user.presentation.dto.request.UserUpdateRequest;
 import com.bonae.logistics.user.presentation.dto.response.SignupRequestSummaryResponse;
+import com.bonae.logistics.user.presentation.dto.response.UserApprovalResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserDetailResponse;
 import com.bonae.logistics.user.presentation.dto.response.UserSummaryResponse;
 import jakarta.validation.Valid;
@@ -27,6 +30,7 @@ public class UserController {
     private static final String USER_ROLE_HEADER = "X-User-Role";
 
     private final UserService userService;
+    private final UserApprovalService userApprovalService;
 
     // 사용자 목록·검색 (MASTER 전용)
     @GetMapping("/users")
@@ -76,5 +80,15 @@ public class UserController {
             @ModelAttribute SignupRequestSearchCondition condition
     ) {
         return ResponseEntity.ok(userService.searchSignupRequests(condition, pageRequestDto));
+    }
+
+    // 가입 승인 / 거절 API
+    @PatchMapping("/users/{userId}/approval")
+    @RoleCheck({Role.MASTER, Role.HUB_MANAGER})
+    public ResponseEntity<UserApprovalResponse> processApproval(
+            @PathVariable UUID userId,
+            @RequestBody @Valid UserApprovalRequest request
+    ) {
+        return ResponseEntity.ok(userApprovalService.process(userId, request));
     }
 }
