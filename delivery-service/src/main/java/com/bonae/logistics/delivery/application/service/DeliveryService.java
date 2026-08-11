@@ -77,6 +77,16 @@ public class DeliveryService {
         return DeliveryCancelResponse.from(delivery);
     }
 
+    @Transactional
+    public DeliveryCancelResponse cancelDeliveryByOrderId(UUID orderId) {
+        Delivery delivery = deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        delivery.cancel();
+        deliveryRepository.flush();
+        return DeliveryCancelResponse.from(delivery);
+    }
+
     private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId) {
         if (userRole == UserRole.COMPANY_MANAGER) {
             return deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(deliveryId, requireCompanyId(companyId))
