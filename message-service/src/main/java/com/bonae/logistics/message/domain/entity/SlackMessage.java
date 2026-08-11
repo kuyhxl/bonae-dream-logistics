@@ -1,8 +1,13 @@
 package com.bonae.logistics.message.domain.entity;
 
 import com.bonae.logistics.common.entity.BaseEntity;
+import com.bonae.logistics.common.exception.BusinessException;
+import com.bonae.logistics.common.exception.ErrorCode;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -61,5 +66,21 @@ public class SlackMessage extends BaseEntity {
         this.sendStatus = SendStatus.FAILED;
         this.retryCount = retryCount;
         this.sentAt = null;
+    }
+
+    /*
+     * PENDING 상태에서만 수정할 수 있다.
+     * 이미 슬랙으로 나간 메시지는 내용을 바꿔도 슬랙에 반영되지 않는다.
+     */
+    public void update(String receiverSlackId, String message) {
+        if (this.sendStatus != SendStatus.PENDING) {
+            throw new BusinessException(ErrorCode.SLACK_MESSAGE_NON_EDITABLE);
+        }
+        if (StringUtils.hasText(receiverSlackId)) {
+            this.receiverSlackId = receiverSlackId;
+        }
+        if (StringUtils.hasText(message)) {
+            this.message = message;
+        }
     }
 }
