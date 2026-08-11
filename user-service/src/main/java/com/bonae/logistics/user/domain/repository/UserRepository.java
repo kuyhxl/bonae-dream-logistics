@@ -16,4 +16,7 @@ public interface UserRepository extends JpaRepository<User, UUID>, UserRepositor
     Optional<User> findByUsername(String username);
 
     Optional<User> findByUsernameAndStatusAndDeletedAtIsNull(String username, Status status);
+
+    // 논리 삭제된 사용자는 조회·수정·삭제 대상에서 제외한다.
+    Optional<User> findByIdAndDeletedAtIsNull(UUID id);
 }
