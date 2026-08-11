@@ -17,6 +17,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResCreateCompanyDto
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetCompanyListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchCompanyDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
@@ -150,6 +152,22 @@ public class CompanyService {
         CompanyType companyType = parseCompanyType(type);
         Page<Company> companies = companyRepository.findAllByTypeAndDeletedAtIsNull(companyType, pageRequestDto.toPageable());
         return PageResponseDto.from(companies, ResGetCompanyListDto::from);
+    }
+
+    //@Transactional 제거 (hub-service 호출을 DB 조회와 분리하기 위해 조회 전용 메서드지만 readOnly 트랜잭션을 걸지 않는다)
+    //업체명 키워드/타입/허브로 검색한다. 세 조건 모두 선택값이며, 삭제된 업체는 결과에서 제외한다.
+    public PageResponseDto<ResSearchCompanyDto> searchCompanies(PageRequestDto pageRequestDto, String keyword,
+                                                                 String type, UUID hubId) {
+        // hubId가 있으면 존재하는(삭제되지 않은) 허브인지 먼저 확인
+        if (hubId != null) {
+            validateHubExists(hubId);
+        }
+
+        CompanyType companyType = parseCompanyType(type);
+        String namePattern = StringUtils.hasText(keyword) ? "%" + keyword.trim() + "%" : null;
+        Page<Company> companies = companyRepository.searchByKeywordAndTypeAndHubIdAndDeletedAtIsNull(
+                namePattern, companyType, hubId, pageRequestDto.toPageable());
+        return PageResponseDto.from(companies, ResSearchCompanyDto::from);
     }
 
     @Transactional(readOnly = true)
