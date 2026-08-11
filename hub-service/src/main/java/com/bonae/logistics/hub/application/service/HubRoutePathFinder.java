@@ -85,14 +85,20 @@ public class HubRoutePathFinder {
             throw new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND);
         }
 
-        // 5. 역추적으로 최종 루트 완성
+        return reconstructPath(departureHubId, arrivalHubId, previous);
+    }
+
+    // 5. 역추적으로 최종 루트 완성
+    List<HubRoute> reconstructPath (UUID departureHubId, UUID arrivalHubId, Map<UUID, HubRoute> previous) {
         List<HubRoute> path = new ArrayList<>();
         UUID current = arrivalHubId;
+
         while (!current.equals(departureHubId)) {
             HubRoute edge = previous.get(current);
             path.add(edge);
             current = edge.getDepartureHub().getId();
         }
+
         Collections.reverse(path);
 
         return path;
