@@ -16,6 +16,7 @@ import com.bonae.logistics.hub.presentation.dto.response.HubListItemResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.AuditorAware;
@@ -86,7 +87,7 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
-    @Cacheable(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
+    @CacheEvict(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
     @Transactional
     public HubDetailResponse update(UUID hubId, HubUpdateRequest request) {
         if (request.isEmpty()) {
@@ -119,7 +120,7 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
-    @Cacheable(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
+    @CacheEvict(cacheNames = HUB_DETAIL_CACHE, key = "#hubId")
     @Transactional
     public void delete(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
@@ -156,4 +157,3 @@ public class HubService {
         return e;
     }
 }
-
