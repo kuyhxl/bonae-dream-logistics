@@ -28,7 +28,7 @@ public enum ErrorCode{
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "리프레시 토큰을 찾을 수 없습니다."),
     USER_ALREADY_PROCESSED(HttpStatus.CONFLICT ,"이미 처리된 가입 요청입니다"),
     MASTER_ROLE_NOT_ASSIGNABLE(HttpStatus.FORBIDDEN, "MASTER 권한은 부여할 수 없습니다."),
-    INVALID_AFFILIATION(HttpStatus.BAD_REQUEST, "허브와 업체 소속은 동시에 가질 수 없습니다."),
+    INVALID_AFFILIATION(HttpStatus.BAD_REQUEST, "역할과 소속 정보가 일치하지 않습니다."),
     SELF_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "본인 계정은 삭제할 수 없습니다."),
 
     // 허브
