@@ -37,6 +37,14 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      # Redis 장애 시 DB로 폴백해야 해서 짧게 설정
+      timeout: 300ms
+      connect-timeout: 300ms
+
 eureka:
   client:
     service-url:

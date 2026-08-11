@@ -112,6 +112,9 @@ public class Delivery extends BaseEntity {
         if (status == DeliveryStatus.CANCELLED) {
             throw new BusinessException(ErrorCode.DELIVERY_ALREADY_CANCELLED);
         }
+        if (status != DeliveryStatus.READY && status != DeliveryStatus.HUB_WAITING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
 
         this.status = DeliveryStatus.CANCELLED;
     }
