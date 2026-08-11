@@ -21,7 +21,7 @@ public class Order extends BaseEntity {
     @Column(name = "id")
     private UUID id;
 
-    @Column(name = "requester_company_id", nullable = false)
+    @Column(name = "requester_company_id", nullable = true)
     private UUID requesterCompanyId;
 
     @Column(name = "receiver_company_id", nullable = false)
@@ -29,6 +29,9 @@ public class Order extends BaseEntity {
 
     @Column(name = "product_id", nullable = false)
     private UUID productId;
+
+    @Column(name = "product_name", nullable = false, length = 100)
+    private String productName;
 
     @Column(name = "quantity", nullable = false)
     private int quantity;
@@ -49,5 +52,30 @@ public class Order extends BaseEntity {
     @Column(name = "status", nullable = false, length = 20)
     private OrderStatus status;
 
+    public static Order createPending(
+            UUID id,
+            UUID requesterCompanyId,
+            UUID receiverCompanyId,
+            UUID productId,
+            String productName,
+            int quantity,
+            BigDecimal unitPrice,
+            LocalDateTime dueDate,
+            String remarks
+    ) {
+        Order order = new Order();
+        order.id = id;
+        order.requesterCompanyId = requesterCompanyId;
+        order.receiverCompanyId = receiverCompanyId;
+        order.productId = productId;
+        order.quantity = quantity;
+        order.productName = productName;
+        order.unitPrice = unitPrice;
+        order.totalPrice = unitPrice.multiply(BigDecimal.valueOf(quantity));
+        order.dueDate = dueDate;
+        order.remarks = remarks;
+        order.status = OrderStatus.PENDING;
+        return order;
+    }
 }
 

@@ -13,6 +13,7 @@ public record OrderResponseDto(
         UUID requesterCompanyId,
         UUID receiverCompanyId,
         UUID productId,
+        String productName,
         Integer quantity,
         BigDecimal unitPrice,
         BigDecimal totalPrice,
@@ -30,6 +31,7 @@ public record OrderResponseDto(
                 .requesterCompanyId(order.getRequesterCompanyId())
                 .receiverCompanyId(order.getReceiverCompanyId())
                 .productId(order.getProductId())
+                .productName(order.getProductName())
                 .quantity(order.getQuantity())
                 .unitPrice(order.getUnitPrice())
                 .totalPrice(order.getTotalPrice())

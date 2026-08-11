@@ -27,6 +27,9 @@ public enum ErrorCode{
     EXPIRED_REFRESH_TOKEN(HttpStatus.UNAUTHORIZED, "리프레시 토큰이 만료되었습니다. 다시 로그인해주세요."),
     REFRESH_TOKEN_NOT_FOUND(HttpStatus.UNAUTHORIZED, "리프레시 토큰을 찾을 수 없습니다."),
     USER_ALREADY_PROCESSED(HttpStatus.CONFLICT ,"이미 처리된 가입 요청입니다"),
+    MASTER_ROLE_NOT_ASSIGNABLE(HttpStatus.FORBIDDEN, "MASTER 권한은 부여할 수 없습니다."),
+    INVALID_AFFILIATION(HttpStatus.BAD_REQUEST, "역할과 소속 정보가 일치하지 않습니다."),
+    SELF_DELETE_NOT_ALLOWED(HttpStatus.CONFLICT, "본인 계정은 삭제할 수 없습니다."),
 
     // 허브
     HUB_NOT_FOUND(HttpStatus.NOT_FOUND, "허브를 찾을 수 없습니다. "),
@@ -93,6 +96,7 @@ public enum ErrorCode{
     SLACK_SEND_FAILED(HttpStatus.BAD_GATEWAY, "슬렉 메시지 발송에 실패했습니다."),
     SLACK_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "슬렉 메시지 없음 또는 이미 삭제됨"),
     SLACK_MESSAGE_ALREADY_SENT(HttpStatus.CONFLICT, "이미 발송 완료된 메시지 수정 시도"),
+    SLACK_MESSAGE_NON_EDITABLE(HttpStatus.CONFLICT, "발송 전(PENDING) 메시지만 수정할 수 있습니다."),
     AI_GENERATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 응답 생성에 실패했습니다.");
 
     private final HttpStatus status;
