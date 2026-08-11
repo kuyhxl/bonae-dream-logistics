@@ -113,9 +113,36 @@ class UserApprovalServiceTest {
         assertThatThrownBy(() -> userApprovalService.process(USER_ID,
                 new UserApprovalRequest(ApprovalStatus.APPROVED, Role.MASTER, HUB_ID, null, null)))
                 .isInstanceOf(BusinessException.class)
-                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_INPUT);
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MASTER_ROLE_NOT_ASSIGNABLE);
 
         then(userRepository).should(never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("배송 담당자는 hubId 없이도 승인된다 (허브 간 이동 담당)")
+    void approve_deliveryManager_withoutHub() {
+        User user = pendingUser();
+        given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
+
+        UserApprovalResponse response = userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.DELIVERY_MANAGER, null, null, null));
+
+        assertThat(response.getRole()).isEqualTo(Role.DELIVERY_MANAGER);
+        assertThat(response.getHubId()).isNull();
+        // 소속 허브가 없는 유형이므로 허브 존재 검증을 호출하지 않는다.
+        then(hubClient).shouldHaveNoInteractions();
+        then(companyClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("허브 관리자 승인에 hubId가 없으면 400으로 거절한다")
+    void approve_hubManager_withoutHub() {
+        assertThatThrownBy(() -> userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, null, null, null)))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_AFFILIATION);
+
+        then(hubClient).shouldHaveNoInteractions();
     }
 
     @Test

@@ -62,28 +62,42 @@ public class UserApprovalService {
     }
 
     private Role validateAssignableRole(Role role) {
-        if (role == null || !ASSIGNABLE_ROLES.contains(role)) {
+        // 권한 미지정은 입력 오류(400), MASTER 지정은 권한 상승 시도(403)로 구분한다.
+        if (role == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        if (!ASSIGNABLE_ROLES.contains(role)) {
+            throw new BusinessException(ErrorCode.MASTER_ROLE_NOT_ASSIGNABLE);
         }
         return role;
     }
 
-    // 권한별로 필요한 소속을 강제하고, 실제 존재 여부는 각 서비스 내부 API로 검증한다.
+    // 역할과 소속 조합의 최종 검증은 User.approve() 안의 validateAffiliation()이 담당한다.
+    // 여기서는 외부 서비스를 호출하는 데 필요한 값이 있는지 확인하고, 실제 존재 여부만 검증한다.
     // 원격의 HUB_NOT_FOUND / COMPANY_NOT_FOUND는 common의 FeignErrorDecoder가
     // BusinessException으로 복원해 그대로 전파하므로 별도 예외 변환을 하지 않는다.
     private void validateAffiliation(Role role, UUID hubId, UUID companyId) {
-        if (role == Role.COMPANY_MANAGER) {
-            if (companyId == null) {
-                throw new BusinessException(ErrorCode.INVALID_INPUT);
+        switch (role) {
+            case HUB_MANAGER -> {
+                if (hubId == null) {
+                    throw new BusinessException(ErrorCode.INVALID_AFFILIATION);
+                }
+                hubClient.validateHubExists(hubId);
             }
-            companyClient.validateCompanyExists(companyId);
-            return;
+            case COMPANY_MANAGER -> {
+                if (companyId == null) {
+                    throw new BusinessException(ErrorCode.INVALID_AFFILIATION);
+                }
+                companyClient.validateCompanyExists(companyId);
+            }
+            // 배송 담당자의 hubId는 담당 유형을 구분하는 값이라 null도 정상이다.
+            // (null = 허브 간 이동 담당, 값 있음 = 업체 배송 담당 — DeliveryManagerType 참고)
+            case DELIVERY_MANAGER -> {
+                if (hubId != null) {
+                    hubClient.validateHubExists(hubId);
+                }
+            }
+            default -> throw new BusinessException(ErrorCode.MASTER_ROLE_NOT_ASSIGNABLE);
         }
-
-        // HUB_MANAGER / DELIVERY_MANAGER
-        if (hubId == null || companyId != null) {
-            throw new BusinessException(ErrorCode.INVALID_INPUT);
-        }
-        hubClient.validateHubExists(hubId);
     }
 }
