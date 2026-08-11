@@ -58,6 +58,9 @@ public class User extends BaseEntity {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Column(name = "reject_reason", length = 255)
+    private String rejectReason;
+
     /*
      * 마스터 관리자에 의한 사용자 정보 수정.
      * name, slackId는 값이 있을 때만 바꾼다.
@@ -122,6 +125,36 @@ public class User extends BaseEntity {
     private void requireValidAffiliation(boolean valid) {
         if (!valid) {
             throw new BusinessException(ErrorCode.INVALID_AFFILIATION);
+        }
+    }
+
+    // 가입 승인. 권한·소속은 이 시점에 관리자가 확정한다.
+    public void approve(Role role, UUID hubId, UUID companyId, String approvedBy) {
+        validatePending();
+        this.status = Status.APPROVED;
+        this.role = role;
+        this.hubId = hubId;
+        this.companyId = companyId;
+        this.approvedBy = approvedBy;
+        this.approvedAt = LocalDateTime.now();
+
+        // 역할별 소속 규칙 검증은 사용자 수정(update)과 동일한 규칙을 재사용한다.
+        validateAffiliation();
+    }
+
+    // 가입 거절. role·hubId·companyId는 NULL을 유지한다.
+    public void reject(String approvedBy, String rejectReason) {
+        validatePending();
+        this.status = Status.REJECTED;
+        this.approvedBy = approvedBy;
+        this.approvedAt = LocalDateTime.now();
+        this.rejectReason = rejectReason;
+    }
+
+    // 이미 승인·거절된 요청의 재처리를 막는다. (409)
+    private void validatePending() {
+        if (this.status != Status.PENDING) {
+            throw new BusinessException(ErrorCode.USER_ALREADY_PROCESSED);
         }
     }
 }
