@@ -38,7 +38,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DeliveryManagerServiceTest {
 
-    private static final String HUB_DELIVERY_SEQUENCE_UNIQUE_INDEX = "uk_p_delivery_managers_active_hub_delivery_sequence";
+    private static final String HUB_DELIVERY_SEQUENCE_UNIQUE_INDEX =
+            "uk_p_delivery_managers_active_hub_delivery_sequence";
 
     @Mock
     private DeliveryManagerRepository deliveryManagerRepository;
@@ -50,10 +51,10 @@ class DeliveryManagerServiceTest {
     private DeliveryManagerService deliveryManagerService;
 
     @Test
-    @DisplayName("배송 담당자 생성 시 요청한 ID를 그대로 사용한다")
+    @DisplayName("배송 담당자 생성 시 요청 ID를 그대로 사용한다")
     void createDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
-        DeliveryManagerCreateRequest reqDto = DeliveryManagerCreateRequest.builder()
+        DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(deliveryManagerId)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
@@ -68,18 +69,18 @@ class DeliveryManagerServiceTest {
 
         when(deliveryManagerRepository.saveAndFlush(any(DeliveryManager.class))).thenReturn(savedDeliveryManager);
 
-        DeliveryManagerResponse resDto = deliveryManagerService.createDeliveryManager(reqDto);
+        DeliveryManagerResponse response = deliveryManagerService.createDeliveryManager(request);
 
-        assertThat(resDto.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
-        assertThat(resDto.getManagerType()).isEqualTo(ManagerType.HUB_DELIVERY);
-        assertThat(resDto.getDeliverySequence()).isEqualTo(0);
+        assertThat(response.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
+        assertThat(response.getManagerType()).isEqualTo(ManagerType.HUB_DELIVERY);
+        assertThat(response.getDeliverySequence()).isEqualTo(0);
         verify(deliveryManagerRepository).saveAndFlush(any(DeliveryManager.class));
     }
 
     @Test
     @DisplayName("배송 담당자 순번 중복은 비즈니스 예외로 변환한다")
     void createDeliveryManager_duplicateSequence() {
-        DeliveryManagerCreateRequest reqDto = DeliveryManagerCreateRequest.builder()
+        DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(UUID.randomUUID())
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
@@ -88,14 +89,14 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.saveAndFlush(any(DeliveryManager.class)))
                 .thenThrow(duplicateKeyException(HUB_DELIVERY_SEQUENCE_UNIQUE_INDEX));
 
-        assertThatThrownBy(() -> deliveryManagerService.createDeliveryManager(reqDto))
+        assertThatThrownBy(() -> deliveryManagerService.createDeliveryManager(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.DELIVERY_MANAGER_SEQUENCE_DUPLICATED);
     }
 
     @Test
-    @DisplayName("배송 담당자 단건 조회에 성공한다")
+    @DisplayName("배송 담당자 단건 조회 성공")
     void getDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -108,14 +109,14 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.of(deliveryManager));
 
-        DeliveryManagerResponse resDto = deliveryManagerService.getDeliveryManager(deliveryManagerId);
+        DeliveryManagerResponse response = deliveryManagerService.getDeliveryManager(deliveryManagerId);
 
-        assertThat(resDto.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
+        assertThat(response.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
         verify(deliveryManagerRepository).findByIdAndDeletedAtIsNull(deliveryManagerId);
     }
 
     @Test
-    @DisplayName("배송 담당자가 없으면 예외가 발생한다")
+    @DisplayName("배송 담당자가 없으면 예외 발생")
     void getDeliveryManager_notFound() {
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
@@ -148,7 +149,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("배송 담당자 수정에 성공한다")
+    @DisplayName("배송 담당자 수정 성공")
     void updateDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -157,7 +158,7 @@ class DeliveryManagerServiceTest {
                 ManagerType.HUB_DELIVERY,
                 0
         );
-        DeliveryManagerUpdateRequest reqDto = DeliveryManagerUpdateRequest.builder()
+        DeliveryManagerUpdateRequest request = DeliveryManagerUpdateRequest.builder()
                 .hubId(UUID.randomUUID())
                 .managerType(ManagerType.COMPANY_DELIVERY)
                 .deliverySequence(3)
@@ -166,10 +167,10 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.of(deliveryManager));
 
-        DeliveryManagerResponse response = deliveryManagerService.updateDeliveryManager(deliveryManagerId, reqDto);
+        DeliveryManagerResponse response = deliveryManagerService.updateDeliveryManager(deliveryManagerId, request);
 
         assertThat(response.getManagerType()).isEqualTo(ManagerType.COMPANY_DELIVERY);
-        assertThat(response.getHubId()).isEqualTo(reqDto.getHubId());
+        assertThat(response.getHubId()).isEqualTo(request.getHubId());
         assertThat(response.getDeliverySequence()).isEqualTo(3);
         verify(deliveryManagerRepository).flush();
     }

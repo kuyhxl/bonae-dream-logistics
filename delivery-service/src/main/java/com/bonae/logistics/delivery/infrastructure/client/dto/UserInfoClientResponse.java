@@ -13,6 +13,7 @@ import java.util.UUID;
 @Builder
 public class UserInfoClientResponse {
 
+    private UUID id;
     private String username;
     private String name;
     private String slackId;
