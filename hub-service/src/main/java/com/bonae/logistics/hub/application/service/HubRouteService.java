@@ -15,6 +15,7 @@ import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubRouteListItemResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.AuditorAware;
 import org.springframework.data.domain.Page;
@@ -29,11 +30,13 @@ import java.util.UUID;
 public class HubRouteService {
 
     private static final String HUB_ROUTE_PAIR_UNIQUE_CONSTRAINT = "uk_p_hub_routes_active_pair";
+    private static final String HUB_ROUTE_GRAPH_CACHE = "hubRouteGraph";
 
     private final HubRouteRepository hubRouteRepository;
     private final HubRepository hubRepository;
     private final AuditorAware<String> auditorAware;
 
+    @CacheEvict(cacheNames = HUB_ROUTE_GRAPH_CACHE, key = "'active'")
     @Transactional
     public HubRouteDetailResponse create(HubRouteCreateRequest request) {
         Hub departureHub = findActiveHub(request.getDepartureHubId());
@@ -75,6 +78,7 @@ public class HubRouteService {
         return HubRouteDetailResponse.from(hubRoute);
     }
 
+    @CacheEvict(cacheNames = HUB_ROUTE_GRAPH_CACHE, key = "'active'")
     @Transactional
     public HubRouteDetailResponse update(UUID hubRouteId, HubRouteUpdateRequest request) {
         if (request.isEmpty()) {
@@ -92,6 +96,7 @@ public class HubRouteService {
         return HubRouteDetailResponse.from(hubRoute);
     }
 
+    @CacheEvict(cacheNames = HUB_ROUTE_GRAPH_CACHE, key = "'active'")
     @Transactional
     public void delete(UUID hubRouteId) {
         HubRoute hubRoute = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRouteId)
