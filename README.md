@@ -66,7 +66,7 @@
 외부 요청은 **Gateway(8080)** 단일 지점으로만 들어오며, 각 서비스는 **Eureka**를 통해 서로를 발견합니다. 서비스 간 통신은 OpenFeign(REST)으로, 분산 추적은 Zipkin으로 관측합니다.
 
 <div align="center">
-  <img src="docs/images/infra_diagram_v3.png" alt="인프라 설계도" width="960">
+  <img src="docs/images/infra_diagram_v4.png" alt="인프라 설계도" width="960">
 </div>
 
 | 서비스 | 포트 | 책임                               |
