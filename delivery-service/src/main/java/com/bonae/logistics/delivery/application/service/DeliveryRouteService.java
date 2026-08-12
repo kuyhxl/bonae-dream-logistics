@@ -49,12 +49,15 @@ public class DeliveryRouteService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
         validateRouteAccess(deliveryRoute, userRole, username);
-        validateParentDeliveryStatus(deliveryRoute.getDeliveryId());
+        Delivery delivery = validateParentDeliveryStatus(deliveryRoute.getDeliveryId());
 
         if (routeStatus == RouteStatus.IN_TRANSIT) {
+            validateRouteSequenceForDeparture(deliveryRoute);
             deliveryRoute.depart();
+            delivery.startHubMovement();
         } else if (routeStatus == RouteStatus.ARRIVED) {
             deliveryRoute.arrive();
+            delivery.completeHubRoute(isLastRoute(deliveryRoute));
         } else {
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
@@ -98,7 +101,7 @@ public class DeliveryRouteService {
         }
     }
 
-    private void validateParentDeliveryStatus(UUID deliveryId) {
+    private Delivery validateParentDeliveryStatus(UUID deliveryId) {
         Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
@@ -109,6 +112,35 @@ public class DeliveryRouteService {
         if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
             throw new BusinessException(ErrorCode.DELIVERY_ALREADY_COMPLETED);
         }
+
+        return delivery;
+    }
+
+    private void validateRouteSequenceForDeparture(DeliveryRoute deliveryRoute) {
+        if (deliveryRoute.getSequenceNo() == null || deliveryRoute.getSequenceNo() <= 1) {
+            return;
+        }
+
+        boolean previousArrived = deliveryRouteRepository.existsByDeliveryIdAndSequenceNoAndRouteStatusAndDeletedAtIsNull(
+                deliveryRoute.getDeliveryId(),
+                deliveryRoute.getSequenceNo() - 1,
+                RouteStatus.ARRIVED
+        );
+
+        if (!previousArrived) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+    }
+
+    private boolean isLastRoute(DeliveryRoute deliveryRoute) {
+        List<DeliveryRoute> routes = deliveryRouteRepository
+                .findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryRoute.getDeliveryId());
+
+        if (routes.isEmpty()) {
+            return false;
+        }
+
+        return routes.get(routes.size() - 1).getId().equals(deliveryRoute.getId());
     }
 
     private boolean matchesHub(DeliveryRoute deliveryRoute, UUID hubId) {

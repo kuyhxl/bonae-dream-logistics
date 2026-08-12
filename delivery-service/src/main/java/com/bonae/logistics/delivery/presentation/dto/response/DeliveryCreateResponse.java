@@ -17,13 +17,13 @@ public class DeliveryCreateResponse {
     private UUID arrivalHubId;
     private Integer routeCount;
 
-    public static DeliveryCreateResponse from(Delivery delivery) {
+    public static DeliveryCreateResponse from(Delivery delivery, int routeCount) {
         return DeliveryCreateResponse.builder()
                 .deliveryId(delivery.getId())
                 .status(delivery.getStatus())
                 .departureHubId(delivery.getOriginHubId())
                 .arrivalHubId(delivery.getDestinationHubId())
-                .routeCount(0)
+                .routeCount(routeCount)
                 .build();
     }
 }

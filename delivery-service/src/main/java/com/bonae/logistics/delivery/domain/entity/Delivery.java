@@ -134,6 +134,38 @@ public class Delivery extends BaseEntity {
         this.requestNote = requireText(requestNote, 600, "배송 요청사항은 비어 있을 수 없고 600자를 초과할 수 없습니다.");
     }
 
+    public void markRoutePrepared(boolean hasHubRoutes) {
+        if (status != DeliveryStatus.READY) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.status = hasHubRoutes ? DeliveryStatus.HUB_WAITING : DeliveryStatus.OUT_FOR_DELIVERY;
+    }
+
+    public void startHubMovement() {
+        if (status == DeliveryStatus.HUB_WAITING) {
+            this.status = DeliveryStatus.HUB_MOVING;
+            if (startedAt == null) {
+                this.startedAt = LocalDateTime.now();
+            }
+            return;
+        }
+
+        if (status != DeliveryStatus.HUB_MOVING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+    }
+
+    public void completeHubRoute(boolean lastRoute) {
+        if (status != DeliveryStatus.HUB_MOVING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        if (lastRoute) {
+            this.status = DeliveryStatus.OUT_FOR_DELIVERY;
+        }
+    }
+
     private static <T> T requireNotNull(T value, String detail) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, detail);

@@ -25,6 +25,7 @@ public class OrderController {
 
     private final OrderService orderService;
 
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER, UserRole.DELIVERY_MANAGER})
     @PostMapping
     public ResponseEntity<OrderResponseDto> createOrder(
             @Valid @RequestBody OrderCreateRequestDto request,
@@ -61,6 +62,7 @@ public class OrderController {
         return ResponseEntity.ok(response);
     }
 
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER, UserRole.DELIVERY_MANAGER})
     @GetMapping
     public ResponseEntity<PageResponseDto<OrderSummaryResponseDto>> getOrders(
             OrderSearchCondition condition,
@@ -72,6 +74,7 @@ public class OrderController {
         return ResponseEntity.ok(orderService.getOrders(condition, pageRequestDto, userRole, userId, userHubId));
     }
 
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER, UserRole.DELIVERY_MANAGER})
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponseDto> getOrder(
             @PathVariable UUID orderId,
