@@ -79,6 +79,36 @@ public class DeliveryAssignment extends BaseEntity {
         );
     }
 
+    public void markReassigned(String reason) {
+        if (assignmentStatus != AssignmentStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.assignmentStatus = AssignmentStatus.REASSIGNED;
+        this.unassignedAt = LocalDateTime.now();
+        this.reason = normalizeOptionalText(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
+    }
+
+    public void markCancelled(String reason) {
+        if (assignmentStatus != AssignmentStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.assignmentStatus = AssignmentStatus.CANCELLED;
+        this.unassignedAt = LocalDateTime.now();
+        this.reason = normalizeOptionalText(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
+    }
+
+    public void markCompleted(String reason) {
+        if (assignmentStatus != AssignmentStatus.ASSIGNED) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.assignmentStatus = AssignmentStatus.COMPLETED;
+        this.unassignedAt = LocalDateTime.now();
+        this.reason = normalizeOptionalText(reason, 255, ErrorCode.INVALID_DELIVERY_ASSIGNMENT_REASON);
+    }
+
     private static <T> T requireNotNull(T value, String detail) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, detail);

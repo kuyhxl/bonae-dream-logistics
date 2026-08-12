@@ -126,12 +126,54 @@ public class Delivery extends BaseEntity {
         this.status = DeliveryStatus.CANCELLED;
     }
 
+    public void assignManager(UUID deliveryManagerId) {
+        validateAssignableStatus();
+        if (this.deliveryManagerId != null) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_ASSIGNED);
+        }
+
+        this.deliveryManagerId = requireNotNull(deliveryManagerId, "배송 담당자 ID는 필수입니다.");
+        this.assignedAt = LocalDateTime.now();
+    }
+
+    public void reassignManager(UUID deliveryManagerId) {
+        validateAssignableStatus();
+        UUID nextDeliveryManagerId = requireNotNull(deliveryManagerId, "배송 담당자 ID는 필수입니다.");
+        if (this.deliveryManagerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        if (this.deliveryManagerId.equals(nextDeliveryManagerId)) {
+            throw new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE);
+        }
+
+        this.deliveryManagerId = nextDeliveryManagerId;
+        this.assignedAt = LocalDateTime.now();
+    }
+
     public void updateRequestNote(String requestNote) {
         if (status == DeliveryStatus.DELIVERED || status == DeliveryStatus.CANCELLED) {
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
 
         this.requestNote = requireText(requestNote, 600, "배송 요청사항은 비어 있을 수 없고 600자를 초과할 수 없습니다.");
+    }
+
+    public void completeDelivery() {
+        if (status == DeliveryStatus.DELIVERED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_COMPLETED);
+        }
+        if (status == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_CANCELLED);
+        }
+        if (status != DeliveryStatus.OUT_FOR_DELIVERY) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+        if (deliveryManagerId == null) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.status = DeliveryStatus.DELIVERED;
+        this.completedAt = LocalDateTime.now();
     }
 
     public void markRoutePrepared(boolean hasHubRoutes) {
@@ -163,6 +205,20 @@ public class Delivery extends BaseEntity {
 
         if (lastRoute) {
             this.status = DeliveryStatus.OUT_FOR_DELIVERY;
+        }
+    }
+
+    private void validateAssignableStatus() {
+        if (status == DeliveryStatus.DELIVERED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_COMPLETED);
+        }
+        if (status == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_CANCELLED);
+        }
+        if (status != DeliveryStatus.READY
+                && status != DeliveryStatus.HUB_WAITING
+                && status != DeliveryStatus.HUB_MOVING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
     }
 

@@ -6,9 +6,12 @@ import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
+import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
+import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
 import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
@@ -19,6 +22,7 @@ import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResp
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCompleteResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
@@ -50,6 +54,9 @@ class DeliveryServiceTest {
 
     @Mock
     private DeliveryRouteRepository deliveryRouteRepository;
+
+    @Mock
+    private DeliveryAssignmentRepository deliveryAssignmentRepository;
 
     @Mock
     private CompanyClient companyClient;
@@ -273,13 +280,112 @@ class DeliveryServiceTest {
     @DisplayName("cancel delivery by order id updates status")
     void cancelDeliveryByOrderId_success() {
         Delivery delivery = createDelivery();
+        DeliveryAssignment assignment = DeliveryAssignment.create(
+                delivery.getId(),
+                UUID.randomUUID(),
+                1,
+                "초기 배정"
+        );
         when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
+        when(deliveryAssignmentRepository.findTopByDeliveryIdAndAssignmentStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                delivery.getId(),
+                AssignmentStatus.ASSIGNED
+        )).thenReturn(Optional.of(assignment));
 
         DeliveryCancelResponse result = deliveryService.cancelDeliveryByOrderId(delivery.getOrderId());
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
+        assertThat(assignment.getAssignmentStatus()).isEqualTo(AssignmentStatus.CANCELLED);
+        assertThat(assignment.getUnassignedAt()).isNotNull();
         verify(deliveryRepository).flush();
+    }
+
+    @Test
+    @DisplayName("delivery manager can complete assigned delivery and close assignment")
+    void completeDelivery_success() throws Exception {
+        Delivery delivery = createDelivery();
+        UUID deliveryManagerId = UUID.randomUUID();
+        setField(delivery, "deliveryManagerId", deliveryManagerId);
+        setField(delivery, "status", DeliveryStatus.OUT_FOR_DELIVERY);
+        DeliveryAssignment assignment = DeliveryAssignment.create(
+                delivery.getId(),
+                deliveryManagerId,
+                1,
+                "초기 배정"
+        );
+
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("delivery-manager"))
+                .thenReturn(createUserInfo(
+                        deliveryManagerId,
+                        "delivery-manager",
+                        "Delivery Manager",
+                        "U03",
+                        "DELIVERY_MANAGER",
+                        null,
+                        null
+                ));
+        when(deliveryAssignmentRepository.findTopByDeliveryIdAndAssignmentStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                delivery.getId(),
+                AssignmentStatus.ASSIGNED
+        )).thenReturn(Optional.of(assignment));
+
+        DeliveryCompleteResponse result =
+                deliveryService.completeDelivery(delivery.getId(), UserRole.DELIVERY_MANAGER, "delivery-manager");
+
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.DELIVERED);
+        assertThat(result.getCompletedAt()).isNotNull();
+        assertThat(assignment.getAssignmentStatus()).isEqualTo(AssignmentStatus.COMPLETED);
+        assertThat(assignment.getUnassignedAt()).isNotNull();
+        verify(deliveryRepository).flush();
+    }
+
+    @Test
+    @DisplayName("cannot complete delivery outside out for delivery status")
+    void completeDelivery_invalidStatus() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> deliveryService.completeDelivery(delivery.getId(), UserRole.MASTER, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    @Test
+    @DisplayName("cannot complete delivery without active assignment")
+    void completeDelivery_withoutActiveAssignment() throws Exception {
+        Delivery delivery = createDelivery();
+        UUID deliveryManagerId = UUID.randomUUID();
+        setField(delivery, "deliveryManagerId", deliveryManagerId);
+        setField(delivery, "status", DeliveryStatus.OUT_FOR_DELIVERY);
+
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("delivery-manager"))
+                .thenReturn(createUserInfo(
+                        deliveryManagerId,
+                        "delivery-manager",
+                        "Delivery Manager",
+                        "U03",
+                        "DELIVERY_MANAGER",
+                        null,
+                        null
+                ));
+        when(deliveryAssignmentRepository.findTopByDeliveryIdAndAssignmentStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                delivery.getId(),
+                AssignmentStatus.ASSIGNED
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> deliveryService.completeDelivery(
+                delivery.getId(),
+                UserRole.DELIVERY_MANAGER,
+                "delivery-manager"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
     }
 
     @Test
