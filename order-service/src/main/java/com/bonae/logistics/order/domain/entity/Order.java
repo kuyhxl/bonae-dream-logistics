@@ -114,5 +114,23 @@ public class Order extends BaseEntity {
         this.status = OrderStatus.CANCELLED;
         this.delete(cancelledBy);
     }
+
+    public void updateStatus(OrderStatus newStatus) {
+        if(this.status == OrderStatus.DELIVERED || this.status == OrderStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    "이미 종료된 주문의 상태는 변경할 수 없습니다.");
+        }
+
+        if (isBackwardTransition(this.status, newStatus)) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION,
+                    "이전 상태로는 되돌릴 수 없습니다.");
+        }
+        this.status = newStatus;
+    }
+
+    //역행하는 전이 방지
+    private boolean isBackwardTransition(OrderStatus current, OrderStatus next) {
+        return current == OrderStatus.IN_TRANSIT && next == OrderStatus.PENDING;
+    }
 }
 
