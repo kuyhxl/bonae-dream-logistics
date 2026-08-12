@@ -62,6 +62,17 @@ public class Product extends BaseEntity {
         return new Product(name, company, price);
     }
 
+    // 인자로 넘어온 값이 null이면 해당 필드는 변경하지 않는다 (부분 수정)
+    public void update(String name, BigDecimal price) {
+        if (name != null) {
+            this.name = name;
+        }
+        if (price != null) {
+            validatePrice(price);
+            this.price = price;
+        }
+    }
+
     //상품 가격(price)이 올바른 범위인지 검사하는 검증 메서드
     // null이거나, 0보다 작거나, 최대 가격보다 크거나, 소수 둘째 자리를 초과하면 잘못된 가격으로 처리.
     // 소수 자릿수를 확인하지 않으면 저장 시 컬럼 스케일(2)에 맞춰 조용히 반올림되어 응답값과 실제 저장값이 달라질 수 있음
