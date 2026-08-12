@@ -6,10 +6,14 @@ import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
+import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
+import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
 import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.HubRoutePathClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
@@ -22,6 +26,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -29,7 +35,9 @@ import java.util.UUID;
 public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
+    private final DeliveryRouteRepository deliveryRouteRepository;
     private final CompanyClient companyClient;
+    private final HubRouteClient hubRouteClient;
     private final UserClient userClient;
 
     @Transactional(readOnly = true)
@@ -65,6 +73,12 @@ public class DeliveryService {
         UserInfoClientResponse receiverUser = getRequiredUserInfo(request.getReceiverUsername());
 
         validateCompanyMapping(supplierCompany, receiverCompany);
+        HubRoutePathClientResponse routePath = hubRouteClient.getShortestPath(
+                supplierCompany.getHubId(),
+                receiverCompany.getHubId()
+        );
+        List<HubRoutePathClientResponse.HubRoutePathSegmentClientResponse> routeSegments =
+                validateRoutePath(supplierCompany.getHubId(), receiverCompany.getHubId(), routePath);
 
         Delivery delivery = Delivery.create(
                 request.getOrderId(),
@@ -76,9 +90,16 @@ public class DeliveryService {
                 receiverCompany.getAddress(),
                 request.getRequestNote()
         );
+        delivery.markRoutePrepared(!routeSegments.isEmpty());
 
         Delivery savedDelivery = deliveryRepository.saveAndFlush(delivery);
-        return DeliveryCreateResponse.from(savedDelivery);
+        List<DeliveryRoute> savedRoutes = deliveryRouteRepository.saveAll(
+                routeSegments.stream()
+                        .map(segment -> toDeliveryRoute(savedDelivery.getId(), segment))
+                        .toList()
+        );
+
+        return DeliveryCreateResponse.from(savedDelivery, savedRoutes.size());
     }
 
     @Transactional
@@ -185,5 +206,42 @@ public class DeliveryService {
         if (receiverAddress == null || receiverAddress.trim().isEmpty()) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "수령 업체 주소가 누락되어 배송지를 생성할 수 없습니다.");
         }
+    }
+    private List<HubRoutePathClientResponse.HubRoutePathSegmentClientResponse> validateRoutePath(
+            UUID departureHubId,
+            UUID arrivalHubId,
+            HubRoutePathClientResponse routePath
+    ) {
+        if (routePath == null || routePath.getSegments() == null) {
+            throw new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND);
+        }
+
+        List<HubRoutePathClientResponse.HubRoutePathSegmentClientResponse> segments = routePath.getSegments();
+        if (!departureHubId.equals(arrivalHubId) && segments.isEmpty()) {
+            throw new BusinessException(ErrorCode.HUB_ROUTE_NOT_FOUND);
+        }
+
+        return segments;
+    }
+
+    private DeliveryRoute toDeliveryRoute(
+            UUID deliveryId,
+            HubRoutePathClientResponse.HubRoutePathSegmentClientResponse segment
+    ) {
+        return DeliveryRoute.create(
+                deliveryId,
+                segment.getSequence(),
+                segment.getFromHubId(),
+                segment.getToHubId(),
+                null,
+                segment.getDistanceMeters(),
+                segment.getDurationSeconds(),
+                toBigDecimal(segment.getDistanceKm()),
+                segment.getDurationMin()
+        );
+    }
+
+    private BigDecimal toBigDecimal(Double value) {
+        return value == null ? null : BigDecimal.valueOf(value);
     }
 }
