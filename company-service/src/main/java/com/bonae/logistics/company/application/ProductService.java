@@ -123,6 +123,41 @@ public class ProductService {
     private record ProductCreationResult(Product product, Inventory inventory) {
     }
 
+    //@Transactional 제거 (외부 서비스 호출을 트랜잭션 밖에서 수행)
+    public void deleteProduct(UUID productId, UserRole userRole, String username) {
+        // 존재 여부(삭제 여부 포함)와 접근권한을 먼저 확인.
+        Product target = productRepository.findByIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        authorizeDelete(target, userRole, username);
+
+        // 실제 DB 작업만 트랜잭션으로 처리
+        transactionTemplate.executeWithoutResult(status -> {
+            // authorizeDelete(user-service 호출)가 끝날 때까지 시간이 걸리는 동안 다른 요청이
+            // 이 상품을 먼저 삭제했을 수 있으므로, 실제 삭제 직전에 managed 엔티티를 다시 조회해 재검증
+            Product managedProduct = productRepository.findByIdAndDeletedAtIsNull(productId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+            managedProduct.delete(username);
+        });
+    }
+
+    // HUB_MANAGER는 상품이 속한 업체의 소속 허브가 본인 담당 허브일 때만 삭제할 수 있다. MASTER는 제한 없음.
+    // Product에는 자체 hubId가 없어 company.getHubId()가 필요한데, product.getCompany()는 지연 로딩
+    // 프록시라 id 외의 필드는 별도 조회 없이는 접근할 수 없다. 그래서 companyRepository로 다시 조회한다.
+    private void authorizeDelete(Product product, UserRole userRole, String username) {
+        if (userRole != UserRole.HUB_MANAGER) {
+            return;
+        }
+
+        Company company = companyRepository.findByIdAndDeletedAtIsNull(product.getCompany().getId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+        UserInfoDto userInfo = getUserInfo(username);
+        if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
     // MASTER는 제한 없음.
     // HUB_MANAGER는 요청한 hubId(상품 보관 허브)가 본인 담당 허브일 때만,
     // COMPANY_MANAGER는 본인 업체 상품만 생성 가능.
