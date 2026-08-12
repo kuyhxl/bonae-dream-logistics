@@ -4,6 +4,10 @@
 -- affiliation_name은 일반 가입 경로에서 필수 값이라 NOT NULL을 유지하고 '본사'를 고정값으로 넣는다.
 -- password는 환경변수 MASTER_PASSWORD_HASH의 BCrypt 해시를 주입한다.
 -- 로컬 기본값은 .env.template 참조. 운영은 배포 환경변수로 별도 주입한다.
+-- ※ MASTER_PASSWORD_HASH 미설정 시 password에 'dummy'가 저장되어 로그인할 수 없다.
+--    이 마이그레이션은 한 번만 실행되고 ON CONFLICT DO NOTHING이라,
+--    이후 환경변수를 채워도 기존 계정에는 반영되지 않는다.
+--    복구는 UPDATE user_service.p_users SET password = '<BCrypt 해시>' WHERE username = 'master01';
 
 INSERT INTO user_service.p_users
 (id, username, password, name, slack_id, role, status,
