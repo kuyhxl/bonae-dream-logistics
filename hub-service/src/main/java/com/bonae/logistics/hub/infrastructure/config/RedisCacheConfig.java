@@ -56,7 +56,7 @@ public class RedisCacheConfig implements CachingConfigurer {
 
         RedisCacheConfiguration hubRouteGraphConfig = defaultConfig
                 .serializeValuesWith(RedisSerializationContext.SerializationPair.fromSerializer(hubRouteGraphSerializer))
-                .entryTtl(Duration.ofHours(6))
+                .entryTtl(Duration.ofMinutes(5))
                 // 활성 간선 전체를 하나의 키로 관리한다.
                 .computePrefixWith(cacheName -> "hub:route-graph:");
 

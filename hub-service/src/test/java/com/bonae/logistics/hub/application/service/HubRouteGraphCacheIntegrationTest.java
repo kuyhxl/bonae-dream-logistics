@@ -104,7 +104,7 @@ class HubRouteGraphCacheIntegrationTest {
     }
 
     @Test
-    @DisplayName("캐시 미스 시 활성 간선을 반환하고 6시간 TTL로 캐시에 저장한다")
+    @DisplayName("캐시 미스 시 활성 간선을 반환하고 5분 TTL로 캐시에 저장한다")
     void cachesActiveRoutesOnMiss() {
         List<HubRouteEdge> result = hubRouteGraphProvider.getActiveRoutes();
 
@@ -115,9 +115,10 @@ class HubRouteGraphCacheIntegrationTest {
         assertThat(cached).isNotNull();
         assertThat(cached.get()).isEqualTo(result);
 
+        // 5분은 300초이며 명령 실행 시간을 고려해 10초의 허용 범위를 둔다.
         Long ttl = redisTemplate.getExpire(REDIS_KEY, TimeUnit.SECONDS);
         assertThat(ttl).isNotNull();
-        assertThat(ttl).isBetween(21_590L, 21_600L);
+        assertThat(ttl).isBetween(290L, 300L);
     }
 
     @Test
