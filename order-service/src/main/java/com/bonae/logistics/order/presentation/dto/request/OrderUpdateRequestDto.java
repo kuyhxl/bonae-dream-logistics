@@ -9,11 +9,6 @@ import java.util.UUID;
 
 public record OrderUpdateRequestDto(
 
-        UUID receiverCompanyId,
-
-        @Positive(message = "수량은 0보다 커야합니다.")
-        Integer quantity,
-
         @Future(message = "납기일자는 현재 시각 이후여야 합니다.")
         LocalDateTime dueDate,
 

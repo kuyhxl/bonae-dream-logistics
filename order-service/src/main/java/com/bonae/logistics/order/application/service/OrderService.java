@@ -13,6 +13,7 @@ import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRes
 import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
+import com.bonae.logistics.order.presentation.dto.request.OrderUpdateRequestDto;
 import com.bonae.logistics.order.presentation.dto.response.OrderResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +23,8 @@ import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Slf4j
@@ -51,9 +54,10 @@ public class OrderService {
         // 재고 차감 실행
         InventoryDeductResponseDto inventoryResult = deductStockWitRetry(orderId, request.productId(), request.quantity());
 
+        String requestNote = buildRequestNote(request.dueDate(), request.remarks());
         DeliveryCreateResponseDto deliveryResult;
         try {
-            deliveryResult = createDeliveryWithRetry(orderId, requesterCompanyId, userId, request, productInfo);
+            deliveryResult = createDeliveryWithRetry(orderId, userId, request, productInfo, requestNote);
         } catch (BusinessException e) {
             log.error("배송 생성 실패, 보상 트랜잭션(재고 복원) 시작: orderId={}", orderId, e);
 
@@ -96,10 +100,30 @@ public class OrderService {
 
         cancelDeliveryWithRetry(orderId);
 
-        InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
-        log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+        try {
+            InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
+            log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+            order.cancel(userId);
 
-        order.cancel(userId);
+        } catch (BusinessException e) {
+            log.error("재고 복원 최종 실패, 재고 정합성 이슈 상태이므로 주문은 취소 처리함: orderId={}", orderId, e);
+            order.markCancelledWithInventoryIssue(userId);
+        }
+    }
+
+    @Transactional
+    public OrderResponseDto updateOrder(UUID orderId, OrderUpdateRequestDto request, String userRole, UUID hubId) {
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        validateHubScopeIfNeeded(order, userRole, hubId);
+
+        order.update(request.dueDate(), request.remarks());
+
+        String requestNote = buildRequestNote(order.getDueDate(), order.getRemarks());
+        notifyDeliveryUpdateWithRetry(orderId, requestNote);
+
+        return OrderResponseDto.from(order);
     }
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
@@ -115,7 +139,7 @@ public class OrderService {
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
     public DeliveryCreateResponseDto createDeliveryWithRetry(
-            UUID orderId, UUID requesterCompanyId, String userId, OrderCreateRequestDto request, ProductInfoResponseDto productInfo
+            UUID orderId, String userId, OrderCreateRequestDto request, ProductInfoResponseDto productInfo, String requestNote
     ) {
         String productInfoText = productInfo.name() + " " + request.quantity() + "개";
 
@@ -125,12 +149,14 @@ public class OrderService {
                 request.receiverCompanyId(),
                 userId,
                 productInfoText,
-                request.remarks()
+                requestNote
         ));
     }
 
     @Recover
-    public DeliveryCreateResponseDto recoverDelivery(BusinessException e, UUID orderId, UUID requesterCompanyId, OrderCreateRequestDto request) {
+    public DeliveryCreateResponseDto recoverDelivery(
+            BusinessException e, UUID orderId, String userId, OrderCreateRequestDto request, ProductInfoResponseDto productInfo, String requestNote
+    ) {
         log.error("배송 생성 재시도 모두 실패: orderId={}", orderId);
         throw e;
     }
@@ -141,7 +167,7 @@ public class OrderService {
     }
 
     @Recover
-    public void recoverRestore(BusinessException e, UUID orderId, UUID productId, int quantity) {
+    public InventoryRestoreResponseDto recoverRestore(BusinessException e, UUID orderId, UUID productId, int quantity) {
         log.error("보상 트랜잭션(재고 복원) 최종 실패. 수동 개입 필요: orderId={}, productId={}", orderId, productId);
         notifySlackForManualIntervention(orderId, productId, quantity);
         throw new BusinessException(ErrorCode.ORDER_CREATION_FAILED);
@@ -183,6 +209,24 @@ public class OrderService {
     public void recoverCancelDelivery(BusinessException e, UUID orderId) {
         log.error("배송 취소 재시도 모두 실패: orderId={}", orderId);
         throw e;
+    }
+
+    @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
+    public void notifyDeliveryUpdateWithRetry(UUID orderId, String requestNote) {
+        deliveryClient.updateDelivery(new DeliveryUpdateRequestDto(orderId, requestNote));
+    }
+
+    @Recover
+    public void recoverNotifyDeliveryUpdate(BusinessException e, UUID orderId, String requestNote) {
+        log.error("배송 정보 갱신 알림 실패: orderId={}", orderId);
+        throw e;
+    }
+
+    private String buildRequestNote(LocalDateTime dueDate, String remarks) {
+        String dueDateText = dueDate.format(DateTimeFormatter.ofPattern("M월 d일 H시까지"));
+        return remarks == null || remarks.isBlank()
+                ? dueDateText + " 배송 부탁드립니다."
+                : dueDateText + " " + remarks;
     }
 
     //허브 관리자의 경우 본인 담당의 허브인지 검증

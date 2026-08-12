@@ -15,6 +15,7 @@ import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRes
 import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
+import com.bonae.logistics.order.presentation.dto.request.OrderUpdateRequestDto;
 import com.bonae.logistics.order.presentation.dto.response.OrderResponseDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -266,6 +267,26 @@ class OrderServiceTest {
             // then
             verify(orderRepository).save(argThat(order -> HUB_ID.equals(order.getHubId())));
         }
+
+        @Test
+        @DisplayName("배송 생성 요청 시 dueDate와 remarks가 requestNote로 조립된다")
+        void create_deliveryRequest_buildsRequestNoteFromDueDateAndRemarks() {
+            // given
+            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
+                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
+            given(deliveryClient.createDelivery(any()))
+                    .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
+            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
+
+            // then
+            verify(deliveryClient).createDelivery(argThat(request ->
+                    request.requestNote() != null && request.requestNote().contains(requestDto.remarks())
+            ));
+        }
     }
 
     @Nested
@@ -410,6 +431,133 @@ class OrderServiceTest {
             );
 
             verifyNoInteractions(inventoryClient);
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 수정 테스트")
+    class UpdateOrderTest {
+
+        private Order pendingOrder;
+
+        @BeforeEach
+        void setUp() {
+            pendingOrder = Order.createPending(
+                    UUID.randomUUID(), REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID,
+                    PRODUCT_ID, "마른오징어", 10, BigDecimal.valueOf(10000),
+                    LocalDateTime.now().plusDays(3), "기존 요청사항", HUB_ID
+            );
+        }
+
+        @Test
+        @DisplayName("수정 성공 - dueDate, remarks 둘 다 변경")
+        void update_success_both() {
+            // given
+            LocalDateTime newDueDate = LocalDateTime.now().plusDays(7);
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(newDueDate, "변경된 요청사항");
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+            willDoNothing().given(deliveryClient).updateDelivery(any());
+
+            // when
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null);
+
+            // then
+            assertThat(response.dueDate()).isEqualTo(newDueDate);
+            assertThat(response.remarks()).isEqualTo("변경된 요청사항");
+            verify(deliveryClient).updateDelivery(any());
+        }
+
+        @Test
+        @DisplayName("수정 성공 - dueDate만 변경 (remarks는 null)")
+        void update_success_dueDateOnly() {
+            // given
+            LocalDateTime newDueDate = LocalDateTime.now().plusDays(7);
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(newDueDate, null);
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null);
+
+            // then
+            assertThat(response.dueDate()).isEqualTo(newDueDate);
+            assertThat(response.remarks()).isEqualTo("기존 요청사항"); // 안 바뀜
+        }
+
+        @Test
+        @DisplayName("수정 성공 - 담당 허브 관리자")
+        void update_success_hubManager_ownHub() {
+            // given
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "HUB_MANAGER", HUB_ID);
+
+            // then
+            assertThat(response.remarks()).isEqualTo("수정됨");
+        }
+
+        @Test
+        @DisplayName("수정 실패 - 담당 허브가 아닌 허브 관리자")
+        void update_fail_hubManager_otherHub() {
+            // given
+            UUID otherHubId = UUID.randomUUID();
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrder(pendingOrder.getId(), request, "HUB_MANAGER", otherHubId)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("수정 실패 - PENDING 상태가 아닌 주문")
+        void update_fail_notPending() {
+            // given
+            ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.DELIVERED);
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("수정 실패 - 존재하지 않는 주문")
+        void update_fail_orderNotFound() {
+            // given
+            UUID nonExistentId = UUID.randomUUID();
+            OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
+
+            given(orderRepository.findByIdAndDeletedAtIsNull(nonExistentId))
+                    .willReturn(Optional.empty());
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrder(nonExistentId, request, "MASTER", null)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
         }
     }
 }
