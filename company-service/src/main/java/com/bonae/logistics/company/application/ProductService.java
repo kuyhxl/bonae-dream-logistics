@@ -18,6 +18,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -26,6 +27,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.StringUtils;
 
 import java.util.UUID;
 
@@ -49,6 +51,16 @@ public class ProductService {
     public PageResponseDto<ResGetProductListDto> getProducts(PageRequestDto pageRequestDto) {
         Page<Product> products = productRepository.findAllByDeletedAtIsNull(pageRequestDto.toPageable());
         return PageResponseDto.from(products, ResGetProductListDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    //상품명 키워드/업체로 검색한다. 두 조건 모두 선택값이며, 삭제된 상품은 결과에서 제외한다.
+    public PageResponseDto<ResSearchProductDto> searchProducts(PageRequestDto pageRequestDto, String keyword,
+                                                                 UUID companyId) {
+        String namePattern = StringUtils.hasText(keyword) ? "%" + keyword.trim() + "%" : null;
+        Page<Product> products = productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                namePattern, companyId, pageRequestDto.toPageable());
+        return PageResponseDto.from(products, ResSearchProductDto::from);
     }
 
     @Transactional(readOnly = true)
