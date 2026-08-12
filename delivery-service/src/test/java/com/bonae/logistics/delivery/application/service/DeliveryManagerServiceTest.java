@@ -5,10 +5,14 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.DeliveryManager;
 import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.repository.DeliveryManagerRepository;
+import com.bonae.logistics.delivery.infrastructure.client.UserClient;
+import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerSearchRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryManagerResponse;
 import org.hibernate.exception.ConstraintViolationException;
@@ -22,6 +26,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -46,6 +51,9 @@ class DeliveryManagerServiceTest {
 
     @Mock
     private CurrentAuditorProvider currentAuditorProvider;
+
+    @Mock
+    private UserClient userClient;
 
     @InjectMocks
     private DeliveryManagerService deliveryManagerService;
@@ -98,7 +106,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("배송 담당자 단건 조회 성공")
+    @DisplayName("MASTER는 배송 담당자 단건을 조회할 수 있다")
     void getDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
@@ -111,23 +119,82 @@ class DeliveryManagerServiceTest {
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.of(deliveryManager));
 
-        DeliveryManagerResponse response = deliveryManagerService.getDeliveryManager(deliveryManagerId);
+        DeliveryManagerResponse response = deliveryManagerService.getDeliveryManager(
+                deliveryManagerId,
+                UserRole.MASTER,
+                null
+        );
 
         assertThat(response.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
         verify(deliveryManagerRepository).findByIdAndDeletedAtIsNull(deliveryManagerId);
     }
 
     @Test
-    @DisplayName("배송 담당자가 없으면 예외 발생")
+    @DisplayName("배송 담당자가 없으면 예외가 발생한다")
     void getDeliveryManager_notFound() {
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> deliveryManagerService.getDeliveryManager(deliveryManagerId))
+        assertThatThrownBy(() -> deliveryManagerService.getDeliveryManager(
+                deliveryManagerId,
+                UserRole.MASTER,
+                null
+        ))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.DELIVERY_MANAGER_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("허브 관리자는 다른 허브 담당자를 조회할 수 없다")
+    void getDeliveryManager_hubManagerForbiddenWhenDifferentHub() {
+        UUID deliveryManagerId = UUID.randomUUID();
+        DeliveryManager deliveryManager = DeliveryManager.create(
+                deliveryManagerId,
+                UUID.randomUUID(),
+                ManagerType.COMPANY_DELIVERY,
+                1
+        );
+
+        when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
+                .thenReturn(Optional.of(deliveryManager));
+        when(userClient.getUserInfo("hub-manager"))
+                .thenReturn(createUserInfo(UUID.randomUUID(), "hub-manager", UUID.randomUUID()));
+
+        assertThatThrownBy(() -> deliveryManagerService.getDeliveryManager(
+                deliveryManagerId,
+                UserRole.HUB_MANAGER,
+                "hub-manager"
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("배송 담당자는 본인 정보만 조회할 수 있다")
+    void getDeliveryManager_deliveryManagerCanViewSelf() {
+        UUID deliveryManagerId = UUID.randomUUID();
+        DeliveryManager deliveryManager = DeliveryManager.create(
+                deliveryManagerId,
+                null,
+                ManagerType.HUB_DELIVERY,
+                1
+        );
+
+        when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
+                .thenReturn(Optional.of(deliveryManager));
+        when(userClient.getUserInfo("delivery-manager"))
+                .thenReturn(createUserInfo(deliveryManagerId, "delivery-manager", null));
+
+        DeliveryManagerResponse response = deliveryManagerService.getDeliveryManager(
+                deliveryManagerId,
+                UserRole.DELIVERY_MANAGER,
+                "delivery-manager"
+        );
+
+        assertThat(response.getDeliveryManagerId()).isEqualTo(deliveryManagerId);
     }
 
     @Test
@@ -142,12 +209,76 @@ class DeliveryManagerServiceTest {
         );
         Page<DeliveryManager> page = new PageImpl<>(List.of(deliveryManager), pageRequestDto.toPageable(), 1);
 
-        when(deliveryManagerRepository.findAllByDeletedAtIsNull(any(Pageable.class))).thenReturn(page);
+        when(deliveryManagerRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
 
-        PageResponseDto<DeliveryManagerResponse> response = deliveryManagerService.getDeliveryManagers(pageRequestDto);
+        PageResponseDto<DeliveryManagerResponse> response =
+                deliveryManagerService.getDeliveryManagers(pageRequestDto, UserRole.MASTER, null);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).getDeliverySequence()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("배송 담당자 검색 조건을 적용한 결과를 반환한다")
+    void searchDeliveryManagers_withSearchFilters() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        DeliveryManagerSearchRequest searchRequest = new DeliveryManagerSearchRequest();
+        UUID hubId = UUID.randomUUID();
+        DeliveryManager deliveryManager = DeliveryManager.create(
+                UUID.randomUUID(),
+                hubId,
+                ManagerType.COMPANY_DELIVERY,
+                5
+        );
+        Page<DeliveryManager> page = new PageImpl<>(List.of(deliveryManager), pageRequestDto.toPageable(), 1);
+
+        setField(searchRequest, "hubId", hubId);
+        setField(searchRequest, "managerType", ManagerType.COMPANY_DELIVERY);
+        setField(searchRequest, "deliverySequence", 5);
+
+        when(deliveryManagerRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        PageResponseDto<DeliveryManagerResponse> response =
+                deliveryManagerService.searchDeliveryManagers(
+                        pageRequestDto,
+                        searchRequest,
+                        UserRole.MASTER,
+                        null
+                );
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getHubId()).isEqualTo(hubId);
+        assertThat(response.getContent().get(0).getManagerType()).isEqualTo(ManagerType.COMPANY_DELIVERY);
+        assertThat(response.getContent().get(0).getDeliverySequence()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("배송 담당자 권한 검색은 본인 정보로 제한된다")
+    void searchDeliveryManagers_deliveryManagerScopedToSelf() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        DeliveryManagerSearchRequest searchRequest = new DeliveryManagerSearchRequest();
+        UUID deliveryManagerId = UUID.randomUUID();
+        DeliveryManager deliveryManager = DeliveryManager.create(
+                deliveryManagerId,
+                null,
+                ManagerType.HUB_DELIVERY,
+                2
+        );
+        Page<DeliveryManager> page = new PageImpl<>(List.of(deliveryManager), pageRequestDto.toPageable(), 1);
+
+        when(userClient.getUserInfo("delivery-manager"))
+                .thenReturn(createUserInfo(deliveryManagerId, "delivery-manager", null));
+        when(deliveryManagerRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        PageResponseDto<DeliveryManagerResponse> response = deliveryManagerService.searchDeliveryManagers(
+                pageRequestDto,
+                searchRequest,
+                UserRole.DELIVERY_MANAGER,
+                "delivery-manager"
+        );
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getDeliveryManagerId()).isEqualTo(deliveryManagerId);
     }
 
     @Test
@@ -220,5 +351,23 @@ class DeliveryManagerServiceTest {
                 constraintName
         );
         return new DataIntegrityViolationException("duplicate key", cause);
+    }
+
+    private void setField(Object target, String fieldName, Object value) {
+        try {
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private UserInfoClientResponse createUserInfo(UUID id, String username, UUID hubId) {
+        return UserInfoClientResponse.builder()
+                .id(id)
+                .username(username)
+                .hubId(hubId)
+                .build();
     }
 }
