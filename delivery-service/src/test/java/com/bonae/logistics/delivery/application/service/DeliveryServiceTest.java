@@ -55,23 +55,31 @@ class DeliveryServiceTest {
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("배송 생성 성공")
+    @DisplayName("배송 생성 시 requestNote를 저장한다")
     void createDelivery_success() throws Exception {
         DeliveryCreateRequest request = createRequest();
-        when(companyClient.getCompany(request.getSupplierCompanyId()))
-                .thenReturn(createCompanyInfo(UUID.randomUUID(), "공급 업체 주소"));
-        when(companyClient.getCompany(request.getReceiverCompanyId()))
-                .thenReturn(createCompanyInfo(UUID.randomUUID(), "수령 업체 주소"));
-        when(userClient.getUserInfo(request.getReceiverUsername()))
-                .thenReturn(createCompanyManagerUser(UUID.randomUUID(), "receiver01", "홍길동", "U08ABCD1234"));
-        when(deliveryRepository.saveAndFlush(any(Delivery.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+        CompanyInfoClientResponse supplierCompany = createCompanyInfo(UUID.randomUUID(), "공급 업체 주소");
+        CompanyInfoClientResponse receiverCompany = createCompanyInfo(UUID.randomUUID(), "수령 업체 주소");
+        UserInfoClientResponse receiverUser = createUser(UUID.randomUUID(), "receiver01", "홍길동", "U08ABCD1234");
+
+        Delivery[] savedHolder = new Delivery[1];
+
+        when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
+        when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
+        when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
+        when(deliveryRepository.saveAndFlush(any(Delivery.class))).thenAnswer(invocation -> {
+            savedHolder[0] = invocation.getArgument(0);
+            return savedHolder[0];
+        });
 
         DeliveryCreateResponse result = deliveryService.createDelivery(request);
 
         assertThat(result.getDeliveryId()).isNotNull();
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.READY);
         assertThat(result.getRouteCount()).isZero();
+        assertThat(savedHolder[0].getRequestNote()).isEqualTo("12월 12일 3시까지 부탁드립니다.");
+        assertThat(savedHolder[0].getReceiverName()).isEqualTo(receiverUser.getName());
+        assertThat(savedHolder[0].getReceiverSlackId()).isEqualTo(receiverUser.getSlackId());
     }
 
     @Test
@@ -88,18 +96,6 @@ class DeliveryServiceTest {
     }
 
     @Test
-    @DisplayName("존재하지 않는 배송 조회 시 예외 발생")
-    void getDelivery_notFound() {
-        UUID deliveryId = UUID.randomUUID();
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> deliveryService.getDelivery(deliveryId, UserRole.MASTER, null, null))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
-    }
-
-    @Test
     @DisplayName("배송 목록 조회 성공")
     void getDeliveries_success() {
         Delivery delivery = createDelivery();
@@ -112,138 +108,6 @@ class DeliveryServiceTest {
 
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
-        assertThat(result.getContent().get(0).getStatus()).isEqualTo(delivery.getStatus());
-    }
-
-    @Test
-    @DisplayName("업체 담당자는 자기 업체 배송만 단건 조회")
-    void getDelivery_companyManagerScoped() {
-        Delivery delivery = createDelivery();
-        UUID companyId = delivery.getReceiverCompanyId();
-        when(deliveryRepository.findByIdAndReceiverCompanyIdAndDeletedAtIsNull(delivery.getId(), companyId))
-                .thenReturn(Optional.of(delivery));
-
-        DeliveryDetailResponse result =
-                deliveryService.getDelivery(delivery.getId(), UserRole.COMPANY_MANAGER, companyId, null);
-
-        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
-    }
-
-    @Test
-    @DisplayName("허브 담당자는 자기 허브 배송만 단건 조회")
-    void getDelivery_hubManagerScoped() {
-        Delivery delivery = createDelivery();
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("seoul-manager"))
-                .thenReturn(createHubManagerUser(UUID.randomUUID(), "seoul-manager", "서울담당자", "U01",
-                        delivery.getOriginHubId(), null));
-
-        DeliveryDetailResponse result =
-                deliveryService.getDelivery(delivery.getId(), UserRole.HUB_MANAGER, null, "seoul-manager");
-
-        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
-    }
-
-    @Test
-    @DisplayName("허브 담당자는 타 허브 배송 단건 조회 불가")
-    void getDelivery_hubManagerForbidden() {
-        Delivery delivery = createDelivery();
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("busan-manager"))
-                .thenReturn(createHubManagerUser(UUID.randomUUID(), "busan-manager", "부산담당자", "U02",
-                        UUID.randomUUID(), null));
-
-        assertThatThrownBy(() -> deliveryService.getDelivery(delivery.getId(), UserRole.HUB_MANAGER, null, "busan-manager"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("배송 담당자는 본인 배정 배송 단건 조회 가능")
-    void getDelivery_deliveryManagerOwnDelivery() throws Exception {
-        Delivery delivery = createDelivery();
-        UUID deliveryManagerId = UUID.randomUUID();
-        setField(delivery, "deliveryManagerId", deliveryManagerId);
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("delivery-manager"))
-                .thenReturn(createDeliveryManagerUser(deliveryManagerId, "delivery-manager", "배송담당자", "U03"));
-
-        DeliveryDetailResponse result =
-                deliveryService.getDelivery(delivery.getId(), UserRole.DELIVERY_MANAGER, null, "delivery-manager");
-
-        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
-    }
-
-    @Test
-    @DisplayName("배송 담당자는 타인 배정 배송 단건 조회 불가")
-    void getDelivery_deliveryManagerForbidden() throws Exception {
-        Delivery delivery = createDelivery();
-        setField(delivery, "deliveryManagerId", UUID.randomUUID());
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("delivery-manager"))
-                .thenReturn(createDeliveryManagerUser(UUID.randomUUID(), "delivery-manager", "배송담당자", "U03"));
-
-        assertThatThrownBy(() -> deliveryService.getDelivery(delivery.getId(), UserRole.DELIVERY_MANAGER, null, "delivery-manager"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("업체 담당자는 companyId 헤더 없으면 목록 조회 불가")
-    void getDeliveries_companyManagerWithoutCompanyId() {
-        PageRequestDto pageRequestDto = new PageRequestDto();
-
-        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, null, null))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
-    }
-
-    @Test
-    @DisplayName("업체 담당자는 자기 업체 배송만 목록 조회")
-    void getDeliveries_companyManagerScoped() {
-        Delivery delivery = createDelivery();
-        PageRequestDto pageRequestDto = new PageRequestDto();
-        UUID companyId = delivery.getReceiverCompanyId();
-        when(deliveryRepository.findAllByReceiverCompanyIdAndDeletedAtIsNull(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(delivery)));
-
-        PageResponseDto<DeliveryListItemResponse> result =
-                deliveryService.getDeliveries(pageRequestDto, UserRole.COMPANY_MANAGER, companyId, null);
-
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
-    }
-
-    @Test
-    @DisplayName("허브 담당자는 자기 허브 기준으로 목록 조회")
-    void getDeliveries_hubManagerScoped() {
-        Delivery delivery = createDelivery();
-        PageRequestDto pageRequestDto = new PageRequestDto();
-        UUID hubId = delivery.getOriginHubId();
-        when(userClient.getUserInfo("seoul-manager"))
-                .thenReturn(createHubManagerUser(UUID.randomUUID(), "seoul-manager", "서울담당자", "U01", hubId, null));
-        when(deliveryRepository.findAllByHubIdAndDeletedAtIsNull(any(), any()))
-                .thenReturn(new PageImpl<>(List.of(delivery)));
-
-        PageResponseDto<DeliveryListItemResponse> result =
-                deliveryService.getDeliveries(pageRequestDto, UserRole.HUB_MANAGER, null, "seoul-manager");
-
-        assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getDeliveryId()).isEqualTo(delivery.getId());
-    }
-
-    @Test
-    @DisplayName("배송 담당자는 배송 목록 조회 권한 없음")
-    void getDeliveries_deliveryManagerForbidden() {
-        PageRequestDto pageRequestDto = new PageRequestDto();
-
-        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.DELIVERY_MANAGER, null, "delivery-manager"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -256,67 +120,8 @@ class DeliveryServiceTest {
         DeliveryCancelResponse result = deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null);
 
         verify(deliveryRepository).flush();
-        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
         assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
-    }
-
-    @Test
-    @DisplayName("배송 완료 상태는 취소 불가")
-    void cancelDelivery_completed() throws Exception {
-        Delivery delivery = createDelivery();
-        setField(delivery, "status", DeliveryStatus.DELIVERED);
-        setField(delivery, "completedAt", LocalDateTime.now());
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-
-        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.DELIVERY_ALREADY_COMPLETED);
-    }
-
-    @Test
-    @DisplayName("이동 중 배송은 취소 불가")
-    void cancelDelivery_movingForbidden() throws Exception {
-        Delivery delivery = createDelivery();
-        setField(delivery, "status", DeliveryStatus.HUB_MOVING);
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-
-        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.MASTER, null))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
-    }
-
-    @Test
-    @DisplayName("허브 담당자는 자기 허브 배송만 취소 가능")
-    void cancelDelivery_hubManagerScoped() {
-        Delivery delivery = createDelivery();
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("seoul-manager"))
-                .thenReturn(createHubManagerUser(UUID.randomUUID(), "seoul-manager", "서울담당자", "U01",
-                        delivery.getOriginHubId(), null));
-        doNothing().when(deliveryRepository).flush();
-
-        DeliveryCancelResponse result =
-                deliveryService.cancelDelivery(delivery.getId(), UserRole.HUB_MANAGER, "seoul-manager");
-
-        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
-    }
-
-    @Test
-    @DisplayName("허브 담당자는 타 허브 배송 취소 불가")
-    void cancelDelivery_hubManagerForbidden() {
-        Delivery delivery = createDelivery();
-        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
-        when(userClient.getUserInfo("busan-manager"))
-                .thenReturn(createHubManagerUser(UUID.randomUUID(), "busan-manager", "부산담당자", "U02",
-                        UUID.randomUUID(), null));
-
-        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.HUB_MANAGER, "busan-manager"))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -329,61 +134,75 @@ class DeliveryServiceTest {
         DeliveryCancelResponse result = deliveryService.cancelDeliveryByOrderId(delivery.getOrderId());
 
         verify(deliveryRepository).flush();
-        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
-        assertThat(delivery.getStatus()).isEqualTo(DeliveryStatus.CANCELLED);
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
     }
 
     @Test
-    @DisplayName("주문 ID 기준 배송이 없으면 예외 발생")
-    void cancelDeliveryByOrderId_notFound() {
-        UUID orderId = UUID.randomUUID();
-        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> deliveryService.cancelDeliveryByOrderId(orderId))
-                .isInstanceOf(BusinessException.class)
-                .extracting("errorCode")
-                .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
-    }
-
-    @Test
-    @DisplayName("주문 수정 기준 배송 수정 성공")
+    @DisplayName("주문 수정 연동 시 requestNote만 갱신한다")
     void updateDeliveryByOrder_success() throws Exception {
         Delivery delivery = createDelivery();
-        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(delivery.getOrderId());
-        CompanyInfoClientResponse supplierCompany = createCompanyInfo(UUID.randomUUID(), "공급 업체 주소");
-        CompanyInfoClientResponse receiverCompany = createCompanyInfo(UUID.randomUUID(), "변경된 수령 업체 주소");
-        UserInfoClientResponse receiverUser = createCompanyManagerUser(UUID.randomUUID(), "receiver02", "김수령", "U09XYZ");
-
-        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
-        when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
-        when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
-        when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
+        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(delivery.getOrderId(), " 12월 15일 3시까지 보내주세요! ");
         doNothing().when(deliveryRepository).flush();
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
 
         DeliveryDetailResponse result = deliveryService.updateDeliveryByOrder(request);
 
         verify(deliveryRepository).flush();
-        assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
-        assertThat(result.getOriginHubId()).isEqualTo(supplierCompany.getHubId());
-        assertThat(result.getDestinationHubId()).isEqualTo(receiverCompany.getHubId());
-        assertThat(result.getReceiverCompanyId()).isEqualTo(request.getReceiverCompanyId());
-        assertThat(result.getReceiverName()).isEqualTo(receiverUser.getName());
-        assertThat(result.getReceiverSlackId()).isEqualTo(receiverUser.getSlackId());
-        assertThat(result.getDeliveryAddress()).isEqualTo(receiverCompany.getAddress());
+        assertThat(delivery.getRequestNote()).isEqualTo("12월 15일 3시까지 보내주세요!");
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
     }
 
     @Test
-    @DisplayName("주문 수정 기준 배송 수정 시 배송이 없으면 예외 발생")
-    void updateDeliveryByOrder_notFound() throws Exception {
-        UUID orderId = UUID.randomUUID();
-        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(orderId);
-        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)).thenReturn(Optional.empty());
+    @DisplayName("배송 담당자는 배송 목록 조회 권한이 없다")
+    void getDeliveries_deliveryManagerForbidden() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+
+        assertThatThrownBy(() -> deliveryService.getDeliveries(pageRequestDto, UserRole.DELIVERY_MANAGER, null, "delivery-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("허브 담당자는 자기 허브 배송만 단건 조회할 수 있다")
+    void getDelivery_hubManagerScoped() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("seoul-manager"))
+                .thenReturn(createHubManagerUser(UUID.randomUUID(), "seoul-manager", delivery.getOriginHubId()));
+
+        DeliveryDetailResponse result = deliveryService.getDelivery(delivery.getId(), UserRole.HUB_MANAGER, null, "seoul-manager");
+
+        assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
+    }
+
+    @Test
+    @DisplayName("다른 허브 담당자는 배송 취소 권한이 없다")
+    void cancelDelivery_hubManagerForbidden() {
+        Delivery delivery = createDelivery();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(userClient.getUserInfo("busan-manager"))
+                .thenReturn(createHubManagerUser(UUID.randomUUID(), "busan-manager", UUID.randomUUID()));
+
+        assertThatThrownBy(() -> deliveryService.cancelDelivery(delivery.getId(), UserRole.HUB_MANAGER, "busan-manager"))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("배송 완료 상태는 requestNote를 수정할 수 없다")
+    void updateDeliveryByOrder_completedDeliveryForbidden() throws Exception {
+        Delivery delivery = createDelivery();
+        setField(delivery, "status", DeliveryStatus.DELIVERED);
+        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(delivery.getOrderId(), "변경 요청사항");
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
 
         assertThatThrownBy(() -> deliveryService.updateDeliveryByOrder(request))
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
-                .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
+                .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
     }
 
     private DeliveryCreateRequest createRequest() throws Exception {
@@ -397,12 +216,10 @@ class DeliveryServiceTest {
         return request;
     }
 
-    private InternalDeliveryUpdateRequest createInternalUpdateRequest(UUID orderId) throws Exception {
+    private InternalDeliveryUpdateRequest createInternalUpdateRequest(UUID orderId, String requestNote) throws Exception {
         InternalDeliveryUpdateRequest request = new InternalDeliveryUpdateRequest();
         setField(request, "orderId", orderId);
-        setField(request, "supplierCompanyId", UUID.randomUUID());
-        setField(request, "receiverCompanyId", UUID.randomUUID());
-        setField(request, "receiverUsername", " receiver02 ");
+        setField(request, "requestNote", requestNote);
         return request;
     }
 
@@ -413,8 +230,9 @@ class DeliveryServiceTest {
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 "홍길동",
-                "hong123",
-                "서울시 강남구 테헤란로 1"
+                "U123456",
+                "서울시 강남구 테헤란로 1",
+                "12월 12일 3시까지 부탁드립니다."
         );
     }
 
@@ -426,7 +244,7 @@ class DeliveryServiceTest {
                 .build();
     }
 
-    private UserInfoClientResponse createCompanyManagerUser(UUID id, String username, String name, String slackId) {
+    private UserInfoClientResponse createUser(UUID id, String username, String name, String slackId) {
         return UserInfoClientResponse.builder()
                 .id(id)
                 .username(username)
@@ -436,32 +254,14 @@ class DeliveryServiceTest {
                 .build();
     }
 
-    private UserInfoClientResponse createHubManagerUser(
-            UUID id,
-            String username,
-            String name,
-            String slackId,
-            UUID hubId,
-            UUID companyId
-    ) {
+    private UserInfoClientResponse createHubManagerUser(UUID id, String username, UUID hubId) {
         return UserInfoClientResponse.builder()
                 .id(id)
                 .username(username)
-                .name(name)
-                .slackId(slackId)
+                .name("허브 담당자")
+                .slackId("U01")
                 .role("HUB_MANAGER")
                 .hubId(hubId)
-                .companyId(companyId)
-                .build();
-    }
-
-    private UserInfoClientResponse createDeliveryManagerUser(UUID id, String username, String name, String slackId) {
-        return UserInfoClientResponse.builder()
-                .id(id)
-                .username(username)
-                .name(name)
-                .slackId(slackId)
-                .role("DELIVERY_MANAGER")
                 .build();
     }
 

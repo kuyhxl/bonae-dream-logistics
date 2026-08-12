@@ -50,6 +50,9 @@ public class Delivery extends BaseEntity {
     @Column(name = "delivery_address", nullable = false, length = 255)
     private String deliveryAddress;
 
+    @Column(name = "request_note", length = 600)
+    private String requestNote;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 30)
     private DeliveryStatus status;
@@ -71,7 +74,8 @@ public class Delivery extends BaseEntity {
             UUID receiverCompanyId,
             String receiverName,
             String receiverSlackId,
-            String deliveryAddress
+            String deliveryAddress,
+            String requestNote
     ) {
         this.id = requireNotNull(id, "배송 ID는 필수입니다.");
         this.orderId = requireNotNull(orderId, "주문 ID는 필수입니다.");
@@ -81,6 +85,7 @@ public class Delivery extends BaseEntity {
         this.receiverName = requireText(receiverName, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_NAME);
         this.receiverSlackId = requireText(receiverSlackId, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_SLACK_ID);
         this.deliveryAddress = requireText(deliveryAddress, 255, ErrorCode.INVALID_DELIVERY_ADDRESS);
+        this.requestNote = requireText(requestNote, 600, "배송 요청사항은 비어 있을 수 없고 600자를 초과할 수 없습니다.");
         this.status = DeliveryStatus.READY;
     }
 
@@ -91,7 +96,8 @@ public class Delivery extends BaseEntity {
             UUID receiverCompanyId,
             String receiverName,
             String receiverSlackId,
-            String deliveryAddress
+            String deliveryAddress,
+            String requestNote
     ) {
         return new Delivery(
                 UUID.randomUUID(),
@@ -101,7 +107,8 @@ public class Delivery extends BaseEntity {
                 receiverCompanyId,
                 receiverName,
                 receiverSlackId,
-                deliveryAddress
+                deliveryAddress,
+                requestNote
         );
     }
 
@@ -119,24 +126,12 @@ public class Delivery extends BaseEntity {
         this.status = DeliveryStatus.CANCELLED;
     }
 
-    public void updateFromOrder(
-            UUID originHubId,
-            UUID destinationHubId,
-            UUID receiverCompanyId,
-            String receiverName,
-            String receiverSlackId,
-            String deliveryAddress
-    ) {
+    public void updateRequestNote(String requestNote) {
         if (status == DeliveryStatus.DELIVERED || status == DeliveryStatus.CANCELLED) {
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
 
-        this.originHubId = requireNotNull(originHubId, "출발 허브 ID는 필수입니다.");
-        this.destinationHubId = requireNotNull(destinationHubId, "도착 허브 ID는 필수입니다.");
-        this.receiverCompanyId = requireNotNull(receiverCompanyId, "수령 업체 ID는 필수입니다.");
-        this.receiverName = requireText(receiverName, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_NAME);
-        this.receiverSlackId = requireText(receiverSlackId, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_SLACK_ID);
-        this.deliveryAddress = requireText(deliveryAddress, 255, ErrorCode.INVALID_DELIVERY_ADDRESS);
+        this.requestNote = requireText(requestNote, 600, "배송 요청사항은 비어 있을 수 없고 600자를 초과할 수 없습니다.");
     }
 
     private static <T> T requireNotNull(T value, String detail) {
@@ -150,6 +145,14 @@ public class Delivery extends BaseEntity {
         String normalizedValue = normalizeRequiredText(value);
         if (normalizedValue.length() > maxLength) {
             throw new BusinessException(errorCode);
+        }
+        return normalizedValue;
+    }
+
+    private static String requireText(String value, int maxLength, String detail) {
+        String normalizedValue = normalizeRequiredText(value);
+        if (normalizedValue.length() > maxLength) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT, detail);
         }
         return normalizedValue;
     }
