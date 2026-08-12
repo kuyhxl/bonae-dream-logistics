@@ -6,7 +6,6 @@ import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.presentation.dto.response.HubRoutePathResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,7 +17,6 @@ public class HubRoutePathService {
     private final HubRepository hubRepository;
     private final HubRoutePathProvider hubRoutePathProvider;
 
-    @Transactional(readOnly = true)
     public HubRoutePathResponse findShortestPath(UUID departureHubId, UUID arrivalHubId) {
         requireHubExists(departureHubId);
 
