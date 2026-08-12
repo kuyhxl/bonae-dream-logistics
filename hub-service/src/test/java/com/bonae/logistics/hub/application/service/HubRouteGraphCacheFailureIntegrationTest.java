@@ -5,6 +5,8 @@ import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
+import com.bonae.logistics.hub.presentation.dto.request.HubRouteUpdateRequest;
+import com.bonae.logistics.hub.presentation.dto.response.HubRouteDetailResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -13,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -35,6 +38,9 @@ class HubRouteGraphCacheFailureIntegrationTest {
 
     @Autowired
     private HubRouteRepository hubRouteRepository;
+
+    @Autowired
+    private HubRouteService hubRouteService;
 
     private Hub departureHub;
     private Hub arrivalHub;
@@ -80,5 +86,25 @@ class HubRouteGraphCacheFailureIntegrationTest {
         List<HubRouteEdge> result = hubRouteGraphProvider.getActiveRoutes();
 
         assertThat(result).contains(HubRouteEdge.from(hubRoute));
+    }
+
+    @Test
+    @DisplayName("Redis 무효화가 실패해도 이동정보 수정은 정상 완료한다")
+    void completesUpdateWhenCacheEvictionFails() {
+        HubRouteDetailResponse result = hubRouteService.update(hubRoute.getId(), updateRequest(150_000, 7_200));
+
+        assertThat(result.getDistanceMeters()).isEqualTo(150_000);
+        assertThat(result.getDurationSeconds()).isEqualTo(7_200);
+
+        HubRoute updated = hubRouteRepository.findByIdAndDeletedAtIsNull(hubRoute.getId()).orElseThrow();
+        assertThat(updated.getDistanceMeters()).isEqualTo(150_000);
+        assertThat(updated.getDurationSeconds()).isEqualTo(7_200);
+    }
+
+    private HubRouteUpdateRequest updateRequest(int distanceMeters, int durationSeconds) {
+        HubRouteUpdateRequest request = new HubRouteUpdateRequest();
+        ReflectionTestUtils.setField(request, "distanceMeters", distanceMeters);
+        ReflectionTestUtils.setField(request, "durationSeconds", durationSeconds);
+        return request;
     }
 }
