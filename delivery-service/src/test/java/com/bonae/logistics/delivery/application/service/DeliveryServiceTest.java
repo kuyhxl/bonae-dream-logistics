@@ -92,6 +92,7 @@ class DeliveryServiceTest {
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
+        assertThat(result.getRequestNote()).isEqualTo(delivery.getRequestNote());
         assertThat(result.getStatus()).isEqualTo(delivery.getStatus());
     }
 

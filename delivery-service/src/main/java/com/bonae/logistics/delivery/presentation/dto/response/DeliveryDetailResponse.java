@@ -21,6 +21,7 @@ public class DeliveryDetailResponse {
     private String receiverName;
     private String receiverSlackId;
     private String deliveryAddress;
+    private String requestNote;
     private DeliveryStatus status;
     private LocalDateTime assignedAt;
     private LocalDateTime startedAt;
@@ -41,6 +42,7 @@ public class DeliveryDetailResponse {
                 .receiverName(delivery.getReceiverName())
                 .receiverSlackId(delivery.getReceiverSlackId())
                 .deliveryAddress(delivery.getDeliveryAddress())
+                .requestNote(delivery.getRequestNote())
                 .status(delivery.getStatus())
                 .assignedAt(delivery.getAssignedAt())
                 .startedAt(delivery.getStartedAt())
