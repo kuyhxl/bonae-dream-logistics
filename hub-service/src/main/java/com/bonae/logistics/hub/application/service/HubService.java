@@ -37,6 +37,7 @@ public class HubService {
     private static final String HUB_ADDRESS_UNIQUE_CONSTRAINT = "uk_p_hubs_active_address";
     private static final String HUB_DETAIL_CACHE = "hubDetail";
     private static final String HUB_ROUTE_GRAPH_CACHE = "hubRouteGraph";
+    private static final String HUB_PATH_CACHE = "hubPath";
 
     private final HubRepository hubRepository;
     private final HubRouteRepository hubRouteRepository;
@@ -122,7 +123,11 @@ public class HubService {
         return HubDetailResponse.from(hub);
     }
 
-    @Caching(evict = {@CacheEvict(cacheNames = HUB_DETAIL_CACHE, key = "#hubId"), @CacheEvict(cacheNames = HUB_ROUTE_GRAPH_CACHE, key = "'active'")})
+    @Caching(evict = {
+            @CacheEvict(cacheNames = HUB_DETAIL_CACHE, key = "#hubId"),
+            @CacheEvict(cacheNames = HUB_ROUTE_GRAPH_CACHE, key = "'active'"),
+            @CacheEvict(cacheNames = HUB_PATH_CACHE, allEntries = true)
+    })
     @Transactional
     public void delete(UUID hubId) {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
