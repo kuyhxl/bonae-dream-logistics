@@ -28,6 +28,13 @@ PG_USER="${PG_USER:-bonae}"
 PG_DB="${PG_DB:-bonae}"
 SEED_PASSWORD="${SEED_PASSWORD:-Seed1234!}"
 
+# 아래 주소들은 로컬에서만 호스트에 열려있음
+# 배포 환경은 8080이랑 9411 외 포트를 열지 않으므로, 빈 값으로 넘기면 "확인못함"으로 처리해버림
+#   EUREKA_URL= DELIVERY_INTERNAL_URL= ./scripts/verify.sh
+EUREKA_URL="${EUREKA_URL-http://localhost:8761}"
+DELIVERY_INTERNAL_URL="${DELIVERY_INTERNAL_URL-http://localhost:19006}"
+ZIPKIN_URL="${ZIPKIN_URL-http://localhost:9411}"
+
 PASS=0
 FAIL=0
 SKIP=0
@@ -133,15 +140,19 @@ require_ready() {
 verify_level1() {
     section "[레벨 1] 기동 통합"
 
-    local registered
-    registered=$(curl -s --max-time 10 -H 'Accept: application/json' \
-        "http://localhost:8761/eureka/apps" \
-        | grep -o '"name":"[A-Z-]*"' | sort -u | wc -l | tr -d ' ')
-
-    if [ "${registered:-0}" -ge 6 ]; then
-        pass "Eureka 등록 서비스 ${registered}개"
+    if [ -z "$EUREKA_URL" ]; then
+        blocked "Eureka 등록 (대시보드가 호스트에 열려 있지 않음)"
     else
-        failed "Eureka 등록 부족 — ${registered}개 (6개 이상 기대)"
+        local registered
+        registered=$(curl -s --max-time 10 -H 'Accept: application/json' \
+            "$EUREKA_URL/eureka/apps" \
+            | grep -o '"name":"[A-Z-]*"' | sort -u | wc -l | tr -d ' ')
+
+        if [ "${registered:-0}" -ge 6 ]; then
+            pass "Eureka 등록 서비스 ${registered}개"
+        else
+            failed "Eureka 등록 부족 — ${registered}개 (6개 이상 기대)"
+        fi
     fi
 
     # 6개 스키마에 테이블이 하나도 없는 곳이 없으면 마이그레이션이 적용된 것으로 본다.
@@ -316,16 +327,20 @@ verify_level4() {
         -d "{\"name\":\"$VERIFY_TAG-연동실패\",\"type\":\"RECEIVER\",\"hubId\":\"$(random_uuid)\",\"address\":\"$VERIFY_TAG-주소3\"}"
 
     # 엔드포인트 존재 여부만 따로 확인한다. 빈 본문에 400이 오면 "핸들러는 있다"는 뜻이지, 연동이 동작한다는 뜻이 아니다! 통과랑 섞지 않음
-    local internal_code
-    internal_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-        -X POST "http://localhost:19006/api/internal/deliveries" \
-        -H 'Content-Type: application/json' -d '{}')
+    if [ -z "$DELIVERY_INTERNAL_URL" ]; then
+        blocked "order → delivery (내부 API가 호스트에 열려 있지 않음)"
+    else
+        local internal_code
+        internal_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+            -X POST "$DELIVERY_INTERNAL_URL/api/internal/deliveries" \
+            -H 'Content-Type: application/json' -d '{}')
 
-    case "$internal_code" in
-        404) skip "order → delivery (delivery 내부 API 미구현 — 계약 확정 필요)" ;;
-        400|422) blocked "order → delivery (내부 API 핸들러는 있으나 주문 경로가 막혀 연동 미검증)" ;;
-        *)   blocked "order → delivery (내부 API 응답 $internal_code — 연동 미검증)" ;;
-    esac
+        case "$internal_code" in
+            404) skip "order → delivery (delivery 내부 API 미구현 — 계약 확정 필요)" ;;
+            400|422) blocked "order → delivery (내부 API 핸들러는 있으나 주문 경로가 막혀 연동 미검증)" ;;
+            *)   blocked "order → delivery (내부 API 응답 $internal_code — 연동 미검증)" ;;
+        esac
+    fi
 
     skip "order → 재고 차감 (상품·재고 미구현)"
     skip "delivery → message 슬랙 알림 (담당자 배정 미구현)"
@@ -335,13 +350,18 @@ verify_level4() {
 verify_tracing() {
     section "[관측] 분산 추적"
 
+    if [ -z "$ZIPKIN_URL" ]; then
+        blocked "분산 추적 (Zipkin이 호스트에 열려 있지 않음)"
+        return
+    fi
+
     if ! command -v python3 >/dev/null 2>&1; then
         blocked "분산 추적 검증에 python3가 필요합니다"
         return
     fi
 
     local services
-    services=$(curl -s --max-time 10 'http://localhost:9411/api/v2/services' 2>/dev/null \
+    services=$(curl -s --max-time 10 "$ZIPKIN_URL/api/v2/services" 2>/dev/null \
         | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))' 2>/dev/null)
 
     if [ "${services:-0}" -ge 6 ]; then
@@ -352,7 +372,7 @@ verify_tracing() {
 
     # 하나의 trace 안에서 company-service가 hub-service의 업무 API를 호출했는지 본다
     local linked
-    linked=$(curl -s --max-time 10 'http://localhost:9411/api/v2/traces?limit=50&lookback=300000' 2>/dev/null \
+    linked=$(curl -s --max-time 10 "$ZIPKIN_URL/api/v2/traces?limit=50&lookback=300000" 2>/dev/null \
         | python3 -c '
 import sys, json
 from collections import defaultdict

@@ -75,14 +75,15 @@ jobs:
         with:
           ref: ${{ inputs.ref }}
 
-      # compose 파일과 배포용 오버라이드만 서버로 보낸다. 소스는 보내지 않는다.
-      - name: Copy compose files to EC2
+      # compose 파일과 검증 스크립트만 보낸다. 애플리케이션 소스는 보내지 않는다.
+      # 스크립트를 함께 보내야 배포 후 서버에서 시드/통합 검증 가능
+      - name: Copy compose files and scripts to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: 'docker-compose.yml,docker-compose.deploy.yml'
+          source: 'docker-compose.yml,docker-compose.deploy.yml,scripts/'
           target: '~/bonae'
 
       - name: Deploy
@@ -127,6 +128,8 @@ jobs:
             $COMPOSE pull
             $COMPOSE up -d --remove-orphans
             docker image prune -f
+
+            chmod +x scripts/*.sh 2>/dev/null || true
 
             $COMPOSE ps
 
