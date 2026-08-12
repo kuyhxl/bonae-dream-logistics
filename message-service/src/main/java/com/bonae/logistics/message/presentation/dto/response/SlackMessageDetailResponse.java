@@ -15,11 +15,12 @@ public record SlackMessageDetailResponse(
         Integer retryCount,
         LocalDateTime sentAt,
         SourceType sourceType,
+        String senderUsername,
         LocalDateTime createdAt
 ) {
     public static SlackMessageDetailResponse from(SlackMessage m) {
         return new SlackMessageDetailResponse(
                 m.getId(), m.getReceiverSlackId(), m.getMessage(), m.getSendStatus(),
-                m.getRetryCount(), m.getSentAt(), m.getSourceType(), m.getCreatedAt());
+                m.getRetryCount(), m.getSentAt(), m.getSourceType(), m.getCreatedBy(), m.getCreatedAt());
     }
 }

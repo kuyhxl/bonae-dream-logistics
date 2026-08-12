@@ -99,6 +99,7 @@ public enum ErrorCode{
     SLACK_SEND_FAILED(HttpStatus.BAD_GATEWAY, "슬렉 메시지 발송에 실패했습니다."),
     SLACK_MESSAGE_NOT_FOUND(HttpStatus.NOT_FOUND, "슬렉 메시지 없음 또는 이미 삭제됨"),
     SLACK_MESSAGE_NON_EDITABLE(HttpStatus.CONFLICT, "발송 전(PENDING) 메시지만 수정할 수 있습니다."),
+    SLACK_ID_NOT_REGISTERED(HttpStatus.CONFLICT, "수신자에게 등록된 슬랙 ID가 없습니다."),
     AI_GENERATION_FAILED(HttpStatus.BAD_GATEWAY, "AI 응답 생성에 실패했습니다.");
 
     private final HttpStatus status;

@@ -13,11 +13,12 @@ public record SlackMessageListItemResponse(
         SendStatus sendStatus,
         Integer retryCount,
         LocalDateTime sentAt,
+        String senderUsername,
         LocalDateTime createdAt
 ) {
     public static SlackMessageListItemResponse from(SlackMessage m) {
         return new SlackMessageListItemResponse(
                 m.getId(), m.getReceiverSlackId(), m.getMessage(), m.getSendStatus(),
-                m.getRetryCount(), m.getSentAt(), m.getCreatedAt());
+                m.getRetryCount(), m.getSentAt(), m.getCreatedBy(), m.getCreatedAt());
     }
 }

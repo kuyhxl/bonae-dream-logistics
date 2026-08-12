@@ -4,11 +4,12 @@ import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.message.application.service.SlackMessageAdminService;
 import com.bonae.logistics.message.application.service.SlackMessageService;
+import com.bonae.logistics.message.application.service.SlackRecipientResolver;
 import com.bonae.logistics.message.domain.entity.SourceType;
 import com.bonae.logistics.message.domain.entity.UserRole;
 import com.bonae.logistics.message.presentation.auth.RoleCheck;
-import com.bonae.logistics.message.presentation.dto.request.SlackMessageRequest;
 import com.bonae.logistics.message.presentation.dto.request.SlackMessageSearchCondition;
+import com.bonae.logistics.message.presentation.dto.request.SlackMessageSendRequest;
 import com.bonae.logistics.message.presentation.dto.request.SlackMessageUpdateRequest;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageDetailResponse;
 import com.bonae.logistics.message.presentation.dto.response.SlackMessageListItemResponse;
@@ -31,14 +32,17 @@ public class SlackMessageController {
     // 트랜잭션 경계가 달라 서비스를 분리해 두었다. 컨트롤러에서는 둘 다 사용한다.
     private final SlackMessageService slackMessageService;
     private final SlackMessageAdminService slackMessageAdminService;
+    private final SlackRecipientResolver slackRecipientResolver;
 
     /* 슬랙 메시지 발송. 로그인한 모든 권한이 사용 가능 */
     @PostMapping
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER, UserRole.COMPANY_MANAGER})
-    public ResponseEntity<SlackMessageResponse> send(@Valid @RequestBody SlackMessageRequest request) {
+    public ResponseEntity<SlackMessageResponse> send(@Valid @RequestBody SlackMessageSendRequest request) {
+        String receiverSlackId = slackRecipientResolver.resolveSlackId(request.receiverUsername());
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(SlackMessageResponse.from(
-                        slackMessageService.send(request.receiverSlackId(), request.message(), SourceType.USER)));
+                        slackMessageService.send(receiverSlackId, request.message(), SourceType.USER)));
     }
 
     /* 슬랙 메시지 목록·검색. 마스터 전용 */

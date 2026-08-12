@@ -53,6 +53,7 @@ public class SlackMessageRepositoryImpl implements SlackMessageRepositoryCustom 
                 receiverEq(condition.receiverSlackId()),
                 sendStatusEq(condition.sendStatus()),
                 sourceTypeEq(condition.sourceType()),
+                senderEq(condition.senderUsername()),
                 messageContains(condition.keyword())
         };
     }
@@ -71,6 +72,11 @@ public class SlackMessageRepositoryImpl implements SlackMessageRepositoryCustom 
 
     private BooleanExpression messageContains(String keyword) {
         return StringUtils.hasText(keyword) ? slackMessage.message.contains(keyword) : null;
+    }
+
+    // 감사 추적: 발신자는 BaseEntity의 created_by에 기록된다.
+    private BooleanExpression senderEq(String senderUsername) {
+        return StringUtils.hasText(senderUsername) ? slackMessage.createdBy.eq(senderUsername) : null;
     }
 
     /* sort는 PageRequestDto가 createdAt/updatedAt으로 이미 검증했다. */

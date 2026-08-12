@@ -8,6 +8,7 @@ public record SlackMessageSearchCondition(
         String receiverSlackId,
         SendStatus sendStatus,
         SourceType sourceType,
+        String senderUsername,
         String keyword
 ) {
 }

@@ -7,7 +7,7 @@ public record SlackMessageUpdateRequest(
         @Size(max = 100, message = "수신자 슬랙 ID는 100자를 초과할 수 없습니다.")
         String receiverSlackId,
 
-        @Size(max = 4000, message = "메시지는 4,000자를 초과할 수 없습니다.")
+        @Size(max = 3000, message = "메시지는 3,000자를 초과할 수 없습니다.")
         String message
 ) {
 }
