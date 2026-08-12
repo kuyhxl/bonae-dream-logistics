@@ -5,6 +5,7 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
 import com.bonae.logistics.delivery.domain.entity.RouteStatus;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
@@ -45,15 +46,15 @@ class DeliveryRouteServiceTest {
     private DeliveryRouteService deliveryRouteService;
 
     @Test
-    @DisplayName("마스터는 배송 경로 전체 조회 가능")
+    @DisplayName("마스터는 배송 경로 전체를 조회할 수 있다")
     void getDeliveryRoutes_master() {
         UUID deliveryId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
                 .thenReturn(Optional.of(createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())));
-        DeliveryRoute route1 = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
-        DeliveryRoute route2 = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        DeliveryRoute firstRoute = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        DeliveryRoute secondRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId))
-                .thenReturn(List.of(route1, route2));
+                .thenReturn(List.of(firstRoute, secondRoute));
 
         List<DeliveryRouteResponse> result =
                 deliveryRouteService.getDeliveryRoutes(deliveryId, UserRole.MASTER, null);
@@ -64,16 +65,16 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
-    @DisplayName("허브 담당자는 자기 허브 경로만 조회")
-    void getDeliveryRoutes_hubManager() {
+    @DisplayName("허브 담당자는 접근 권한이 있는 배송의 전체 경로를 조회할 수 있다")
+    void getDeliveryRoutes_hubManagerCanReadAllRoutesOfAccessibleDelivery() {
         UUID deliveryId = UUID.randomUUID();
         UUID hubId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
                 .thenReturn(Optional.of(createDelivery(deliveryId, hubId, UUID.randomUUID(), UUID.randomUUID())));
-        DeliveryRoute visibleRoute = createRoute(deliveryId, 1, hubId, UUID.randomUUID(), UUID.randomUUID());
-        DeliveryRoute hiddenRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        DeliveryRoute firstRoute = createRoute(deliveryId, 1, hubId, UUID.randomUUID(), UUID.randomUUID());
+        DeliveryRoute secondRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId))
-                .thenReturn(List.of(visibleRoute, hiddenRoute));
+                .thenReturn(List.of(firstRoute, secondRoute));
         when(userClient.getUserInfo("hub-manager"))
                 .thenReturn(createHubManagerUser(UUID.randomUUID(), "hub-manager", hubId));
 
@@ -81,20 +82,21 @@ class DeliveryRouteServiceTest {
                 deliveryRouteService.getDeliveryRoutes(deliveryId, UserRole.HUB_MANAGER, "hub-manager");
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getRouteId()).isEqualTo(visibleRoute.getId());
+        assertThat(result.get(0).getRouteId()).isEqualTo(firstRoute.getId());
+        assertThat(result.get(1).getRouteId()).isEqualTo(secondRoute.getId());
     }
 
     @Test
-    @DisplayName("배송 담당자는 본인 배정 경로만 조회")
-    void getDeliveryRoutes_deliveryManager() {
+    @DisplayName("배송 담당자는 본인에게 배정된 배송의 전체 경로를 조회할 수 있다")
+    void getDeliveryRoutes_deliveryManagerCanReadAllRoutesOfAssignedDelivery() {
         UUID deliveryId = UUID.randomUUID();
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
                 .thenReturn(Optional.of(createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), deliveryManagerId)));
-        DeliveryRoute visibleRoute = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), deliveryManagerId);
-        DeliveryRoute hiddenRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        DeliveryRoute firstRoute = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), deliveryManagerId);
+        DeliveryRoute secondRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId))
-                .thenReturn(List.of(visibleRoute, hiddenRoute));
+                .thenReturn(List.of(firstRoute, secondRoute));
         when(userClient.getUserInfo("delivery-manager"))
                 .thenReturn(createDeliveryManagerUser(deliveryManagerId, "delivery-manager"));
 
@@ -102,11 +104,12 @@ class DeliveryRouteServiceTest {
                 deliveryRouteService.getDeliveryRoutes(deliveryId, UserRole.DELIVERY_MANAGER, "delivery-manager");
 
         assertThat(result).hasSize(2);
-        assertThat(result.get(0).getRouteId()).isEqualTo(visibleRoute.getId());
+        assertThat(result.get(0).getRouteId()).isEqualTo(firstRoute.getId());
+        assertThat(result.get(1).getRouteId()).isEqualTo(secondRoute.getId());
     }
 
     @Test
-    @DisplayName("권한 없는 배송 담당자는 배송 경로 전체 조회가 불가하다")
+    @DisplayName("권한 없는 배송 담당자는 배송 경로를 조회할 수 없다")
     void getDeliveryRoutes_deliveryManagerForbidden() {
         UUID deliveryId = UUID.randomUUID();
         when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
@@ -121,10 +124,13 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
-    @DisplayName("배송 경로 상태를 WAITING에서 IN_TRANSIT로 변경")
+    @DisplayName("배송 경로 상태를 WAITING에서 IN_TRANSIT로 변경할 수 있다")
     void updateRouteStatus_depart() {
-        DeliveryRoute route = createRoute(UUID.randomUUID(), 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
+                .thenReturn(Optional.of(createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())));
 
         DeliveryRouteResponse result =
                 deliveryRouteService.updateRouteStatus(route.getId(), RouteStatus.IN_TRANSIT, UserRole.MASTER, null);
@@ -134,12 +140,15 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
-    @DisplayName("배송 경로 상태를 IN_TRANSIT에서 ARRIVED로 변경")
+    @DisplayName("배송 경로 상태를 IN_TRANSIT에서 ARRIVED로 변경할 수 있다")
     void updateRouteStatus_arrive() throws Exception {
-        DeliveryRoute route = createRoute(UUID.randomUUID(), 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         setField(route, "routeStatus", RouteStatus.IN_TRANSIT);
         setField(route, "actualDepartedAt", LocalDateTime.now().minusMinutes(15));
         when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
+                .thenReturn(Optional.of(createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())));
 
         DeliveryRouteResponse result =
                 deliveryRouteService.updateRouteStatus(route.getId(), RouteStatus.ARRIVED, UserRole.MASTER, null);
@@ -150,9 +159,10 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
-    @DisplayName("허브 담당자는 타 허브 경로 상태 변경 불가")
+    @DisplayName("허브 담당자는 자신의 허브가 아닌 경로 상태를 변경할 수 없다")
     void updateRouteStatus_hubManagerForbidden() {
-        DeliveryRoute route = createRoute(UUID.randomUUID(), 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
         when(userClient.getUserInfo("hub-manager"))
                 .thenReturn(createHubManagerUser(UUID.randomUUID(), "hub-manager", UUID.randomUUID()));
@@ -169,11 +179,14 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
-    @DisplayName("잘못된 경로 상태 전이는 예외 발생")
+    @DisplayName("잘못된 경로 상태 전이는 예외가 발생한다")
     void updateRouteStatus_invalidTransition() throws Exception {
-        DeliveryRoute route = createRoute(UUID.randomUUID(), 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
         setField(route, "routeStatus", RouteStatus.ARRIVED);
         when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
+                .thenReturn(Optional.of(createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())));
 
         assertThatThrownBy(() -> deliveryRouteService.updateRouteStatus(
                 route.getId(),
@@ -184,6 +197,48 @@ class DeliveryRouteServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting("errorCode")
                 .isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+    }
+
+    @Test
+    @DisplayName("상위 배송이 이미 취소된 경우 경로 상태를 변경할 수 없다")
+    void updateRouteStatus_cancelledDeliveryForbidden() throws Exception {
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        Delivery delivery = createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        setField(delivery, "status", DeliveryStatus.CANCELLED);
+        when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> deliveryRouteService.updateRouteStatus(
+                route.getId(),
+                RouteStatus.IN_TRANSIT,
+                UserRole.MASTER,
+                null
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.DELIVERY_ALREADY_CANCELLED);
+    }
+
+    @Test
+    @DisplayName("상위 배송이 이미 완료된 경우 경로 상태를 변경할 수 없다")
+    void updateRouteStatus_deliveredDeliveryForbidden() throws Exception {
+        UUID deliveryId = UUID.randomUUID();
+        DeliveryRoute route = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        Delivery delivery = createDelivery(deliveryId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        setField(delivery, "status", DeliveryStatus.DELIVERED);
+        when(deliveryRouteRepository.findByIdAndDeletedAtIsNull(route.getId())).thenReturn(Optional.of(route));
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)).thenReturn(Optional.of(delivery));
+
+        assertThatThrownBy(() -> deliveryRouteService.updateRouteStatus(
+                route.getId(),
+                RouteStatus.IN_TRANSIT,
+                UserRole.MASTER,
+                null
+        ))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.DELIVERY_ALREADY_COMPLETED);
     }
 
     private DeliveryRoute createRoute(
@@ -214,7 +269,7 @@ class DeliveryRouteServiceTest {
                 UUID.randomUUID(),
                 "receiver",
                 "U123456",
-                "서울시 강남구"
+                "서울시 강남구 테헤란로 1"
         );
         if (deliveryManagerId != null) {
             try {

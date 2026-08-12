@@ -5,6 +5,7 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.auth.UserRole;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
 import com.bonae.logistics.delivery.domain.entity.RouteStatus;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
@@ -48,6 +49,7 @@ public class DeliveryRouteService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
         validateRouteAccess(deliveryRoute, userRole, username);
+        validateParentDeliveryStatus(deliveryRoute.getDeliveryId());
 
         if (routeStatus == RouteStatus.IN_TRANSIT) {
             deliveryRoute.depart();
@@ -93,6 +95,19 @@ public class DeliveryRouteService {
 
         if (!allowed) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    private void validateParentDeliveryStatus(UUID deliveryId) {
+        Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        if (delivery.getStatus() == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_CANCELLED);
+        }
+
+        if (delivery.getStatus() == DeliveryStatus.DELIVERED) {
+            throw new BusinessException(ErrorCode.DELIVERY_ALREADY_COMPLETED);
         }
     }
 
