@@ -10,10 +10,7 @@ import com.bonae.logistics.order.domain.entity.OrderStatus;
 import com.bonae.logistics.order.domain.repository.OrderRepository;
 import com.bonae.logistics.order.infrastructure.client.*;
 import com.bonae.logistics.order.infrastructure.client.dto.request.*;
-import com.bonae.logistics.order.infrastructure.client.dto.response.DeliveryCreateResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryDeductResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRestoreResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
+import com.bonae.logistics.order.infrastructure.client.dto.response.*;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
 import com.bonae.logistics.order.presentation.dto.request.OrderSearchCondition;
@@ -58,7 +55,7 @@ public class OrderService {
         }
 
         // 재고 차감 실행
-        InventoryDeductResponseDto inventoryResult = deductStockWitRetry(orderId, request.productId(), request.quantity());
+        InventoryUpdateResponseDto inventoryResult = deductStockWithRetry(orderId, request.productId(), request.quantity());
 
         String requestNote = buildRequestNote(request.dueDate(), request.remarks());
         DeliveryCreateResponseDto deliveryResult;
@@ -67,9 +64,9 @@ public class OrderService {
         } catch (BusinessException e) {
             log.error("배송 생성 실패, 보상 트랜잭션(재고 복원) 시작: orderId={}", orderId, e);
 
-            InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, request.productId(), request.quantity());
-            log.info("재고 복원 완료: orderId={}, productId={}, remainingStock={}",
-                    orderId, restoreResult.productId(), restoreResult.remainingStock());
+            InventoryUpdateResponseDto restoreResult = restoreStockWithRetry(orderId, request.productId(), request.quantity());
+            log.info("재고 복원 완료: orderId={}, inventoryId={}, afterQuantity={}",
+                    orderId, restoreResult.inventoryId(), restoreResult.afterQuantity());
 
             throw e;
         }
@@ -107,8 +104,8 @@ public class OrderService {
         cancelDeliveryWithRetry(orderId);
 
         try {
-            InventoryRestoreResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
-            log.info("주문 취소로 인한 재고 복원 완료: orderId={}, remainingStock={}", orderId, restoreResult.remainingStock());
+            InventoryUpdateResponseDto restoreResult = restoreStockWithRetry(orderId, order.getProductId(), order.getQuantity());
+            log.info("주문 취소로 인한 재고 복원 완료: orderId={}, afterQuantity={}", orderId, restoreResult.afterQuantity());
             order.cancel(userId);
 
         } catch (BusinessException e) {
@@ -170,12 +167,13 @@ public class OrderService {
     }
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
-    public InventoryDeductResponseDto deductStockWitRetry(UUID orderId, UUID productId, int quantity) {
-        return inventoryClient.deductStock(productId, new InventoryDeductRequestDto(orderId, quantity));
+    public InventoryUpdateResponseDto deductStockWithRetry(UUID orderId, UUID productId, int quantity) {
+        UUID inventoryId = findInventoryId(productId);
+        return inventoryClient.updateInventory(inventoryId, new InventoryUpdateRequestDto(orderId, quantity, "DECREASE"));
     }
 
     @Recover
-    public InventoryDeductResponseDto recover(BusinessException e, UUID orderId, UUID productId, int quantity) {
+    public InventoryUpdateResponseDto recover(BusinessException e, UUID orderId, UUID productId, int quantity) {
         log.error("재고 차감 재시도 모두 실패: orderId={}", orderId);
         throw e;
     }
@@ -205,12 +203,13 @@ public class OrderService {
     }
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))
-    public InventoryRestoreResponseDto restoreStockWithRetry(UUID orderId, UUID productId, int quantity) {
-        return inventoryClient.restoreStock(productId, new InventoryRestoreRequestDto(orderId, quantity));
+    public InventoryUpdateResponseDto restoreStockWithRetry(UUID orderId, UUID productId, int quantity) {
+        UUID inventoryId = findInventoryId(productId);
+        return inventoryClient.updateInventory(inventoryId, new InventoryUpdateRequestDto(orderId, quantity, "RESTORE"));
     }
 
     @Recover
-    public InventoryRestoreResponseDto recoverRestore(BusinessException e, UUID orderId, UUID productId, int quantity) {
+    public InventoryUpdateResponseDto recoverRestore(BusinessException e, UUID orderId, UUID productId, int quantity) {
         log.error("보상 트랜잭션(재고 복원) 최종 실패. 수동 개입 필요: orderId={}, productId={}", orderId, productId);
         notifySlackForManualIntervention(orderId, productId, quantity);
         throw new BusinessException(ErrorCode.ORDER_CREATION_FAILED);
@@ -288,6 +287,14 @@ public class OrderService {
         if (!order.getCreatedBy().equals(userId)) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
         }
+    }
+
+    private UUID findInventoryId(UUID productId) {
+        InventorySearchResponseDto response = inventoryClient.searchInventory(productId);
+        if (response.content().isEmpty()) {
+            throw new BusinessException(ErrorCode.INVENTORY_NOT_FOUND);
+        }
+        return response.content().get(0).inventoryId();
     }
 }
 
