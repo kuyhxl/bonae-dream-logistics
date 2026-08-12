@@ -7,6 +7,11 @@ x-app-common: &app-common
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     JWT_SECRET: ${JWT_SECRET}
     TZ: Asia/Seoul
+    SLACK_TOKEN: ${SLACK_TOKEN:-dummy}
+    SLACK_MOCK: ${SLACK_MOCK:-true}
+    GEMINI_API_KEY: ${GEMINI_API_KEY:-dummy}
+    GEMINI_MOCK: ${GEMINI_MOCK:-true}
+    GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
 
 x-app-build: &app-build
   context: .

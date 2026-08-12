@@ -1,0 +1,148 @@
+name: Deploy
+
+# 수동 실행 전용
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: '배포할 브랜치 또는 커밋 (기본: dev)'
+        required: false
+        default: 'dev'
+
+env:
+  REGISTRY: ghcr.io
+  # GHCR 경로는 소문자만 허용해서 아래 job에서 소문자로 변환해 쓴다
+  IMAGE_PREFIX: ${{ github.repository }}
+
+jobs:
+  # ---------- 1. 이미지 빌드 ---------- #
+  # 8개 모듈을 러너에서 병렬로 빌드한다. EC2 메모리를 쓰지 않게하기 위해서
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - eureka-server
+          - gateway
+          - user-service
+          - message-service
+          - hub-service
+          - company-service
+          - order-service
+          - delivery-service
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      - name: Set lowercase image name
+        id: image
+        run: echo "name=${REGISTRY}/${IMAGE_PREFIX,,}/${{ matrix.module }}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: MODULE=${{ matrix.module }}
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ github.sha }}
+            ${{ steps.image.outputs.name }}:latest
+          # 모듈 간 Gradle 의존성 레이어를 공유해 빌드 시간을 줄인다.
+          cache-from: type=gha,scope=${{ matrix.module }}
+          cache-to: type=gha,scope=${{ matrix.module }},mode=max
+
+  # ---------- 2. EC2 배포 ---------- #
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+
+      # compose 파일과 배포용 오버라이드만 서버로 보낸다. 소스는 보내지 않는다.
+      - name: Copy compose files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: 'docker-compose.yml,docker-compose.deploy.yml'
+          target: '~/bonae'
+
+      - name: Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_TAG
+          script: |
+            set -euo pipefail
+            cd ~/bonae
+
+            # 비밀값은 저장소가 아닌 GitHub Secrets에서 가져와 매 배포마다 새로 씀
+            umask 077
+            cat > .env <<'ENVEOF'
+            POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+            POSTGRES_USER=${{ secrets.POSTGRES_USER }}
+            POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            SLACK_TOKEN=${{ secrets.SLACK_TOKEN }}
+            SLACK_MOCK=${{ vars.SLACK_MOCK || 'true' }}
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            GEMINI_MOCK=${{ vars.GEMINI_MOCK || 'true' }}
+            ENVEOF
+
+            # 이 배포에서 올린 이미지 태그를 고정
+            echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
+            echo "IMAGE_PREFIX=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> .env
+
+            echo "${{ secrets.GITHUB_TOKEN }}" \
+              | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+            COMPOSE="docker compose -f docker-compose.yml -f docker-compose.deploy.yml"
+
+            $COMPOSE pull
+            $COMPOSE up -d --remove-orphans
+            docker image prune -f
+
+            $COMPOSE ps
+
+      # 배포가 끝나도 서비스가 실제로 뜨는지는 별개라 게이트웨이 헬스체크로 확인
+      - name: Health check
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            for i in $(seq 1 30); do
+              code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/actuator/health || true)
+              if [ "$code" = "200" ]; then
+                echo "게이트웨이 정상 (${i}회차)"
+                exit 0
+              fi
+              echo "대기 중... (${i}/30, HTTP ${code})"
+              sleep 10
+            done
+            echo "게이트웨이가 5분 내에 응답하지 않았습니다."
+            cd ~/bonae && docker compose -f docker-compose.yml -f docker-compose.deploy.yml ps
+            exit 1

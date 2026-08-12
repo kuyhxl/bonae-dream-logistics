@@ -1,0 +1,108 @@
+# 배포 전용 오버라이드
+# : 서버는 이 파일을 함께 지정해 GHCR에 올라간 이미지를 받아 쓴다
+#
+# IMAGE_PREFIX / IMAGE_TAG는 배포 워크플로가 .env에 써 넣는다.
+#
+# ---------- 메모리 배분 (m7i-flex.large, 8GiB) ------------------------ #
+#
+# 컨테이너별로 제한을 두면 JVM이 cgroup 한도를 읽어 그 안에서 힙을 잡는다.
+#
+#   eureka 512M + gateway 640M + 업무 6개 640M = 4992M
+#   postgres 768M + redis 256M + zipkin 512M = 1536M
+#   합계 약 6.4GiB, OS/Docker 몫으로 약 1.5GiB 남김
+#
+
+x-app-limits: &app-limits
+  deploy:
+    resources:
+      limits:
+        memory: 640M
+      reservations:
+        memory: 384M
+
+services:
+  # 레지스트리 서버라 힙이 작아도 충분함
+  eureka-server:
+    image: ghcr.io/${IMAGE_PREFIX}/eureka-server:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 320M
+
+  user-service:
+    image: ghcr.io/${IMAGE_PREFIX}/user-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    <<: *app-limits
+
+  # 슬랙/AI용 HTTP 클라이언트와 Resilience4j 재시도 설정이 둘씩 붙어 더 여유를 준다.
+  message-service:
+    image: ghcr.io/${IMAGE_PREFIX}/message-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    deploy:
+      resources:
+        limits:
+          memory: 900M
+        reservations:
+          memory: 512M
+
+  hub-service:
+    image: ghcr.io/${IMAGE_PREFIX}/hub-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    <<: *app-limits
+
+  company-service:
+    image: ghcr.io/${IMAGE_PREFIX}/company-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    <<: *app-limits
+
+  order-service:
+    image: ghcr.io/${IMAGE_PREFIX}/order-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    <<: *app-limits
+
+  delivery-service:
+    image: ghcr.io/${IMAGE_PREFIX}/delivery-service:${IMAGE_TAG}
+    build: !reset null
+    ports: !reset []
+    <<: *app-limits
+
+  # 모든 외부 요청이 거쳐가므로 업무 서비스와 같은 몫을 준다
+  gateway:
+    image: ghcr.io/${IMAGE_PREFIX}/gateway:${IMAGE_TAG}
+    build: !reset null
+    <<: *app-limits
+
+  # ---------- 인프라 ---------- #
+  postgres:
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+        reservations:
+          memory: 512M
+    # 서버에서는 열 이유가 없다.
+    # 보안그룹만 믿지 않고 호스트 노출 자체를 없애 방어선을 하나 더 둔다
+    ports: !reset []
+
+  redis:
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    ports: !reset []
+
+  # Zipkin은 발표에서 UI를 봐야 해 열어둠
+  zipkin:
+    deploy:
+      resources:
+        limits:
+          memory: 512M
