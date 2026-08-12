@@ -28,6 +28,8 @@ public class UserController {
 
     private static final String USER_ID_HEADER = "X-User-Id";
     private static final String USER_ROLE_HEADER = "X-User-Role";
+    // MASTER는 소속이 없어 게이트웨이가 이 헤더를 보내지 않는다. 그래서 필수로 두지 않는다.
+    private static final String USER_HUB_ID_HEADER = "X-User-Hub-Id";
 
     private final UserService userService;
     private final UserApprovalService userApprovalService;
@@ -82,13 +84,15 @@ public class UserController {
         return ResponseEntity.ok(userService.searchSignupRequests(condition, pageRequestDto));
     }
 
-    // 가입 승인 / 거절 API
+    // 가입 승인 / 거절 API. 허브 관리자의 승인 범위 제한을 위해 요청자의 역할·소속 허브를 함께 넘긴다.
     @PatchMapping("/users/{userId}/approval")
     @RoleCheck({Role.MASTER, Role.HUB_MANAGER})
     public ResponseEntity<UserApprovalResponse> processApproval(
             @PathVariable UUID userId,
+            @RequestHeader(USER_ROLE_HEADER) Role requesterRole,
+            @RequestHeader(value = USER_HUB_ID_HEADER, required = false) UUID requesterHubId,
             @RequestBody @Valid UserApprovalRequest request
     ) {
-        return ResponseEntity.ok(userApprovalService.process(userId, request));
+        return ResponseEntity.ok(userApprovalService.process(userId, request, requesterRole, requesterHubId));
     }
 }

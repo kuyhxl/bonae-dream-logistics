@@ -8,6 +8,7 @@ import com.bonae.logistics.user.domain.entity.Status;
 import com.bonae.logistics.user.domain.entity.User;
 import com.bonae.logistics.user.domain.repository.UserRepository;
 import com.bonae.logistics.user.infrastructure.client.CompanyClient;
+import com.bonae.logistics.user.infrastructure.client.CompanyInfoDto;
 import com.bonae.logistics.user.infrastructure.client.HubClient;
 import com.bonae.logistics.user.presentation.dto.request.ApprovalStatus;
 import com.bonae.logistics.user.presentation.dto.request.UserApprovalRequest;
@@ -78,7 +79,8 @@ class UserApprovalServiceTest {
         given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
 
         UserApprovalResponse response = userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, HUB_ID, null, null));
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, HUB_ID, null, null),
+                Role.MASTER, null);
 
         assertThat(response.getStatus()).isEqualTo(Status.APPROVED);
         assertThat(response.getRole()).isEqualTo(Role.HUB_MANAGER);
@@ -96,7 +98,8 @@ class UserApprovalServiceTest {
         given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
 
         UserApprovalResponse response = userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.REJECTED, null, null, null, "소속 확인 불가"));
+                new UserApprovalRequest(ApprovalStatus.REJECTED, null, null, null, "소속 확인 불가"),
+                Role.HUB_MANAGER, HUB_ID);
 
         assertThat(response.getStatus()).isEqualTo(Status.REJECTED);
         assertThat(response.getRole()).isNull();
@@ -111,7 +114,8 @@ class UserApprovalServiceTest {
     @DisplayName("MASTER 권한은 승인 API로 부여할 수 없다")
     void approve_masterRole_rejected() {
         assertThatThrownBy(() -> userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.MASTER, HUB_ID, null, null)))
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.MASTER, HUB_ID, null, null),
+                Role.MASTER, null))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.MASTER_ROLE_NOT_ASSIGNABLE);
 
@@ -125,7 +129,8 @@ class UserApprovalServiceTest {
         given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
 
         UserApprovalResponse response = userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.DELIVERY_MANAGER, null, null, null));
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.DELIVERY_MANAGER, null, null, null),
+                Role.MASTER, null);
 
         assertThat(response.getRole()).isEqualTo(Role.DELIVERY_MANAGER);
         assertThat(response.getHubId()).isNull();
@@ -138,11 +143,62 @@ class UserApprovalServiceTest {
     @DisplayName("허브 관리자 승인에 hubId가 없으면 400으로 거절한다")
     void approve_hubManager_withoutHub() {
         assertThatThrownBy(() -> userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, null, null, null)))
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, null, null, null),
+                Role.MASTER, null))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.INVALID_AFFILIATION);
 
         then(hubClient).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("허브 관리자는 자기 허브 소속으로만 승인할 수 있다")
+    void approve_hubManager_ownHub() {
+        User user = pendingUser();
+        given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
+
+        UserApprovalResponse response = userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, HUB_ID, null, null),
+                Role.HUB_MANAGER, HUB_ID);
+
+        assertThat(response.getHubId()).isEqualTo(HUB_ID);
+    }
+
+    @Test
+    @DisplayName("허브 관리자가 다른 허브 소속으로 승인하면 403으로 거절한다")
+    void approve_hubManager_otherHub_forbidden() {
+        UUID otherHubId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, otherHubId, null, null),
+                Role.HUB_MANAGER, HUB_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+
+        then(userRepository).should(never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("허브 간 이동 담당(hubId 없음)은 허브 관리자가 승인할 수 없다")
+    void approve_deliveryManager_withoutHub_byHubManager_forbidden() {
+        assertThatThrownBy(() -> userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.DELIVERY_MANAGER, null, null, null),
+                Role.HUB_MANAGER, HUB_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    @DisplayName("허브 관리자는 자기 허브 소속 업체의 담당자만 승인할 수 있다")
+    void approve_companyManager_otherHub_forbidden() {
+        UUID otherHubId = UUID.randomUUID();
+        given(companyClient.getCompany(COMPANY_ID)).willReturn(new CompanyInfoDto(COMPANY_ID, otherHubId));
+
+        assertThatThrownBy(() -> userApprovalService.process(USER_ID,
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.COMPANY_MANAGER, null, COMPANY_ID, null),
+                Role.HUB_MANAGER, HUB_ID))
+                .isInstanceOf(BusinessException.class)
+                .hasFieldOrPropertyWithValue("errorCode", ErrorCode.FORBIDDEN);
     }
 
     @Test
@@ -153,7 +209,8 @@ class UserApprovalServiceTest {
         given(userRepository.findByIdAndDeletedAtIsNull(USER_ID)).willReturn(Optional.of(user));
 
         assertThatThrownBy(() -> userApprovalService.process(USER_ID,
-                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, HUB_ID, null, null)))
+                new UserApprovalRequest(ApprovalStatus.APPROVED, Role.HUB_MANAGER, HUB_ID, null, null),
+                Role.MASTER, null))
                 .isInstanceOf(BusinessException.class)
                 .hasFieldOrPropertyWithValue("errorCode", ErrorCode.USER_ALREADY_PROCESSED);
     }
