@@ -36,6 +36,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.TransactionCallback;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -46,6 +47,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Consumer;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -86,6 +88,11 @@ class ProductServiceTest {
                     TransactionCallback<?> callback = invocation.getArgument(0);
                     return callback.doInTransaction(null);
                 });
+        lenient().doAnswer(invocation -> {
+            Consumer<TransactionStatus> action = invocation.getArgument(0);
+            action.accept(null);
+            return null;
+        }).when(transactionTemplate).executeWithoutResult(any());
     }
 
     @Test
@@ -721,10 +728,117 @@ class ProductServiceTest {
                 .isEqualTo(ErrorCode.INVENTORY_DUPLICATED);
     }
 
+    @Test
+    @DisplayName("deleteProduct_존재하지않거나삭제된상품일때_예외발생")
+    void deleteProduct_존재하지않거나삭제된상품일때_예외발생() {
+        UUID productId = UUID.randomUUID();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(productId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.deleteProduct(productId, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
+    }
+
+    @Test
+    @DisplayName("deleteProduct_MASTER는_소속조회없이제한없이삭제가능하다")
+    void deleteProduct_MASTER는_소속조회없이제한없이삭제가능하다() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+
+        productService.deleteProduct(product.getId(), UserRole.MASTER, USERNAME);
+
+        assertThat(product.getDeletedAt()).isNotNull();
+        assertThat(product.getDeletedBy()).isEqualTo(USERNAME);
+        verify(userClient, never()).getUserInfo(any());
+        verify(companyRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("deleteProduct_HUB_MANAGER가담당허브가아닌상품을삭제하려할때_예외발생")
+    void deleteProduct_HUB_MANAGER가담당허브가아닌상품을삭제하려할때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(UUID.randomUUID(), null));
+
+        assertThatThrownBy(() -> productService.deleteProduct(product.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        assertThat(product.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("deleteProduct_HUB_MANAGER권한확인중업체를찾을수없을때_예외발생")
+    void deleteProduct_HUB_MANAGER권한확인중업체를찾을수없을때_예외발생() {
+        // 상품 생성 이후 소속 업체가 소프트 삭제된 극단적인 경우를 가정한다.
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.deleteProduct(product.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
+
+        verify(userClient, never()).getUserInfo(any());
+        assertThat(product.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("deleteProduct_HUB_MANAGER가담당허브상품을삭제할때_정상삭제된다")
+    void deleteProduct_HUB_MANAGER가담당허브상품을삭제할때_정상삭제된다() {
+        UUID hubId = UUID.randomUUID();
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, hubId, "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(hubId, null));
+
+        productService.deleteProduct(product.getId(), UserRole.HUB_MANAGER, USERNAME);
+
+        assertThat(product.getDeletedAt()).isNotNull();
+        assertThat(product.getDeletedBy()).isEqualTo(USERNAME);
+    }
+
+    @Test
+    @DisplayName("deleteProduct_소속조회대상사용자를찾을수없을때_예외발생")
+    void deleteProduct_소속조회대상사용자를찾을수없을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenThrow(userNotFoundException(USERNAME));
+
+        assertThatThrownBy(() -> productService.deleteProduct(product.getId(), UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+        assertThat(product.getDeletedAt()).isNull();
+    }
+
     private Company companyWithId(String name, CompanyType type, UUID hubId, String address) {
         Company company = new Company(name, type, hubId, address);
         ReflectionTestUtils.setField(company, "id", UUID.randomUUID());
         return company;
+    }
+
+    private Product productWithId(String name, Company company, BigDecimal price) {
+        Product product = Product.create(name, company, price);
+        ReflectionTestUtils.setField(product, "id", UUID.randomUUID());
+        return product;
     }
 
     // Inventory.create()는 product가 null이 아니기만 하면 되므로, 응답 매핑에 쓰이는 hubId/quantity만 의미 있게 채운다.
