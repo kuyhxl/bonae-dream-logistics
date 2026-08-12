@@ -9,6 +9,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDt
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -30,6 +32,16 @@ import java.util.UUID;
 public class ProductController {
 
     private final ProductService productService;
+
+    @GetMapping("/search")
+    @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
+    public ResponseEntity<PageResponseDto<ResSearchProductDto>> searchProducts(
+            @ModelAttribute PageRequestDto pageRequestDto,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) UUID companyId) {
+        PageResponseDto<ResSearchProductDto> resDto = productService.searchProducts(pageRequestDto, keyword, companyId);
+        return ResponseEntity.status(HttpStatus.OK).body(resDto);
+    }
 
     @GetMapping("/{productId}")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
