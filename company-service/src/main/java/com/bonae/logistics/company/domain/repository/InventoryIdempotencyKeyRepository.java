@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,4 +34,7 @@ public interface InventoryIdempotencyKeyRepository extends JpaRepository<Invento
     // 재요청(멱등성 키 중복) 시 최초 처리 시점의 스냅샷을 조회한다.
     Optional<InventoryIdempotencyKey> findByOrderIdAndProductIdAndOperation(
             UUID orderId, UUID productId, InventoryChangeType operation);
+
+    // 상품 기준으로 만들어진 멱등성 키 전체를 조회한다(동시성 테스트에서 반영 건수 검증 및 테스트 데이터 정리용).
+    List<InventoryIdempotencyKey> findAllByProductId(UUID productId);
 }
