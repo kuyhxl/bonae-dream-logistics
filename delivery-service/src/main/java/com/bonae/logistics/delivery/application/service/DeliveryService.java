@@ -62,7 +62,7 @@ public class DeliveryService {
     public DeliveryCreateResponse createDelivery(DeliveryCreateRequest request) {
         CompanyInfoClientResponse supplierCompany = companyClient.getCompany(request.getSupplierCompanyId());
         CompanyInfoClientResponse receiverCompany = companyClient.getCompany(request.getReceiverCompanyId());
-        UserInfoClientResponse receiverUser = userClient.getUserInfo(request.getReceiverUsername());
+        UserInfoClientResponse receiverUser = getRequiredUserInfo(request.getReceiverUsername());
 
         validateCompanyMapping(supplierCompany, receiverCompany);
 
@@ -73,7 +73,8 @@ public class DeliveryService {
                 request.getReceiverCompanyId(),
                 receiverUser.getName(),
                 receiverUser.getSlackId(),
-                receiverCompany.getAddress()
+                receiverCompany.getAddress(),
+                request.getRequestNote()
         );
 
         Delivery savedDelivery = deliveryRepository.saveAndFlush(delivery);
@@ -104,20 +105,7 @@ public class DeliveryService {
         Delivery delivery = deliveryRepository.findByOrderIdAndDeletedAtIsNull(request.getOrderId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
-        CompanyInfoClientResponse supplierCompany = companyClient.getCompany(request.getSupplierCompanyId());
-        CompanyInfoClientResponse receiverCompany = companyClient.getCompany(request.getReceiverCompanyId());
-        UserInfoClientResponse receiverUser = userClient.getUserInfo(request.getReceiverUsername());
-
-        validateCompanyMapping(supplierCompany, receiverCompany);
-
-        delivery.updateFromOrder(
-                supplierCompany.getHubId(),
-                receiverCompany.getHubId(),
-                request.getReceiverCompanyId(),
-                receiverUser.getName(),
-                receiverUser.getSlackId(),
-                receiverCompany.getAddress()
-        );
+        delivery.updateRequestNote(request.getRequestNote());
 
         deliveryRepository.flush();
         return DeliveryDetailResponse.from(delivery);
