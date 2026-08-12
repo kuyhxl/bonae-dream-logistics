@@ -2,6 +2,8 @@ package com.bonae.logistics.order.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.order.domain.entity.Order;
 import com.bonae.logistics.order.domain.entity.OrderStatus;
 import com.bonae.logistics.order.domain.repository.OrderRepository;
@@ -13,10 +15,13 @@ import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRes
 import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
+import com.bonae.logistics.order.presentation.dto.request.OrderSearchCondition;
 import com.bonae.logistics.order.presentation.dto.request.OrderUpdateRequestDto;
 import com.bonae.logistics.order.presentation.dto.response.OrderResponseDto;
+import com.bonae.logistics.order.presentation.dto.response.OrderSummaryResponseDto;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
 import org.springframework.retry.annotation.Retryable;
@@ -87,12 +92,12 @@ public class OrderService {
     }
 
     @Transactional
-    public void cancelOrder(UUID orderId, UUID requesterCompanyId,String userRole,UUID hubId, String userId) {
+    public void cancelOrder(UUID orderId, String userId, String userRole,UUID hubId) {
         // 주문 조회
         Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
-        validateHubScopeIfNeeded(order, userRole, hubId);
+        validateOwnership(order, userId, userRole, hubId);
         // 상태 검증
         if (order.getStatus() != OrderStatus.PENDING) {
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION, "PENDING 상태의 주문만 취소할 수 있습니다.");
@@ -112,16 +117,44 @@ public class OrderService {
     }
 
     @Transactional
-    public OrderResponseDto updateOrder(UUID orderId, OrderUpdateRequestDto request, String userRole, UUID hubId) {
+    public OrderResponseDto updateOrder(UUID orderId, String userId, OrderUpdateRequestDto request, String userRole, UUID hubId) {
         Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
 
-        validateHubScopeIfNeeded(order, userRole, hubId);
+        validateOwnership(order, userId, userRole, hubId);
 
         order.update(request.dueDate(), request.remarks());
 
         String requestNote = buildRequestNote(order.getDueDate(), order.getRemarks());
         notifyDeliveryUpdateWithRetry(orderId, requestNote);
+
+        return OrderResponseDto.from(order);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResponseDto<OrderSummaryResponseDto> getOrders(
+            OrderSearchCondition condition, PageRequestDto pageRequestDto, String userRole, String userId, UUID userHubId) {
+        UUID scopeHubId = null;
+        String scopeUserId = null;
+
+        if ("HUB_MANAGER".equals(userRole)) {
+            scopeHubId = userHubId;
+        } else if (!"MASTER".equals(userRole)) {
+            scopeUserId = userId;
+        }
+
+        OrderStatus status = condition.status() != null ? OrderStatus.valueOf(condition.status()) : null;
+
+        Page<Order>orders = orderRepository.search(status,scopeHubId, scopeUserId, pageRequestDto.toPageable());
+        return PageResponseDto.from(orders, OrderSummaryResponseDto::from);
+    }
+
+    @Transactional(readOnly = true)
+    public OrderResponseDto getOrder(UUID orderId, String userId, String userRole, UUID userHubId) {
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        validateOwnership(order, userId, userRole, userHubId);
 
         return OrderResponseDto.from(order);
     }
@@ -229,12 +262,21 @@ public class OrderService {
                 : dueDateText + " " + remarks;
     }
 
-    //허브 관리자의 경우 본인 담당의 허브인지 검증
-    private void validateHubScopeIfNeeded(Order order, String UserRole, UUID hubId) {
-        if ("HUB_MANAGER".equals(UserRole)) {
+    private void validateOwnership(Order order, String userId, String UserRole, UUID hubId) {
+        // MASTER는 전체 조회
+        if("MASTER".equals(UserRole)) {
+            return;
+        }
+        // 허브 담당자는 본인 담당 허브의 주문만 조회
+        if("HUB_MANAGER".equals(UserRole)) {
             if (hubId == null || !hubId.equals(order.getHubId())) {
                 throw new BusinessException(ErrorCode.FORBIDDEN);
             }
+            return;
+        }
+        // 업체, 배송 담당자는 본인이 만든 주문만 조회
+        if (!order.getCreatedBy().equals(userId)) {
+            throw new BusinessException(ErrorCode.FORBIDDEN);
         }
     }
 }
