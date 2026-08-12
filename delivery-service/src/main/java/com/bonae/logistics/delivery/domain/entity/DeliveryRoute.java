@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Getter
@@ -118,6 +119,30 @@ public class DeliveryRoute extends BaseEntity {
                 distanceKm,
                 durationMin
         );
+    }
+
+    public void depart() {
+        if (routeStatus != RouteStatus.WAITING) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.routeStatus = RouteStatus.IN_TRANSIT;
+        this.actualDepartedAt = LocalDateTime.now();
+    }
+
+    public void arrive() {
+        if (routeStatus != RouteStatus.IN_TRANSIT) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.routeStatus = RouteStatus.ARRIVED;
+        this.actualArrivedAt = LocalDateTime.now();
+
+        if (actualDepartedAt != null) {
+            this.actualDurationMin = Math.toIntExact(
+                    Math.max(0L, ChronoUnit.MINUTES.between(actualDepartedAt, actualArrivedAt))
+            );
+        }
     }
 
     private static <T> T requireNotNull(T value, String detail) {

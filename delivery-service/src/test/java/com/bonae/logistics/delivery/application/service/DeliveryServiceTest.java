@@ -21,6 +21,7 @@ import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemRe
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -55,7 +56,7 @@ class DeliveryServiceTest {
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("배송 생성 성공")
+    @DisplayName("배송 생성 시 요청사항을 저장한다")
     void createDelivery_success() throws Exception {
         DeliveryCreateRequest request = createRequest();
         when(companyClient.getCompany(request.getSupplierCompanyId()))
@@ -72,6 +73,11 @@ class DeliveryServiceTest {
         assertThat(result.getDeliveryId()).isNotNull();
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.READY);
         assertThat(result.getRouteCount()).isZero();
+
+        ArgumentCaptor<Delivery> deliveryCaptor = ArgumentCaptor.forClass(Delivery.class);
+        verify(deliveryRepository).saveAndFlush(deliveryCaptor.capture());
+        assertThat(deliveryCaptor.getValue().getRequestNote())
+                .isEqualTo("12월 12일 3시까지 부탁드립니다.");
     }
 
     @Test
@@ -84,6 +90,7 @@ class DeliveryServiceTest {
 
         assertThat(result.getDeliveryId()).isEqualTo(delivery.getId());
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
+        assertThat(result.getRequestNote()).isEqualTo(delivery.getRequestNote());
         assertThat(result.getStatus()).isEqualTo(delivery.getStatus());
     }
 
@@ -347,37 +354,28 @@ class DeliveryServiceTest {
     }
 
     @Test
-    @DisplayName("주문 수정 기준 배송 수정 성공")
+    @DisplayName("주문 수정 연동 시 배송 요청사항을 갱신한다")
     void updateDeliveryByOrder_success() throws Exception {
         Delivery delivery = createDelivery();
-        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(delivery.getOrderId());
-        CompanyInfoClientResponse supplierCompany = createCompanyInfo(UUID.randomUUID(), "공급 업체 주소");
-        CompanyInfoClientResponse receiverCompany = createCompanyInfo(UUID.randomUUID(), "변경된 수령 업체 주소");
-        UserInfoClientResponse receiverUser = createCompanyManagerUser(UUID.randomUUID(), "receiver02", "김수령", "U09XYZ");
+        InternalDeliveryUpdateRequest request =
+                createInternalUpdateRequest(delivery.getOrderId(), " 12월 15일 3시까지 보내주세요! ");
 
         when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
-        when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
-        when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
-        when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
         doNothing().when(deliveryRepository).flush();
 
         DeliveryDetailResponse result = deliveryService.updateDeliveryByOrder(request);
 
         verify(deliveryRepository).flush();
         assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
-        assertThat(result.getOriginHubId()).isEqualTo(supplierCompany.getHubId());
-        assertThat(result.getDestinationHubId()).isEqualTo(receiverCompany.getHubId());
-        assertThat(result.getReceiverCompanyId()).isEqualTo(request.getReceiverCompanyId());
-        assertThat(result.getReceiverName()).isEqualTo(receiverUser.getName());
-        assertThat(result.getReceiverSlackId()).isEqualTo(receiverUser.getSlackId());
-        assertThat(result.getDeliveryAddress()).isEqualTo(receiverCompany.getAddress());
+        assertThat(delivery.getRequestNote()).isEqualTo("12월 15일 3시까지 보내주세요!");
+        assertThat(result.getRequestNote()).isEqualTo(delivery.getRequestNote());
     }
 
     @Test
     @DisplayName("주문 수정 기준 배송 수정 시 배송이 없으면 예외 발생")
     void updateDeliveryByOrder_notFound() throws Exception {
         UUID orderId = UUID.randomUUID();
-        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(orderId);
+        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(orderId, "변경 요청사항");
         when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> deliveryService.updateDeliveryByOrder(request))
@@ -397,12 +395,10 @@ class DeliveryServiceTest {
         return request;
     }
 
-    private InternalDeliveryUpdateRequest createInternalUpdateRequest(UUID orderId) throws Exception {
+    private InternalDeliveryUpdateRequest createInternalUpdateRequest(UUID orderId, String requestNote) throws Exception {
         InternalDeliveryUpdateRequest request = new InternalDeliveryUpdateRequest();
         setField(request, "orderId", orderId);
-        setField(request, "supplierCompanyId", UUID.randomUUID());
-        setField(request, "receiverCompanyId", UUID.randomUUID());
-        setField(request, "receiverUsername", " receiver02 ");
+        setField(request, "requestNote", requestNote);
         return request;
     }
 
@@ -414,7 +410,8 @@ class DeliveryServiceTest {
                 UUID.randomUUID(),
                 "홍길동",
                 "hong123",
-                "서울시 강남구 테헤란로 1"
+                "서울시 강남구 테헤란로 1",
+                "12월 12일 3시까지 부탁드립니다."
         );
     }
 

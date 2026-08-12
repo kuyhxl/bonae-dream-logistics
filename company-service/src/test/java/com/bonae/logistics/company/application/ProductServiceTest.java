@@ -19,6 +19,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
 import feign.FeignException;
 import feign.Request;
 import org.hibernate.exception.ConstraintViolationException;
@@ -131,6 +132,86 @@ class ProductServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.INVALID_SORT_FIELD);
+    }
+
+    @Test
+    @DisplayName("searchProducts_조건이없을때_전체상품을조회한다")
+    void searchProducts_조건이없을때_전체상품을조회한다() {
+        Company company = new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00"));
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Product> productPage = new PageImpl<>(List.of(product), pageRequestDto.toPageable(), 1);
+
+        when(productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class))).thenReturn(productPage);
+
+        PageResponseDto<ResSearchProductDto> resDto = productService.searchProducts(pageRequestDto, null, null);
+
+        assertThat(resDto.getContent()).hasSize(1);
+        assertThat(resDto.getContent().get(0).getName()).isEqualTo(product.getName());
+        verify(productRepository).searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchProducts_키워드가있을때_앞뒤공백을제거하고LIKE패턴으로전달한다")
+    void searchProducts_키워드가있을때_앞뒤공백을제거하고LIKE패턴으로전달한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Product> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                eq("%갤럭시%"), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        productService.searchProducts(pageRequestDto, "  갤럭시  ", null);
+
+        verify(productRepository).searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                eq("%갤럭시%"), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchProducts_키워드가공백뿐일때_조건없이전달한다")
+    void searchProducts_키워드가공백뿐일때_조건없이전달한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Product> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        productService.searchProducts(pageRequestDto, "   ", null);
+
+        verify(productRepository).searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchProducts_업체로검색시_해당업체조건으로조회한다")
+    void searchProducts_업체로검색시_해당업체조건으로조회한다() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        UUID companyId = UUID.randomUUID();
+        Page<Product> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), eq(companyId), any(Pageable.class))).thenReturn(emptyPage);
+
+        productService.searchProducts(pageRequestDto, null, companyId);
+
+        verify(productRepository).searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                isNull(), eq(companyId), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchProducts_정렬기준이허용되지않을때_예외발생")
+    void searchProducts_정렬기준이허용되지않을때_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        pageRequestDto.setSort("invalidField");
+
+        assertThatThrownBy(() -> productService.searchProducts(pageRequestDto, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_SORT_FIELD);
+
+        verify(productRepository, never())
+                .searchByKeywordAndCompanyIdAndDeletedAtIsNull(any(), any(), any());
     }
 
     @Test

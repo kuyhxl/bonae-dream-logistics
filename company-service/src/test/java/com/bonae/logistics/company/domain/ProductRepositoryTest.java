@@ -71,6 +71,75 @@ class ProductRepositoryTest {
         assertThat(result.getContent()).extracting(Product::getId).doesNotContain(deletedProduct.getId());
     }
 
+    // 실제 개발 DB(@AutoConfigureTestDatabase Replace.NONE)에 다른 세션이 남긴 "갤럭시" 등
+    // 흔한 이름의 데이터가 섞일 수 있어, 키워드만 테스트할 때도 companyId로 결과를 좁힌다.
+    @Test
+    @DisplayName("searchByKeywordAndCompanyIdAndDeletedAtIsNull_키워드가이름에포함되면_조회된다")
+    void searchByKeywordAndCompanyIdAndDeletedAtIsNull_키워드가이름에포함되면_조회된다() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        productRepository.save(Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00")));
+        productRepository.save(Product.create("아이폰", company, new BigDecimal("1500000.00")));
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Product> result = productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                "%갤럭시%", company.getId(), pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("갤럭시 스마트폰");
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndCompanyIdAndDeletedAtIsNull_업체로필터링된다")
+    void searchByKeywordAndCompanyIdAndDeletedAtIsNull_업체로필터링된다() {
+        Company targetCompany = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Company anotherCompany = companyRepository.save(
+                new Company("배송센터B", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 송파구 올림픽로 1"));
+        productRepository.save(Product.create("갤럭시 스마트폰", targetCompany, new BigDecimal("1200000.00")));
+        productRepository.save(Product.create("아이폰", anotherCompany, new BigDecimal("1500000.00")));
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Product> result = productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                null, targetCompany.getId(), pageable);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("갤럭시 스마트폰");
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndCompanyIdAndDeletedAtIsNull_삭제된상품은_결과에서제외된다")
+    void searchByKeywordAndCompanyIdAndDeletedAtIsNull_삭제된상품은_결과에서제외된다() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product deletedProduct = Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00"));
+        deletedProduct.delete("tester");
+        productRepository.save(deletedProduct);
+        Pageable pageable = PageRequest.of(0, 10);
+
+        Page<Product> result = productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                "%갤럭시%", company.getId(), pageable);
+
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("searchByKeywordAndCompanyIdAndDeletedAtIsNull_조건이모두없으면_삭제되지않은상품이결과에포함된다")
+    void searchByKeywordAndCompanyIdAndDeletedAtIsNull_조건이모두없으면_삭제되지않은상품이결과에포함된다() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product saved1 = productRepository.save(Product.create("갤럭시 스마트폰", company, new BigDecimal("1200000.00")));
+        Product saved2 = productRepository.save(Product.create("아이폰", company, new BigDecimal("1500000.00")));
+        // 조건 없이 전체 조회하므로 기존 데이터와 섞일 수 있어, 정확한 개수 대신 이 둘이 포함되는지만 확인한다.
+        Pageable pageable = PageRequest.of(0, 100);
+
+        Page<Product> result = productRepository.searchByKeywordAndCompanyIdAndDeletedAtIsNull(
+                null, null, pageable);
+
+        assertThat(result.getContent()).extracting(Product::getId)
+                .contains(saved1.getId(), saved2.getId());
+    }
+
     @Test
     @DisplayName("existsByNameAndCompany_IdAndDeletedAtIsNull_동일이름과업체존재시_true반환")
     void existsByNameAndCompany_IdAndDeletedAtIsNull_동일이름과업체존재시_true반환() {
