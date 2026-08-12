@@ -19,12 +19,16 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.sql.SQLException;
 import java.util.List;
 
 @Slf4j
 @RestControllerAdvice
 @RequiredArgsConstructor
 public class GlobalExceptionHandler {
+
+    // PostgreSQL SQLState:unique_violation
+    private static final String UNIQUE_VIOLATION_SQL_STATE = "23505";
 
     private final Tracer tracer;
 
@@ -118,14 +122,41 @@ public class GlobalExceptionHandler {
                 .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
     }
 
-    // DB 제약조건 위반. 각 서비스가 제약조건명으로 구체적인 원인을 구분해 변환하고, 분류 못한 경우 (409)
+    // DB 제약조건 위반. 각 서비스가 제약조건명으로 구체적인 원인을 구분해 변환하고, 분류 못한 경우만 여기로 온다.
+    //  - unique 위반: 클라이언트가 이미 존재하는 값을 보낸 것이므로 409
+    //  - 그 외(NOT NULL, 길이 초과 등): @Valid나 엔티티 매핑에서 걸렀어야 할 값이 DB까지 내려간 것임으로 500
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException e) {
-        ErrorCode errorCode = ErrorCode.DATA_CONFLICT;
-        log.warn("[{}] 데이터 제약조건 위반: {}", errorCode.name(), e.getMostSpecificCause().getMessage());
+        String sqlState = extractSqlState(e);
+
+        if (UNIQUE_VIOLATION_SQL_STATE.equals(sqlState)) {
+            ErrorCode errorCode = ErrorCode.DATA_CONFLICT;
+            log.warn("[{}] 유니크 제약조건 위반: {}", errorCode.name(), e.getMostSpecificCause().getMessage());
+            return ResponseEntity
+                    .status(errorCode.getStatus())
+                    .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+        }
+
+        // 재시도해도 통과할 수 없는 서버 결함이므로 알림에 걸리도록 error로
+        ErrorCode errorCode = ErrorCode.INTERNAL_ERROR;
+        log.error("[{}] 데이터 제약조건 위반(sqlState={}): {}",
+                errorCode.name(), sqlState, e.getMostSpecificCause().getMessage(), e);
         return ResponseEntity
                 .status(errorCode.getStatus())
                 .body(ErrorResponse.of(errorCode, errorCode.getMessage(), currentTraceId()));
+    }
+
+    // PostgreSQLDialect는 ConstraintViolationException의 ConstraintKind를 채우지 않아 항상 OTHER가 되므로 -> 원본 SQLException의 SQLState로 판단한다.
+    private String extractSqlState(DataIntegrityViolationException e) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause instanceof SQLException sqlException) {
+                return sqlException.getSQLState();
+            }
+            if (cause.getCause() == cause) {
+                break;
+            }
+        }
+        return null;
     }
 
     // 서비스 간 호출 실패. FeignErrorDecoder가 하위 서비스의 ErrorCode를 복원하지 못한 경우 (502)
