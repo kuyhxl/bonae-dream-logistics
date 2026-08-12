@@ -4,12 +4,14 @@ import com.bonae.logistics.hub.domain.entity.Hub;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
 
 @Getter
 @Builder
+@Jacksonized
 @Schema(description = "허브 상세 응답")
 public class HubDetailResponse {
 
