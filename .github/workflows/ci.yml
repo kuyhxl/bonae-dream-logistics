@@ -28,3 +28,6 @@ jobs:
           :common:test
           :gateway:test
           :user-service:test
+          :message-service:test
+          :order-service:test
+          :delivery-service:test
