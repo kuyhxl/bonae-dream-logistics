@@ -9,6 +9,7 @@ public record SlackMessageRequest(
         String receiverSlackId,
 
         @NotBlank(message = "메시지는 필수입니다.")
+        @Size(max = 3000, message = "메세지는 3000자를 초과할 수 없습니다.")
         String message
 ) {
 }
