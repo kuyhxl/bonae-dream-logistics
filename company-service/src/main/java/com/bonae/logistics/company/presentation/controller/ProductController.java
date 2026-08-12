@@ -8,8 +8,10 @@ import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateProductDto;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -17,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -76,5 +79,16 @@ public class ProductController {
             @PathVariable UUID productId) {
         productService.deleteProduct(productId, UserRole.valueOf(userRole), username);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{productId}")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER, UserRole.COMPANY_MANAGER})
+    public ResponseEntity<ResUpdateProductDto> updateProduct(
+            @RequestHeader("X-User-Role") String userRole,
+            @RequestHeader("X-User-Id") String username,
+            @PathVariable UUID productId,
+            @Valid @RequestBody ReqUpdateProductDto reqDto) {
+        ResUpdateProductDto resDto = productService.updateProduct(productId, reqDto, UserRole.valueOf(userRole), username);
+        return ResponseEntity.status(HttpStatus.OK).body(resDto);
     }
 }

@@ -14,11 +14,13 @@ import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.infrastructure.UserClient;
 import com.bonae.logistics.company.infrastructure.UserInfoDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateProductDto;
 import feign.FeignException;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
@@ -155,6 +157,86 @@ public class ProductService {
         UserInfoDto userInfo = getUserInfo(username);
         if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
             throw new BusinessException(ErrorCode.FORBIDDEN);
+        }
+    }
+
+    //@Transactional 제거 (외부 서비스 호출을 트랜잭션 밖에서 수행)
+    public ResUpdateProductDto updateProduct(UUID productId, ReqUpdateProductDto reqDto,
+                                              UserRole userRole, String username) {
+        validateUpdateRequest(reqDto);
+
+        // 존재 여부(삭제 여부 포함)와 접근권한을 먼저 확인.
+        // 존재하지도, 권한도 없는 요청 때문에 아래 authorizeUpdate(user-service 호출)가 낭비되지 않도록 여기서 먼저 걸러낸다.
+        Product target = productRepository.findByIdAndDeletedAtIsNull(productId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        authorizeUpdate(target, userRole, username);
+
+        // 실제 DB 작업만 트랜잭션으로 처리
+        Product product = transactionTemplate.execute(status -> {
+            // 권한 확인(user-service 호출)이 끝날 때까지 시간이 걸리는 동안 다른 요청이 상품을 수정했을 수 있으므로,
+            // 최신 상태의 managed 엔티티를 실제 수정 직전에 재조회해 JPA dirty checking으로 변경 사항을 반영한다.
+            Product managedProduct = productRepository.findByIdAndDeletedAtIsNull(productId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+            // 이번 수정으로 반영될 상품명(요청에 없으면 기존 값 유지)으로 중복 여부를 검증
+            String effectiveName = reqDto.getName() != null ? reqDto.getName() : managedProduct.getName();
+
+            if (productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(
+                    effectiveName, managedProduct.getCompany().getId(), productId)) {
+                throw new BusinessException(ErrorCode.PRODUCT_DUPLICATED);
+            }
+
+            // 최종 방어선은 DB 부분 유니크 인덱스(name, company_id where deleted_at is null)이며,
+            // 위반 시 saveAndFlush에서 예외가 발생하므로 중복 에러로 변환한다.
+            try {
+                managedProduct.update(reqDto.getName(), reqDto.getPrice());
+                productRepository.saveAndFlush(managedProduct);
+            } catch (DataIntegrityViolationException e) {
+                if (isProductNameCompanyUniqueViolation(e)) {
+                    throw new BusinessException(ErrorCode.PRODUCT_DUPLICATED);
+                }
+                throw e;
+            }
+
+            return managedProduct;
+        });
+
+        return ResUpdateProductDto.from(product);
+    }
+
+    // 수정 요청 본문을 검증한다: 수정할 필드가 하나도 없으면 잘못된 요청.
+    // name이 전달됐다면(=null이 아니면) trim 후 빈 문자열이면 잘못된 요청(정규화 정책).
+    private void validateUpdateRequest(ReqUpdateProductDto reqDto) {
+        if (reqDto.getName() == null && reqDto.getPrice() == null) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+        if (reqDto.getName() != null && reqDto.getName().isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+    }
+
+    // MASTER는 제한 없음.
+    // HUB_MANAGER는 상품이 속한 업체의 소속 허브가 본인 담당 허브일 때만,
+    // COMPANY_MANAGER는 본인 업체 상품만 수정 가능.
+    private void authorizeUpdate(Product product, UserRole userRole, String username) {
+        if (userRole != UserRole.HUB_MANAGER && userRole != UserRole.COMPANY_MANAGER) {
+            return;
+        }
+
+        UUID companyId = product.getCompany().getId();
+        if (userRole == UserRole.HUB_MANAGER) {
+            Company company = companyRepository.findByIdAndDeletedAtIsNull(companyId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
+            UserInfoDto userInfo = getUserInfo(username);
+            if (userInfo.hubId() == null || !userInfo.hubId().equals(company.getHubId())) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
+        } else {
+            UserInfoDto userInfo = getUserInfo(username);
+            if (userInfo.companyId() == null || !userInfo.companyId().equals(companyId)) {
+                throw new BusinessException(ErrorCode.FORBIDDEN);
+            }
         }
     }
 

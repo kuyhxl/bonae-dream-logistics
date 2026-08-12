@@ -15,11 +15,13 @@ import com.bonae.logistics.company.infrastructure.HubClient;
 import com.bonae.logistics.company.infrastructure.UserClient;
 import com.bonae.logistics.company.infrastructure.UserInfoDto;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateProductDto;
 import feign.FeignException;
 import feign.Request;
 import org.hibernate.exception.ConstraintViolationException;
@@ -827,6 +829,259 @@ class ProductServiceTest {
                 .isEqualTo(ErrorCode.USER_NOT_FOUND);
 
         assertThat(product.getDeletedAt()).isNull();
+    }
+
+    @Test
+    @DisplayName("updateProduct_존재하지않거나삭제된상품일때_예외발생")
+    void updateProduct_존재하지않거나삭제된상품일때_예외발생() {
+        UUID productId = UUID.randomUUID();
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(productId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateProduct(productId, reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_수정필드가모두없을때_예외발생")
+    void updateProduct_수정필드가모두없을때_예외발생() {
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().build();
+
+        assertThatThrownBy(() -> productService.updateProduct(UUID.randomUUID(), reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(productRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("updateProduct_name이공백뿐일때_예외발생")
+    void updateProduct_name이공백뿐일때_예외발생() {
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("   ").build();
+
+        assertThatThrownBy(() -> productService.updateProduct(UUID.randomUUID(), reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT);
+
+        verify(productRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("updateProduct_MASTER는_소속조회없이제한없이수정가능하다")
+    void updateProduct_MASTER는_소속조회없이제한없이수정가능하다() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+
+        ResUpdateProductDto resDto = productService.updateProduct(product.getId(), reqDto, UserRole.MASTER, USERNAME);
+
+        assertThat(resDto.getProductId()).isEqualTo(product.getId());
+        assertThat(resDto.getName()).isEqualTo("갤럭시 스마트폰 Pro");
+        assertThat(resDto.getCompanyId()).isEqualTo(company.getId());
+        verify(productRepository).saveAndFlush(product);
+        verify(userClient, never()).getUserInfo(any());
+        verify(companyRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("updateProduct_일부필드만요청에포함될때_포함되지않은필드는유지된다")
+    void updateProduct_일부필드만요청에포함될때_포함되지않은필드는유지된다() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().price(new BigDecimal("1200000.00")).build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+
+        ResUpdateProductDto resDto = productService.updateProduct(product.getId(), reqDto, UserRole.MASTER, USERNAME);
+
+        assertThat(resDto.getName()).isEqualTo("갤럭시 스마트폰");
+        assertThat(resDto.getPrice()).isEqualByComparingTo("1200000.00");
+    }
+
+    @Test
+    @DisplayName("updateProduct_HUB_MANAGER가담당허브가아닌업체상품을수정하려할때_예외발생")
+    void updateProduct_HUB_MANAGER가담당허브가아닌업체상품을수정하려할때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(UUID.randomUUID(), null));
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_HUB_MANAGER권한확인중업체를찾을수없을때_예외발생")
+    void updateProduct_HUB_MANAGER권한확인중업체를찾을수없을때_예외발생() {
+        // 상품 생성 이후 소속 업체가 소프트 삭제된 극단적인 경우를 가정한다.
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
+
+        verify(userClient, never()).getUserInfo(any());
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_HUB_MANAGER가담당허브업체상품을수정할때_정상수정된다")
+    void updateProduct_HUB_MANAGER가담당허브업체상품을수정할때_정상수정된다() {
+        UUID hubId = UUID.randomUUID();
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, hubId, "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().price(new BigDecimal("1200000.00")).build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(hubId, null));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+
+        ResUpdateProductDto resDto =
+                productService.updateProduct(product.getId(), reqDto, UserRole.HUB_MANAGER, USERNAME);
+
+        assertThat(resDto.getPrice()).isEqualByComparingTo("1200000.00");
+    }
+
+    @Test
+    @DisplayName("updateProduct_COMPANY_MANAGER가본인업체가아닌상품을수정하려할때_예외발생")
+    void updateProduct_COMPANY_MANAGER가본인업체가아닌상품을수정하려할때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(null, UUID.randomUUID()));
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.COMPANY_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(companyRepository, never()).findByIdAndDeletedAtIsNull(any());
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_COMPANY_MANAGER가본인업체상품을수정할때_정상수정된다")
+    void updateProduct_COMPANY_MANAGER가본인업체상품을수정할때_정상수정된다() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(userClient.getUserInfo(USERNAME)).thenReturn(new UserInfoDto(null, company.getId()));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+
+        ResUpdateProductDto resDto =
+                productService.updateProduct(product.getId(), reqDto, UserRole.COMPANY_MANAGER, USERNAME);
+
+        assertThat(resDto.getName()).isEqualTo("갤럭시 스마트폰 Pro");
+        verify(companyRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("updateProduct_소속조회대상사용자를찾을수없을때_예외발생")
+    void updateProduct_소속조회대상사용자를찾을수없을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(companyRepository.findByIdAndDeletedAtIsNull(company.getId())).thenReturn(Optional.of(company));
+        when(userClient.getUserInfo(USERNAME)).thenThrow(userNotFoundException(USERNAME));
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.HUB_MANAGER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.USER_NOT_FOUND);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_이름과업체가같은다른상품이있을때_예외발생")
+    void updateProduct_이름과업체가같은다른상품이있을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("아이폰").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(
+                "아이폰", company.getId(), product.getId())).thenReturn(true);
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PRODUCT_DUPLICATED);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_가격이유효하지않을때_예외발생")
+    void updateProduct_가격이유효하지않을때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().price(new BigDecimal("-1")).build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_PRICE);
+
+        verify(productRepository, never()).saveAndFlush(any(Product.class));
+    }
+
+    @Test
+    @DisplayName("updateProduct_저장시점에이름업체유니크제약조건위반이발생할때_예외발생")
+    void updateProduct_저장시점에이름업체유니크제약조건위반이발생할때_예외발생() {
+        Company company = companyWithId("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1");
+        Product product = productWithId("갤럭시 스마트폰", company, new BigDecimal("1000000.00"));
+        ReqUpdateProductDto reqDto = ReqUpdateProductDto.builder().name("갤럭시 스마트폰 Pro").build();
+
+        when(productRepository.findByIdAndDeletedAtIsNull(product.getId())).thenReturn(Optional.of(product));
+        when(productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(any(), any(), eq(product.getId())))
+                .thenReturn(false);
+        doThrow(duplicateKeyException("ux_p_products_name_company_active"))
+                .when(productRepository).saveAndFlush(any(Product.class));
+
+        assertThatThrownBy(() -> productService.updateProduct(product.getId(), reqDto, UserRole.MASTER, USERNAME))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.PRODUCT_DUPLICATED);
     }
 
     private Company companyWithId(String name, CompanyType type, UUID hubId, String address) {

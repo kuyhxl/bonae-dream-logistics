@@ -182,6 +182,53 @@ class ProductRepositoryTest {
     }
 
     @Test
+    @DisplayName("existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot_자기자신만같은이름과업체를가질때_false반환")
+    void existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot_자기자신만같은이름과업체를가질때_false반환() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product savedProduct = productRepository.save(Product.create("갤럭시 스마트폰", company, new BigDecimal("1000.00")));
+
+        boolean exists = productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(
+                "갤럭시 스마트폰", company.getId(), savedProduct.getId());
+
+        assertThat(exists).isFalse();
+    }
+
+    @Test
+    @DisplayName("existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot_다른상품이같은이름과업체를가질때_true반환")
+    void existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot_다른상품이같은이름과업체를가질때_true반환() {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        productRepository.save(Product.create("갤럭시 스마트폰", company, new BigDecimal("1000.00")));
+        Product anotherProduct = productRepository.save(Product.create("아이폰", company, new BigDecimal("1500.00")));
+
+        boolean exists = productRepository.existsByNameAndCompany_IdAndDeletedAtIsNullAndIdNot(
+                "갤럭시 스마트폰", company.getId(), anotherProduct.getId());
+
+        assertThat(exists).isTrue();
+    }
+
+    @Test
+    @DisplayName("update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다")
+    void update_필드변경후flush하면_updatedAt과updatedBy가JPAAuditing으로자동갱신된다() throws InterruptedException {
+        Company company = companyRepository.save(
+                new Company("배송센터A", CompanyType.PRODUCER, UUID.randomUUID(), "서울시 강남구 테헤란로 1"));
+        Product product = productRepository.saveAndFlush(
+                Product.create("갤럭시 스마트폰", company, new BigDecimal("1000.00")));
+        var createdUpdatedAt = product.getUpdatedAt();
+
+        // LocalDateTime의 해상도 차이로 값이 같아 보이는 걸 방지하기 위해 약간의 시간차를 둔다.
+        Thread.sleep(10);
+        product.update("갤럭시 스마트폰 Pro", null);
+        productRepository.saveAndFlush(product);
+
+        assertThat(product.getName()).isEqualTo("갤럭시 스마트폰 Pro");
+        assertThat(product.getPrice()).isEqualByComparingTo("1000.00");
+        assertThat(product.getUpdatedAt()).isAfter(createdUpdatedAt);
+        assertThat(product.getUpdatedBy()).isEqualTo("SYSTEM");
+    }
+
+    @Test
     @DisplayName("delete_호출후flush하면_deletedAt과deletedBy가저장된다")
     void delete_호출후flush하면_deletedAt과deletedBy가저장된다() {
         Company company = companyRepository.save(

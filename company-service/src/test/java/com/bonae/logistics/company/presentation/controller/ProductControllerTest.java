@@ -8,10 +8,12 @@ import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.application.ProductService;
 import com.bonae.logistics.company.auth.UserRole;
 import com.bonae.logistics.company.presentation.dto.request.ReqCreateProductDto;
+import com.bonae.logistics.company.presentation.dto.request.ReqUpdateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResCreateProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductDto;
 import com.bonae.logistics.company.presentation.dto.response.ResGetProductListDto;
 import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto;
+import com.bonae.logistics.company.presentation.dto.response.ResUpdateProductDto;
 import io.micrometer.tracing.Tracer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -34,6 +36,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -469,5 +472,151 @@ class ProductControllerTest {
                         .header("X-User-Id", "master01"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_정상요청시_수정된상품정보를_응답한다")
+    void updateProduct_정상요청시_수정된상품정보를응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        UUID companyId = UUID.randomUUID();
+        ResUpdateProductDto resDto = ResUpdateProductDto.builder()
+                .productId(productId)
+                .name("갤럭시 스마트폰 Pro")
+                .companyId(companyId)
+                .price(new BigDecimal("1200000.00"))
+                .updatedAt(LocalDateTime.now())
+                .updatedBy("hub-admin-id")
+                .build();
+
+        when(productService.updateProduct(eq(productId), any(ReqUpdateProductDto.class), eq(UserRole.MASTER), anyString()))
+                .thenReturn(resDto);
+
+        String requestBody = """
+                {
+                  "name": "갤럭시 스마트폰 Pro",
+                  "price": 1200000.00
+                }
+                """;
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.productId").value(productId.toString()))
+                .andExpect(jsonPath("$.name").value("갤럭시 스마트폰 Pro"))
+                .andExpect(jsonPath("$.companyId").value(companyId.toString()))
+                .andExpect(jsonPath("$.price").value(1200000.00))
+                .andExpect(jsonPath("$.updatedBy").value("hub-admin-id"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_권한헤더가없을때_401을응답한다")
+    void updateProduct_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(patch("/api/products/{productId}", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_허용되지않은역할일때_403을응답한다")
+    void updateProduct_허용되지않은역할일때_403을응답한다() throws Exception {
+        mockMvc.perform(patch("/api/products/{productId}", UUID.randomUUID())
+                        .header("X-User-Role", "DELIVERY_MANAGER")
+                        .header("X-User-Id", "delivery01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_존재하지않거나삭제된상품일때_404를응답한다")
+    void updateProduct_존재하지않거나삭제된상품일때_404를응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        when(productService.updateProduct(eq(productId), any(ReqUpdateProductDto.class), eq(UserRole.MASTER), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND));
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "갤럭시 스마트폰 Pro" }
+                                """))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_수정필드가모두없을때_400을응답한다")
+    void updateProduct_수정필드가모두없을때_400을응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        when(productService.updateProduct(eq(productId), any(ReqUpdateProductDto.class), eq(UserRole.MASTER), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_INPUT));
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_상품명이100자를초과할때_400을응답한다")
+    void updateProduct_상품명이100자를초과할때_400을응답한다() throws Exception {
+        String tooLongName = "가".repeat(101);
+
+        mockMvc.perform(patch("/api/products/{productId}", UUID.randomUUID())
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "%s" }
+                                """.formatted(tooLongName)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"))
+                .andExpect(jsonPath("$.fields[0].field").value("name"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_가격이유효하지않을때_400을응답한다")
+    void updateProduct_가격이유효하지않을때_400을응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        when(productService.updateProduct(eq(productId), any(ReqUpdateProductDto.class), eq(UserRole.MASTER), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.INVALID_PRICE));
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "price": -1 }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PRICE"));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/products/{productId}_상품명이중복될때_409를응답한다")
+    void updateProduct_상품명이중복될때_409를응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        when(productService.updateProduct(eq(productId), any(ReqUpdateProductDto.class), eq(UserRole.MASTER), anyString()))
+                .thenThrow(new BusinessException(ErrorCode.PRODUCT_DUPLICATED));
+
+        mockMvc.perform(patch("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                { "name": "아이폰" }
+                                """))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRODUCT_DUPLICATED"));
     }
 }
