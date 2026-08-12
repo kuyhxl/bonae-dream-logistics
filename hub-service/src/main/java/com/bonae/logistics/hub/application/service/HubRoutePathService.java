@@ -3,7 +3,6 @@ package com.bonae.logistics.hub.application.service;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
-import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import com.bonae.logistics.hub.presentation.dto.response.HubRoutePathResponse;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +17,7 @@ import java.util.UUID;
 public class HubRoutePathService {
 
     private final HubRepository hubRepository;
-    private final HubRouteRepository hubRouteRepository;
+    private final HubRouteGraphProvider hubRouteGraphProvider;
     private final HubRoutePathFinder hubRoutePathFinder;
 
     @Transactional(readOnly = true)
@@ -32,12 +31,9 @@ public class HubRoutePathService {
 
         requireHubExists(arrivalHubId);
 
-        // JPA 엔티티와 경로 탐색 입력을 분리하기 위해 활성 간선을 불변 값 객체로 변환한다.
-        List<HubRouteEdge> activeRoutes = hubRouteRepository.findAllByDeletedAtIsNull().stream()
-                .map(HubRouteEdge::from)
-                .toList();
-
+        List<HubRouteEdge> activeRoutes = hubRouteGraphProvider.getActiveRoutes();
         List<HubRouteEdge> path = hubRoutePathFinder.findShortestPath(activeRoutes, departureHubId, arrivalHubId);
+
         return HubRoutePathResponse.from(path);
     }
 

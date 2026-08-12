@@ -5,7 +5,6 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.hub.domain.entity.Hub;
 import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
-import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import com.bonae.logistics.hub.presentation.dto.response.HubRoutePathResponse;
 import org.junit.jupiter.api.DisplayName;
@@ -31,7 +30,7 @@ class HubRoutePathServiceTest {
     private HubRepository hubRepository;
 
     @Mock
-    private HubRouteRepository hubRouteRepository;
+    private HubRouteGraphProvider hubRouteGraphProvider;
 
     @Mock
     private HubRoutePathFinder hubRoutePathFinder;
@@ -52,7 +51,7 @@ class HubRoutePathServiceTest {
     }
 
     @Test
-    @DisplayName("출발/도착 허브가 모두 존재하면 경로 응답을 반환한다")
+    @DisplayName("출발/도착 허브가 모두 존재하면 활성 간선으로 경로 응답을 반환한다")
     void returnsPathResponseWhenBothHubsExist() {
         Hub hubA = createHub(37.0, 127.0);
         Hub hubB = createHub(37.1, 127.1);
@@ -60,7 +59,7 @@ class HubRoutePathServiceTest {
         HubRouteEdge edge = HubRouteEdge.from(route);
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
-        when(hubRouteRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(route));
+        when(hubRouteGraphProvider.getActiveRoutes()).thenReturn(List.of(edge));
         when(hubRoutePathFinder.findShortestPath(List.of(edge), hubA.getId(), hubB.getId())).thenReturn(List.of(edge));
 
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubB.getId());
@@ -82,7 +81,7 @@ class HubRoutePathServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
 
-        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
+        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
     }
 
     @Test
@@ -99,7 +98,7 @@ class HubRoutePathServiceTest {
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
 
         verify(hubRepository, times(2)).existsByIdAndDeletedAtIsNull(any());
-        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
+        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
     }
 
     @Test
@@ -118,7 +117,7 @@ class HubRoutePathServiceTest {
         assertThat(result.getSegments()).isEmpty();
 
         verify(hubRepository, times(1)).existsByIdAndDeletedAtIsNull(hubId);
-        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
+        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
     }
 
     @Test
@@ -138,7 +137,7 @@ class HubRoutePathServiceTest {
         HubRouteEdge edgeBC = HubRouteEdge.from(routeBC);
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
-        when(hubRouteRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(routeAB, routeBC));
+        when(hubRouteGraphProvider.getActiveRoutes()).thenReturn(List.of(edgeAB, edgeBC));
         when(hubRoutePathFinder.findShortestPath(List.of(edgeAB, edgeBC), hubA.getId(), hubC.getId())).thenReturn(List.of(edgeAB, edgeBC));
 
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubC.getId());
