@@ -12,15 +12,15 @@ import java.util.stream.IntStream;
 @Builder
 public class HubRoutePathResponse {
 
-    private Integer totalDistanceMeters;
-    private Integer totalDurationSeconds;
+    private Long totalDistanceMeters;
+    private Long totalDurationSeconds;
     private Double totalDistanceKm;
-    private Integer totalDurationMin;
+    private Long totalDurationMin;
     private List<HubRoutePathSegment> segments;
 
     public static HubRoutePathResponse from(List<HubRoute> path) {
-        int totalDistanceMeters = 0;
-        int totalDurationSeconds = 0;
+        long totalDistanceMeters = 0L;
+        long totalDurationSeconds = 0L;
 
         for (HubRoute route : path) {
             totalDistanceMeters += route.getDistanceMeters();
@@ -28,7 +28,7 @@ public class HubRoutePathResponse {
         }
 
         double totalDistanceKm = Math.round(totalDistanceMeters / 1000.0 * 10) / 10.0;
-        int totalDurationMin = (int) Math.ceil(totalDurationSeconds / 60.0);
+        long totalDurationMin = totalDurationSeconds / 60 + (totalDurationSeconds % 60 == 0 ? 0 : 1);
 
         List<HubRoutePathSegment> segments = IntStream.range(0, path.size())
                 .mapToObj(i -> HubRoutePathSegment.from(i + 1, path.get(i)))

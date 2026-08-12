@@ -3,12 +3,15 @@ package com.bonae.logistics.delivery.presentation.controller;
 import com.bonae.logistics.delivery.application.service.DeliveryService;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryCancelRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -29,7 +32,14 @@ public class InternalDeliveryController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
-    @PostMapping("/cancel")
+    @PatchMapping("/order")
+    public ResponseEntity<DeliveryDetailResponse> updateDeliveryByOrder(
+            @Valid @RequestBody InternalDeliveryUpdateRequest request
+    ) {
+        return ResponseEntity.ok(deliveryService.updateDeliveryByOrder(request));
+    }
+
+    @PatchMapping("/cancel")
     public ResponseEntity<DeliveryCancelResponse> cancelDeliveryByOrderId(
             @Valid @RequestBody InternalDeliveryCancelRequest request
     ) {

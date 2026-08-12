@@ -60,8 +60,8 @@ class HubRoutePathServiceTest {
 
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubB.getId());
 
-        assertThat(result.getTotalDistanceMeters()).isEqualTo(route.getDistanceMeters());
-        assertThat(result.getTotalDurationSeconds()).isEqualTo(100);
+        assertThat(result.getTotalDistanceMeters()).isEqualTo(route.getDistanceMeters().longValue());
+        assertThat(result.getTotalDurationSeconds()).isEqualTo(100L);
         assertThat(result.getSegments()).hasSize(1);
     }
 
@@ -112,9 +112,41 @@ class HubRoutePathServiceTest {
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubId, hubId);
 
         assertThat(result.getTotalDistanceKm()).isEqualTo(0.0);
-        assertThat(result.getTotalDurationMin()).isEqualTo(0);
+        assertThat(result.getTotalDurationMin()).isEqualTo(0L);
         assertThat(result.getSegments()).isEmpty();
 
         verify(hubRepository, times(1)).existsByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    @DisplayName("경로 총합이 int 범위를 넘어도 long 값으로 응답한다")
+    void returnsLongPathTotals() {
+        Hub hubA = createHub(37.0, 127.0);
+        Hub hubB = createHub(37.1, 127.1);
+        Hub hubC = createHub(37.2, 127.2);
+
+        HubRoute routeAB = HubRoute.create(hubA, hubB);
+        HubRoute routeBC = HubRoute.create(hubB, hubC);
+
+        routeAB.update(1_500_000_000, 1_500_000_000);
+        routeBC.update(1_500_000_000, 1_500_000_000);
+
+        when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class)))
+                .thenReturn(true);
+        when(hubRoutePathFinder.findShortestPath(hubA.getId(), hubC.getId()))
+                .thenReturn(List.of(routeAB, routeBC));
+
+        HubRoutePathResponse result =
+                hubRoutePathService.findShortestPath(
+                        hubA.getId(),
+                        hubC.getId()
+                );
+
+        assertThat(result.getTotalDistanceMeters())
+                .isEqualTo(3_000_000_000L);
+        assertThat(result.getTotalDurationSeconds())
+                .isEqualTo(3_000_000_000L);
+        assertThat(result.getTotalDurationMin())
+                .isEqualTo(50_000_000L);
     }
 }

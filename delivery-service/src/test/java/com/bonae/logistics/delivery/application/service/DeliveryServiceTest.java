@@ -13,6 +13,7 @@ import com.bonae.logistics.delivery.infrastructure.client.UserClient;
 import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
@@ -345,6 +346,46 @@ class DeliveryServiceTest {
                 .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
     }
 
+    @Test
+    @DisplayName("주문 수정 기준 배송 수정 성공")
+    void updateDeliveryByOrder_success() throws Exception {
+        Delivery delivery = createDelivery();
+        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(delivery.getOrderId());
+        CompanyInfoClientResponse supplierCompany = createCompanyInfo(UUID.randomUUID(), "공급 업체 주소");
+        CompanyInfoClientResponse receiverCompany = createCompanyInfo(UUID.randomUUID(), "변경된 수령 업체 주소");
+        UserInfoClientResponse receiverUser = createCompanyManagerUser(UUID.randomUUID(), "receiver02", "김수령", "U09XYZ");
+
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(delivery.getOrderId())).thenReturn(Optional.of(delivery));
+        when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
+        when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
+        when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
+        doNothing().when(deliveryRepository).flush();
+
+        DeliveryDetailResponse result = deliveryService.updateDeliveryByOrder(request);
+
+        verify(deliveryRepository).flush();
+        assertThat(result.getOrderId()).isEqualTo(delivery.getOrderId());
+        assertThat(result.getOriginHubId()).isEqualTo(supplierCompany.getHubId());
+        assertThat(result.getDestinationHubId()).isEqualTo(receiverCompany.getHubId());
+        assertThat(result.getReceiverCompanyId()).isEqualTo(request.getReceiverCompanyId());
+        assertThat(result.getReceiverName()).isEqualTo(receiverUser.getName());
+        assertThat(result.getReceiverSlackId()).isEqualTo(receiverUser.getSlackId());
+        assertThat(result.getDeliveryAddress()).isEqualTo(receiverCompany.getAddress());
+    }
+
+    @Test
+    @DisplayName("주문 수정 기준 배송 수정 시 배송이 없으면 예외 발생")
+    void updateDeliveryByOrder_notFound() throws Exception {
+        UUID orderId = UUID.randomUUID();
+        InternalDeliveryUpdateRequest request = createInternalUpdateRequest(orderId);
+        when(deliveryRepository.findByOrderIdAndDeletedAtIsNull(orderId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> deliveryService.updateDeliveryByOrder(request))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode")
+                .isEqualTo(ErrorCode.DELIVERY_NOT_FOUND);
+    }
+
     private DeliveryCreateRequest createRequest() throws Exception {
         DeliveryCreateRequest request = new DeliveryCreateRequest();
         setField(request, "orderId", UUID.randomUUID());
@@ -353,6 +394,15 @@ class DeliveryServiceTest {
         setField(request, "receiverUsername", " receiver01 ");
         setField(request, "productInfo", " 건어물 50박스 ");
         setField(request, "requestNote", " 12월 12일 3시까지 부탁드립니다. ");
+        return request;
+    }
+
+    private InternalDeliveryUpdateRequest createInternalUpdateRequest(UUID orderId) throws Exception {
+        InternalDeliveryUpdateRequest request = new InternalDeliveryUpdateRequest();
+        setField(request, "orderId", orderId);
+        setField(request, "supplierCompanyId", UUID.randomUUID());
+        setField(request, "receiverCompanyId", UUID.randomUUID());
+        setField(request, "receiverUsername", " receiver02 ");
         return request;
     }
 
