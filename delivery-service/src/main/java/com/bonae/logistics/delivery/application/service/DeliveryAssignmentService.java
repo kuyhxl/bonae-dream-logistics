@@ -7,10 +7,12 @@ import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryManager;
+import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryManagerRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryAssignmentResponse;
@@ -29,6 +31,7 @@ public class DeliveryAssignmentService {
     private final DeliveryRepository deliveryRepository;
     private final DeliveryManagerRepository deliveryManagerRepository;
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
+    private final DeliveryRouteRepository deliveryRouteRepository;
     private final UserClient userClient;
 
     @Transactional
@@ -39,6 +42,7 @@ public class DeliveryAssignmentService {
             String username
     ) {
         Delivery delivery = getDestinationHubAssignableDelivery(deliveryId, userRole, username);
+        assignHubRouteManagers(delivery);
         DeliveryManager nextManager = getNextCompanyDeliveryManager(delivery, null);
         int nextSequence = deliveryAssignmentRepository.findTopByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoDesc(deliveryId)
                 .map(assignment -> assignment.getSequenceNo() + 1)
@@ -126,6 +130,42 @@ public class DeliveryAssignmentService {
         UUID lastAssignedManagerId = recentManagerIds.isEmpty() ? null : recentManagerIds.get(0);
 
         return pickNextManager(candidates, lastAssignedManagerId, excludedManagerId);
+    }
+
+    private void assignHubRouteManagers(Delivery delivery) {
+        List<DeliveryRoute> routes = deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(delivery.getId());
+        if (routes.isEmpty()) {
+            return;
+        }
+
+        for (DeliveryRoute route : routes) {
+            if (route.getDeliveryManagerId() != null) {
+                continue;
+            }
+
+            DeliveryManager nextManager = getNextHubDeliveryManager(route.getFromHubId());
+            route.assignManager(nextManager.getId());
+        }
+    }
+
+    private DeliveryManager getNextHubDeliveryManager(UUID fromHubId) {
+        List<DeliveryManager> candidates = deliveryManagerRepository
+                .findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
+                        fromHubId,
+                        ManagerType.HUB_DELIVERY
+                );
+
+        if (candidates.isEmpty()) {
+            throw new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE);
+        }
+
+        List<UUID> recentManagerIds = deliveryRouteRepository.findRecentAssignedRouteManagerIds(
+                fromHubId,
+                PageRequest.of(0, 1)
+        );
+        UUID lastAssignedManagerId = recentManagerIds.isEmpty() ? null : recentManagerIds.get(0);
+
+        return pickNextManager(candidates, lastAssignedManagerId, null);
     }
 
     private DeliveryManager pickNextManager(

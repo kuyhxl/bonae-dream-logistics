@@ -109,6 +109,31 @@ class DeliveryRouteServiceTest {
     }
 
     @Test
+    @DisplayName("delivery manager assigned to a route can read all routes of that delivery")
+    void getDeliveryRoutes_routeAssignedDeliveryManagerCanReadAllRoutes() {
+        Delivery delivery = createDelivery(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        UUID deliveryId = delivery.getId();
+        UUID routeManagerId = UUID.randomUUID();
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId))
+                .thenReturn(Optional.of(delivery));
+        DeliveryRoute firstRoute = createRoute(deliveryId, 1, UUID.randomUUID(), UUID.randomUUID(), routeManagerId);
+        DeliveryRoute secondRoute = createRoute(deliveryId, 2, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID());
+        when(deliveryRouteRepository.existsByDeliveryIdAndDeliveryManagerIdAndDeletedAtIsNull(deliveryId, routeManagerId))
+                .thenReturn(true);
+        when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId))
+                .thenReturn(List.of(firstRoute, secondRoute));
+        when(userClient.getUserInfo("route-manager"))
+                .thenReturn(createDeliveryManagerUser(routeManagerId, "route-manager"));
+
+        List<DeliveryRouteResponse> result =
+                deliveryRouteService.getDeliveryRoutes(deliveryId, UserRole.DELIVERY_MANAGER, "route-manager");
+
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getRouteId()).isEqualTo(firstRoute.getId());
+        assertThat(result.get(1).getRouteId()).isEqualTo(secondRoute.getId());
+    }
+
+    @Test
     @DisplayName("delivery manager without assignment cannot read routes")
     void getDeliveryRoutes_deliveryManagerForbidden() {
         UUID deliveryId = UUID.randomUUID();

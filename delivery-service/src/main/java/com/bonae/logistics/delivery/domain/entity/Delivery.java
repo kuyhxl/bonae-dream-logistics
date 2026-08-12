@@ -217,7 +217,8 @@ public class Delivery extends BaseEntity {
         }
         if (status != DeliveryStatus.READY
                 && status != DeliveryStatus.HUB_WAITING
-                && status != DeliveryStatus.HUB_MOVING) {
+                && status != DeliveryStatus.HUB_MOVING
+                && status != DeliveryStatus.OUT_FOR_DELIVERY) {
             throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
         }
     }

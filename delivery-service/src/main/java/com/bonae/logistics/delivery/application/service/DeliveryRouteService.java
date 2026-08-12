@@ -92,7 +92,11 @@ public class DeliveryRouteService {
         boolean allowed = switch (userRole) {
             case MASTER -> true;
             case HUB_MANAGER -> matchesHub(delivery, requireHubId(userInfo));
-            case DELIVERY_MANAGER -> matchesDeliveryManager(delivery, requireUserId(userInfo));
+            case DELIVERY_MANAGER -> matchesDeliveryManager(delivery, requireUserId(userInfo))
+                    || deliveryRouteRepository.existsByDeliveryIdAndDeliveryManagerIdAndDeletedAtIsNull(
+                    delivery.getId(),
+                    requireUserId(userInfo)
+            );
             case COMPANY_MANAGER -> false;
         };
 
