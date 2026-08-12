@@ -7,6 +7,8 @@ x-app-common: &app-common
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     JWT_SECRET: ${JWT_SECRET}
     TZ: Asia/Seoul
+    # BCrypt 해시의 $는 .env에서 $$로 이스케이프해야 안짤림
+    MASTER_PASSWORD_HASH: ${MASTER_PASSWORD_HASH:-dummy}
     SLACK_TOKEN: ${SLACK_TOKEN:-dummy}
     SLACK_MOCK: ${SLACK_MOCK:-true}
     GEMINI_API_KEY: ${GEMINI_API_KEY:-dummy}
