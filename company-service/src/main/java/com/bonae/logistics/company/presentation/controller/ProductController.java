@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -68,6 +69,16 @@ public class ProductController {
     public ResponseEntity<PageResponseDto<ResGetProductListDto>> getProducts(@ModelAttribute PageRequestDto pageRequestDto) {
         PageResponseDto<ResGetProductListDto> resDto = productService.getProducts(pageRequestDto);
         return ResponseEntity.status(HttpStatus.OK).body(resDto);
+    }
+
+    @DeleteMapping("/{productId}")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
+    public ResponseEntity<Void> deleteProduct(
+            @RequestHeader("X-User-Role") String userRole,
+            @RequestHeader("X-User-Id") String username,
+            @PathVariable UUID productId) {
+        productService.deleteProduct(productId, UserRole.valueOf(userRole), username);
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{productId}")

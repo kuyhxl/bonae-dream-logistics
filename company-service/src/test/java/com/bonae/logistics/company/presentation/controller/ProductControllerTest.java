@@ -32,7 +32,9 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -426,6 +428,50 @@ class ProductControllerTest {
                         .content(requestBody))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("PRODUCT_DUPLICATED"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{productId}_정상요청시_204를응답한다")
+    void deleteProduct_정상요청시_204를응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
+                .andExpect(status().isNoContent())
+                .andExpect(jsonPath("$").doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{productId}_권한헤더가없을때_401을응답한다")
+    void deleteProduct_권한헤더가없을때_401을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/products/{productId}", UUID.randomUUID()))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{productId}_허용되지않은역할일때_403을응답한다")
+    void deleteProduct_허용되지않은역할일때_403을응답한다() throws Exception {
+        mockMvc.perform(delete("/api/products/{productId}", UUID.randomUUID())
+                        .header("X-User-Role", "DELIVERY_MANAGER")
+                        .header("X-User-Id", "delivery01"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("FORBIDDEN"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/products/{productId}_존재하지않거나삭제된상품일때_404를응답한다")
+    void deleteProduct_존재하지않거나삭제된상품일때_404를응답한다() throws Exception {
+        UUID productId = UUID.randomUUID();
+        doThrow(new BusinessException(ErrorCode.PRODUCT_NOT_FOUND))
+                .when(productService).deleteProduct(eq(productId), eq(UserRole.MASTER), anyString());
+
+        mockMvc.perform(delete("/api/products/{productId}", productId)
+                        .header("X-User-Role", "MASTER")
+                        .header("X-User-Id", "master01"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PRODUCT_NOT_FOUND"));
     }
 
     @Test
