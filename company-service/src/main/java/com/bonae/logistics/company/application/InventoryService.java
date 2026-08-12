@@ -93,16 +93,18 @@ public class InventoryService {
             return buildReplayResponse(inventoryId, reqDto, type, productId);
         }
 
+        //최초 요청 시
         return applyChangeAndFillSnapshot(keyId, inventoryId, reqDto, type);
     }
 
-    // 최초 요청 시: 원자적 조건부 UPDATE로 재고를 반영하고, 그 결과(before/after)를 멱등성 키 row에 채워 넣는다.
+    // [최초 요청 시] 원자적 조건부 UPDATE로 재고를 반영하고, 그 결과(before/after)를 멱등성 키 row에 채워 넣는다.
     // 재반영 직후 같은 트랜잭션 안에서 조회하므로(UPDATE가 잡은 행 잠금이 커밋 전까지 유지됨) 다른 트랜잭션이
     // 끼어들 수 없어 afterQuantity는 항상 정확하고, beforeQuantity는 거기서 이번 요청의 quantity만큼 역산해도 정확하다.
     private ResUpdateInventoryDto applyChangeAndFillSnapshot(UUID keyId, UUID inventoryId,
                                                                ReqUpdateInventoryDto reqDto, InventoryChangeType type) {
         applyAtomicQuantityChange(inventoryId, type, reqDto.getQuantity());
 
+        //재고 존재 확인용이 아닌 최신 값을 읽어오기 위해 DB 다시 조회
         Inventory updated = inventoryRepository.findByIdAndDeletedAtIsNull(inventoryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.INVENTORY_NOT_FOUND));
 
@@ -132,9 +134,8 @@ public class InventoryService {
         }
     }
 
-    // 재요청(멱등성 키 중복) 전용: 재고를 다시 조회해 역산하지 않고, 최초 처리 시점에 저장해둔
-    // before/after 스냅샷을 그대로 돌려준다. changedQuantity는 저장해두지 않으므로 이번 요청의
-    // quantity를 그대로 응답에 반영한다.
+    // 재요청(멱등성 키 중복) 전용: 재고를 다시 조회해 역산하지 않고, 최초 처리 시점에 저장해둔 before/after 스냅샷을 그대로 돌려줌.
+    //  첫 변경 요청 수량은 저장해두지 않으므로 이번 요청의 quantity를 그대로 응답에 반영함.
     private ResUpdateInventoryDto buildReplayResponse(UUID inventoryId, ReqUpdateInventoryDto reqDto,
                                                         InventoryChangeType type, UUID productId) {
         InventoryIdempotencyKey snapshot = idempotencyKeyRepository
