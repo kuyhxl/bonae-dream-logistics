@@ -24,4 +24,9 @@ public interface DeliveryManagerRepository extends JpaRepository<DeliveryManager
             UUID hubId,
             ManagerType managerType
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    List<DeliveryManager> findAllByManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
+            ManagerType managerType
+    );
 }

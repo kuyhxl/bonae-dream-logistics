@@ -143,15 +143,14 @@ public class DeliveryAssignmentService {
                 continue;
             }
 
-            DeliveryManager nextManager = getNextHubDeliveryManager(route.getFromHubId());
+            DeliveryManager nextManager = getNextHubDeliveryManager();
             route.assignManager(nextManager.getId());
         }
     }
 
-    private DeliveryManager getNextHubDeliveryManager(UUID fromHubId) {
+    private DeliveryManager getNextHubDeliveryManager() {
         List<DeliveryManager> candidates = deliveryManagerRepository
-                .findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
-                        fromHubId,
+                .findAllByManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
                         ManagerType.HUB_DELIVERY
                 );
 
@@ -159,8 +158,8 @@ public class DeliveryAssignmentService {
             throw new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE);
         }
 
-        List<UUID> recentManagerIds = deliveryRouteRepository.findRecentAssignedRouteManagerIds(
-                fromHubId,
+        List<UUID> recentManagerIds = deliveryRouteRepository.findRecentAssignedRouteManagerIdsByManagerType(
+                ManagerType.HUB_DELIVERY,
                 PageRequest.of(0, 1)
         );
         UUID lastAssignedManagerId = recentManagerIds.isEmpty() ? null : recentManagerIds.get(0);

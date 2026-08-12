@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -138,18 +139,13 @@ class DeliveryAssignmentServiceTest {
         when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
         when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(delivery.getId()))
                 .thenReturn(List.of(firstRoute, secondRoute));
-        when(deliveryManagerRepository.findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
-                originHubId,
+        when(deliveryManagerRepository.findAllByManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
                 ManagerType.HUB_DELIVERY
-        )).thenReturn(List.of(hubManager1));
-        when(deliveryManagerRepository.findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
-                middleHubId,
-                ManagerType.HUB_DELIVERY
-        )).thenReturn(List.of(hubManager2));
-        when(deliveryRouteRepository.findRecentAssignedRouteManagerIds(eq(originHubId), any(Pageable.class)))
-                .thenReturn(List.of());
-        when(deliveryRouteRepository.findRecentAssignedRouteManagerIds(eq(middleHubId), any(Pageable.class)))
-                .thenReturn(List.of());
+        )).thenReturn(List.of(hubManager1, hubManager2));
+        when(deliveryRouteRepository.findRecentAssignedRouteManagerIdsByManagerType(
+                eq(ManagerType.HUB_DELIVERY),
+                any(Pageable.class)
+        )).thenReturn(List.of(), List.of(hubManager1.getId()));
         when(deliveryManagerRepository.findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
                 destinationHubId,
                 ManagerType.COMPANY_DELIVERY
@@ -168,6 +164,8 @@ class DeliveryAssignmentServiceTest {
         assertThat(firstRoute.getDeliveryManagerId()).isEqualTo(hubManager1.getId());
         assertThat(secondRoute.getDeliveryManagerId()).isEqualTo(hubManager2.getId());
         assertThat(response.getDeliveryManagerId()).isEqualTo(companyManager.getId());
+        verify(deliveryRouteRepository, times(2))
+                .findRecentAssignedRouteManagerIdsByManagerType(eq(ManagerType.HUB_DELIVERY), any(Pageable.class));
     }
 
     @Test
@@ -331,7 +329,7 @@ class DeliveryAssignmentServiceTest {
     private DeliveryManager createDeliveryManager(UUID hubId, int sequence, ManagerType managerType) {
         return DeliveryManager.create(
                 UUID.randomUUID(),
-                hubId,
+                managerType == ManagerType.HUB_DELIVERY ? null : hubId,
                 managerType,
                 sequence
         );

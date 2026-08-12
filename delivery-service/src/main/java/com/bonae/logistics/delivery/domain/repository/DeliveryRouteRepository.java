@@ -1,6 +1,7 @@
 package com.bonae.logistics.delivery.domain.repository;
 
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.entity.RouteStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,13 +29,15 @@ public interface DeliveryRouteRepository extends JpaRepository<DeliveryRoute, UU
     @Query("""
             select r.deliveryManagerId
             from DeliveryRoute r
+            join DeliveryManager dm on dm.id = r.deliveryManagerId
             where r.deletedAt is null
+              and dm.deletedAt is null
+              and dm.managerType = :managerType
               and r.deliveryManagerId is not null
-              and r.fromHubId = :fromHubId
             order by r.createdAt desc, r.sequenceNo desc
             """)
-    List<UUID> findRecentAssignedRouteManagerIds(
-            @Param("fromHubId") UUID fromHubId,
+    List<UUID> findRecentAssignedRouteManagerIdsByManagerType(
+            @Param("managerType") ManagerType managerType,
             Pageable pageable
     );
 }

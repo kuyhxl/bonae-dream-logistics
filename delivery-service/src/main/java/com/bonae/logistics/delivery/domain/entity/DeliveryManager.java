@@ -91,5 +91,9 @@ public class DeliveryManager extends BaseEntity {
         if (managerType == ManagerType.COMPANY_DELIVERY && hubId == null) {
             throw new BusinessException(ErrorCode.INVALID_DELIVERY_MANAGER_HUB_MAPPING);
         }
+
+        if (managerType == ManagerType.HUB_DELIVERY && hubId != null) {
+            throw new BusinessException(ErrorCode.INVALID_DELIVERY_MANAGER_HUB_MAPPING);
+        }
     }
 }
