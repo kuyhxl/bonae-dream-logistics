@@ -9,6 +9,7 @@ import com.bonae.logistics.delivery.domain.entity.DeliveryManager;
 import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.repository.DeliveryManagerRepository;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerSearchRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryManagerUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryManagerResponse;
 import org.hibernate.exception.ConstraintViolationException;
@@ -22,6 +23,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.sql.SQLException;
 import java.util.List;
@@ -118,7 +120,7 @@ class DeliveryManagerServiceTest {
     }
 
     @Test
-    @DisplayName("배송 담당자가 없으면 예외 발생")
+    @DisplayName("배송 담당자가 없으면 예외가 발생한다")
     void getDeliveryManager_notFound() {
         UUID deliveryManagerId = UUID.randomUUID();
         when(deliveryManagerRepository.findByIdAndDeletedAtIsNull(deliveryManagerId))
@@ -144,10 +146,40 @@ class DeliveryManagerServiceTest {
 
         when(deliveryManagerRepository.findAllByDeletedAtIsNull(any(Pageable.class))).thenReturn(page);
 
-        PageResponseDto<DeliveryManagerResponse> response = deliveryManagerService.getDeliveryManagers(pageRequestDto);
+        PageResponseDto<DeliveryManagerResponse> response =
+                deliveryManagerService.getDeliveryManagers(pageRequestDto);
 
         assertThat(response.getContent()).hasSize(1);
         assertThat(response.getContent().get(0).getDeliverySequence()).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("배송 담당자 검색 시 조건이 적용된 결과를 반환한다")
+    void searchDeliveryManagers_withSearchFilters() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        DeliveryManagerSearchRequest searchRequest = new DeliveryManagerSearchRequest();
+        UUID hubId = UUID.randomUUID();
+        DeliveryManager deliveryManager = DeliveryManager.create(
+                UUID.randomUUID(),
+                hubId,
+                ManagerType.COMPANY_DELIVERY,
+                5
+        );
+        Page<DeliveryManager> page = new PageImpl<>(List.of(deliveryManager), pageRequestDto.toPageable(), 1);
+
+        setField(searchRequest, "hubId", hubId);
+        setField(searchRequest, "managerType", ManagerType.COMPANY_DELIVERY);
+        setField(searchRequest, "deliverySequence", 5);
+
+        when(deliveryManagerRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(page);
+
+        PageResponseDto<DeliveryManagerResponse> response =
+                deliveryManagerService.searchDeliveryManagers(pageRequestDto, searchRequest);
+
+        assertThat(response.getContent()).hasSize(1);
+        assertThat(response.getContent().get(0).getHubId()).isEqualTo(hubId);
+        assertThat(response.getContent().get(0).getManagerType()).isEqualTo(ManagerType.COMPANY_DELIVERY);
+        assertThat(response.getContent().get(0).getDeliverySequence()).isEqualTo(5);
     }
 
     @Test
@@ -220,5 +252,15 @@ class DeliveryManagerServiceTest {
                 constraintName
         );
         return new DataIntegrityViolationException("duplicate key", cause);
+    }
+
+    private void setField(Object target, String fieldName, Object value) {
+        try {
+            java.lang.reflect.Field field = target.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(target, value);
+        } catch (ReflectiveOperationException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
