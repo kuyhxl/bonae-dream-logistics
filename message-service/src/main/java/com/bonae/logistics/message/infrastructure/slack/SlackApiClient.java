@@ -34,10 +34,13 @@ public class SlackApiClient implements SlackClient {
     @Override
     @Retry(name = "slack", fallbackMethod = "sendFallback")
     public SlackSendResult send(String receiverSlackId, String message) {
+        // DB에는 원문을 남기고, 슬랙으로 나가는 값만 이스케이프한다.
+        String safeText = SlackTextEscaper.escape(message);
+
         SlackPostMessageResponse response = restClient.post()
                 .uri("/chat.postMessage")
                 .contentType(MediaType.APPLICATION_JSON)
-                .body(new SlackPostMessageRequest(receiverSlackId, message))
+                .body(new SlackPostMessageRequest(receiverSlackId, safeText))
                 .retrieve()
                 .body(SlackPostMessageResponse.class);
 
