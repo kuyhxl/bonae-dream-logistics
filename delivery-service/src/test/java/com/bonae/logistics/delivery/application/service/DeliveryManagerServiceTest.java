@@ -54,15 +54,17 @@ class DeliveryManagerServiceTest {
     @DisplayName("배송 담당자 생성 시 요청 ID를 그대로 사용한다")
     void createDeliveryManager_success() {
         UUID deliveryManagerId = UUID.randomUUID();
+        UUID hubId = UUID.randomUUID();
         DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(deliveryManagerId)
+                .hubId(hubId)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
 
         DeliveryManager savedDeliveryManager = DeliveryManager.create(
                 deliveryManagerId,
-                null,
+                hubId,
                 ManagerType.HUB_DELIVERY,
                 0
         );
@@ -82,6 +84,7 @@ class DeliveryManagerServiceTest {
     void createDeliveryManager_duplicateSequence() {
         DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(UUID.randomUUID())
+                .hubId(UUID.randomUUID())
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
@@ -101,7 +104,7 @@ class DeliveryManagerServiceTest {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
                 deliveryManagerId,
-                null,
+                UUID.randomUUID(),
                 ManagerType.HUB_DELIVERY,
                 1
         );
@@ -134,7 +137,7 @@ class DeliveryManagerServiceTest {
         PageRequestDto pageRequestDto = new PageRequestDto();
         DeliveryManager deliveryManager = DeliveryManager.create(
                 UUID.randomUUID(),
-                null,
+                UUID.randomUUID(),
                 ManagerType.HUB_DELIVERY,
                 2
         );
@@ -154,7 +157,7 @@ class DeliveryManagerServiceTest {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
                 deliveryManagerId,
-                null,
+                UUID.randomUUID(),
                 ManagerType.HUB_DELIVERY,
                 0
         );
@@ -181,7 +184,7 @@ class DeliveryManagerServiceTest {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManager deliveryManager = DeliveryManager.create(
                 deliveryManagerId,
-                null,
+                UUID.randomUUID(),
                 ManagerType.HUB_DELIVERY,
                 0
         );
