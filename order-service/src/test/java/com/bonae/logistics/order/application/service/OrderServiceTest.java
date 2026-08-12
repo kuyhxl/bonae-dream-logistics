@@ -2,6 +2,8 @@ package com.bonae.logistics.order.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.order.domain.entity.Order;
 import com.bonae.logistics.order.domain.entity.OrderStatus;
 import com.bonae.logistics.order.domain.repository.OrderRepository;
@@ -15,8 +17,10 @@ import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRes
 import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
+import com.bonae.logistics.order.presentation.dto.request.OrderSearchCondition;
 import com.bonae.logistics.order.presentation.dto.request.OrderUpdateRequestDto;
 import com.bonae.logistics.order.presentation.dto.response.OrderResponseDto;
+import com.bonae.logistics.order.presentation.dto.response.OrderSummaryResponseDto;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -25,6 +29,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
@@ -307,7 +312,6 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 성공 - 마스터 관리자")
         void cancel_success_master() {
-            // given
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
             willDoNothing().given(deliveryClient).cancelDelivery(any());
@@ -315,7 +319,7 @@ class OrderServiceTest {
                     .willReturn(new InventoryRestoreResponseDto(PRODUCT_ID, 100));
 
             // when
-            orderService.cancelOrder(pendingOrder.getId(), null, "MASTER", null, "admin");
+            orderService.cancelOrder(pendingOrder.getId(), "admin", "MASTER", null);   // 순서/개수 수정
 
             // then
             assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
@@ -326,7 +330,6 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 성공 - 담당 허브 관리자")
         void cancel_success_hubManager_ownHub() {
-            // given
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
             willDoNothing().given(deliveryClient).cancelDelivery(any());
@@ -334,7 +337,7 @@ class OrderServiceTest {
                     .willReturn(new InventoryRestoreResponseDto(PRODUCT_ID, 100));
 
             // when
-            orderService.cancelOrder(pendingOrder.getId(), null, "HUB_MANAGER", HUB_ID, "hub01");
+            orderService.cancelOrder(pendingOrder.getId(), "hub01", "HUB_MANAGER", HUB_ID);
 
             // then
             assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
@@ -343,15 +346,13 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 실패 - 담당 허브가 아닌 허브 관리자")
         void cancel_fail_hubManager_otherHub() {
-            // given
             UUID otherHubId = UUID.randomUUID();
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.cancelOrder(pendingOrder.getId(), null, "HUB_MANAGER", otherHubId, "hub02")
+                    () -> orderService.cancelOrder(pendingOrder.getId(), "hub02", "HUB_MANAGER", otherHubId)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
@@ -361,14 +362,12 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 실패 - 허브 관리자가 hubId 없이 요청")
         void cancel_fail_hubManager_noHubId() {
-            // given
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.cancelOrder(pendingOrder.getId(), null, "HUB_MANAGER", null, "hub01")
+                    () -> orderService.cancelOrder(pendingOrder.getId(), "hub01", "HUB_MANAGER", null)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
@@ -377,7 +376,6 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 실패 - PENDING 상태가 아닌 주문")
         void cancel_fail_notPending() {
-            // given
             Order deliveredOrder = Order.createPending(
                     UUID.randomUUID(), REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID,
                     PRODUCT_ID, "마른오징어", 10, BigDecimal.valueOf(10000),
@@ -388,10 +386,9 @@ class OrderServiceTest {
             given(orderRepository.findByIdAndDeletedAtIsNull(deliveredOrder.getId()))
                     .willReturn(Optional.of(deliveredOrder));
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.cancelOrder(deliveredOrder.getId(), null, "MASTER", null, "admin")
+                    () -> orderService.cancelOrder(deliveredOrder.getId(), "admin", "MASTER", null)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
@@ -401,15 +398,13 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 실패 - 존재하지 않는 주문")
         void cancel_fail_orderNotFound() {
-            // given
             UUID nonExistentId = UUID.randomUUID();
             given(orderRepository.findByIdAndDeletedAtIsNull(nonExistentId))
                     .willReturn(Optional.empty());
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.cancelOrder(nonExistentId, null, "MASTER", null, "admin")
+                    () -> orderService.cancelOrder(nonExistentId, "admin", "MASTER", null)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
@@ -418,16 +413,14 @@ class OrderServiceTest {
         @Test
         @DisplayName("취소 실패 - 배송 취소 실패 시 재고 복원이 호출되지 않는다")
         void cancel_fail_deliveryCancelFailed_thenNoRestoreStock() {
-            // given
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
             willThrow(new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION))
                     .given(deliveryClient).cancelDelivery(any());
 
-            // when & then
             assertThrows(
                     BusinessException.class,
-                    () -> orderService.cancelOrder(pendingOrder.getId(), null, "MASTER", null, "admin")
+                    () -> orderService.cancelOrder(pendingOrder.getId(), "admin", "MASTER", null)
             );
 
             verifyNoInteractions(inventoryClient);
@@ -452,7 +445,6 @@ class OrderServiceTest {
         @Test
         @DisplayName("수정 성공 - dueDate, remarks 둘 다 변경")
         void update_success_both() {
-            // given
             LocalDateTime newDueDate = LocalDateTime.now().plusDays(7);
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(newDueDate, "변경된 요청사항");
 
@@ -461,7 +453,7 @@ class OrderServiceTest {
             willDoNothing().given(deliveryClient).updateDelivery(any());
 
             // when
-            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null);
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "admin", request, "MASTER", null);
 
             // then
             assertThat(response.dueDate()).isEqualTo(newDueDate);
@@ -472,32 +464,32 @@ class OrderServiceTest {
         @Test
         @DisplayName("수정 성공 - dueDate만 변경 (remarks는 null)")
         void update_success_dueDateOnly() {
-            // given
             LocalDateTime newDueDate = LocalDateTime.now().plusDays(7);
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(newDueDate, null);
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
+            willDoNothing().given(deliveryClient).updateDelivery(any());   // 이것도 추가 필요! (아래 설명)
 
             // when
-            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null);
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "admin", request, "MASTER", null);
 
             // then
             assertThat(response.dueDate()).isEqualTo(newDueDate);
-            assertThat(response.remarks()).isEqualTo("기존 요청사항"); // 안 바뀜
+            assertThat(response.remarks()).isEqualTo("기존 요청사항");
         }
 
         @Test
         @DisplayName("수정 성공 - 담당 허브 관리자")
         void update_success_hubManager_ownHub() {
-            // given
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
+            willDoNothing().given(deliveryClient).updateDelivery(any());
 
             // when
-            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), request, "HUB_MANAGER", HUB_ID);
+            OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "hub01", request, "HUB_MANAGER", HUB_ID);
 
             // then
             assertThat(response.remarks()).isEqualTo("수정됨");
@@ -506,17 +498,15 @@ class OrderServiceTest {
         @Test
         @DisplayName("수정 실패 - 담당 허브가 아닌 허브 관리자")
         void update_fail_hubManager_otherHub() {
-            // given
             UUID otherHubId = UUID.randomUUID();
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.updateOrder(pendingOrder.getId(), request, "HUB_MANAGER", otherHubId)
+                    () -> orderService.updateOrder(pendingOrder.getId(), "hub02", request, "HUB_MANAGER", otherHubId)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
@@ -525,17 +515,15 @@ class OrderServiceTest {
         @Test
         @DisplayName("수정 실패 - PENDING 상태가 아닌 주문")
         void update_fail_notPending() {
-            // given
             ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.DELIVERED);
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
 
-            // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.updateOrder(pendingOrder.getId(), request, "MASTER", null)
+                    () -> orderService.updateOrder(pendingOrder.getId(), "admin", request, "MASTER", null)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
@@ -544,17 +532,212 @@ class OrderServiceTest {
         @Test
         @DisplayName("수정 실패 - 존재하지 않는 주문")
         void update_fail_orderNotFound() {
-            // given
             UUID nonExistentId = UUID.randomUUID();
             OrderUpdateRequestDto request = new OrderUpdateRequestDto(LocalDateTime.now().plusDays(5), "수정됨");
 
             given(orderRepository.findByIdAndDeletedAtIsNull(nonExistentId))
                     .willReturn(Optional.empty());
 
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrder(nonExistentId, "admin", request, "MASTER", null)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 목록 조회 테스트")
+    class GetOrdersTest {
+
+        private PageRequestDto createPageRequest() {
+            PageRequestDto dto = new PageRequestDto();
+            dto.setPage(1);
+            dto.setSize(10);
+            dto.setSort("createdAt");
+            dto.setDirection("desc");
+            return dto;
+        }
+
+        @Test
+        @DisplayName("목록 조회 성공 - 마스터 관리자는 전체 조회")
+        void getOrders_success_master() {
+            // given
+            OrderSearchCondition condition = new OrderSearchCondition(null);
+            PageRequestDto pageRequestDto = createPageRequest();
+            Page<Order> emptyPage = Page.empty();
+
+            given(orderRepository.search(isNull(), isNull(), isNull(), any()))
+                    .willReturn(emptyPage);
+
+            // when
+            PageResponseDto<OrderSummaryResponseDto> response =
+                    orderService.getOrders(condition, pageRequestDto, "MASTER", "admin", null);
+
+            // then
+            assertThat(response.getTotalElements()).isEqualTo(0);
+            verify(orderRepository).search(isNull(), isNull(), isNull(), any());
+        }
+
+        @Test
+        @DisplayName("목록 조회 성공 - 허브 관리자는 담당 허브로 스코프 필터링")
+        void getOrders_success_hubManager_scopedByHub() {
+            // given
+            OrderSearchCondition condition = new OrderSearchCondition(null);
+            PageRequestDto pageRequestDto = createPageRequest();
+            Page<Order> emptyPage = Page.empty();
+
+            given(orderRepository.search(isNull(), eq(HUB_ID), isNull(), any()))
+                    .willReturn(emptyPage);
+
+            // when
+            orderService.getOrders(condition, pageRequestDto, "HUB_MANAGER", "hub01", HUB_ID);
+
+            // then
+            verify(orderRepository).search(isNull(), eq(HUB_ID), isNull(), any());
+        }
+
+        @Test
+        @DisplayName("목록 조회 성공 - 업체 담당자는 본인 username으로 스코프 필터링")
+        void getOrders_success_companyManager_scopedByUserId() {
+            // given
+            OrderSearchCondition condition = new OrderSearchCondition(null);
+            PageRequestDto pageRequestDto = createPageRequest();
+            Page<Order> emptyPage = Page.empty();
+
+            given(orderRepository.search(isNull(), isNull(), eq("company01"), any()))
+                    .willReturn(emptyPage);
+
+            // when
+            orderService.getOrders(condition, pageRequestDto, "COMPANY_MANAGER", "company01", null);
+
+            // then
+            verify(orderRepository).search(isNull(), isNull(), eq("company01"), any());
+        }
+
+        @Test
+        @DisplayName("목록 조회 성공 - status 검색 조건이 적용된다")
+        void getOrders_success_withStatusCondition() {
+            // given
+            OrderSearchCondition condition = new OrderSearchCondition("PENDING");
+            PageRequestDto pageRequestDto = createPageRequest();
+            Page<Order> emptyPage = Page.empty();
+
+            given(orderRepository.search(eq(OrderStatus.PENDING), any(), any(), any()))
+                    .willReturn(emptyPage);
+
+            // when
+            orderService.getOrders(condition, pageRequestDto, "MASTER", "admin", null);
+
+            // then
+            verify(orderRepository).search(eq(OrderStatus.PENDING), any(), any(), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("주문 단건 조회 테스트")
+    class GetOrderTest {
+
+        private Order pendingOrder;
+
+        @BeforeEach
+        void setUp() {
+            pendingOrder = Order.createPending(
+                    UUID.randomUUID(), REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID,
+                    PRODUCT_ID, "마른오징어", 10, BigDecimal.valueOf(10000),
+                    LocalDateTime.now().plusDays(3), "빨리요", HUB_ID
+            );
+            ReflectionTestUtils.setField(pendingOrder, "createdBy", "company01");
+        }
+
+        @Test
+        @DisplayName("단건 조회 성공 - 마스터 관리자")
+        void getOrder_success_master() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            OrderResponseDto response = orderService.getOrder(pendingOrder.getId(), "admin", "MASTER", null);
+
+            // then
+            assertThat(response.id()).isEqualTo(pendingOrder.getId());
+        }
+
+        @Test
+        @DisplayName("단건 조회 성공 - 담당 허브 관리자")
+        void getOrder_success_hubManager_ownHub() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            OrderResponseDto response = orderService.getOrder(pendingOrder.getId(), "hub01", "HUB_MANAGER", HUB_ID);
+
+            // then
+            assertThat(response.id()).isEqualTo(pendingOrder.getId());
+        }
+
+        @Test
+        @DisplayName("단건 조회 실패 - 담당 허브가 아닌 허브 관리자")
+        void getOrder_fail_hubManager_otherHub() {
+            // given
+            UUID otherHubId = UUID.randomUUID();
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
             // when & then
             BusinessException exception = assertThrows(
                     BusinessException.class,
-                    () -> orderService.updateOrder(nonExistentId, request, "MASTER", null)
+                    () -> orderService.getOrder(pendingOrder.getId(), "hub02", "HUB_MANAGER", otherHubId)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("단건 조회 성공 - 본인이 만든 주문(업체 담당자)")
+        void getOrder_success_companyManager_ownOrder() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            OrderResponseDto response = orderService.getOrder(pendingOrder.getId(), "company01", "COMPANY_MANAGER", null);
+
+            // then
+            assertThat(response.id()).isEqualTo(pendingOrder.getId());
+        }
+
+        @Test
+        @DisplayName("단건 조회 실패 - 본인이 만들지 않은 주문(업체 담당자)")
+        void getOrder_fail_companyManager_notOwnOrder() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.getOrder(pendingOrder.getId(), "company02", "COMPANY_MANAGER", null)
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+        }
+
+        @Test
+        @DisplayName("단건 조회 실패 - 존재하지 않는 주문")
+        void getOrder_fail_orderNotFound() {
+            // given
+            UUID nonExistentId = UUID.randomUUID();
+            given(orderRepository.findByIdAndDeletedAtIsNull(nonExistentId))
+                    .willReturn(Optional.empty());
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.getOrder(nonExistentId, "admin", "MASTER", null)
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);

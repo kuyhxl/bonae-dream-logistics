@@ -9,9 +9,8 @@ import java.util.UUID;
 @Builder
 public record OrderSummaryResponseDto(
         UUID id,
-        UUID requesterCompanyId,
         UUID receiverCompanyId,
-        UUID productId,
+        String productName,
         Integer quantity,
         String status,
         LocalDateTime dueDate,
@@ -20,9 +19,8 @@ public record OrderSummaryResponseDto(
     public static OrderSummaryResponseDto from(Order order) {
         return OrderSummaryResponseDto.builder()
                 .id(order.getId())
-                .requesterCompanyId(order.getRequesterCompanyId())
                 .receiverCompanyId(order.getReceiverCompanyId())
-                .productId(order.getProductId())
+                .productName(order.getProductName())
                 .quantity(order.getQuantity())
                 .status(order.getStatus().name())
                 .dueDate(order.getDueDate())
