@@ -39,11 +39,17 @@ services:
     ports: !reset []
     <<: *app-limits
 
+  # 슬랙/AI용 HTTP 클라이언트와 Resilience4j 재시도 설정이 둘씩 붙어 더 여유를 준다.
   message-service:
     image: ghcr.io/${IMAGE_PREFIX}/message-service:${IMAGE_TAG}
     build: !reset null
     ports: !reset []
-    <<: *app-limits
+    deploy:
+      resources:
+        limits:
+          memory: 900M
+        reservations:
+          memory: 512M
 
   hub-service:
     image: ghcr.io/${IMAGE_PREFIX}/hub-service:${IMAGE_TAG}
