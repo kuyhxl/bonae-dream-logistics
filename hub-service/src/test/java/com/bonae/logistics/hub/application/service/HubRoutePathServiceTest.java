@@ -2,10 +2,7 @@ package com.bonae.logistics.hub.application.service;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
-import com.bonae.logistics.hub.domain.entity.Hub;
-import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
-import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import com.bonae.logistics.hub.presentation.dto.response.HubRoutePathResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -13,7 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,47 +26,30 @@ class HubRoutePathServiceTest {
     private HubRepository hubRepository;
 
     @Mock
-    private HubRouteGraphProvider hubRouteGraphProvider;
-
-    @Mock
-    private HubRoutePathFinder hubRoutePathFinder;
+    private HubRoutePathProvider hubRoutePathProvider;
 
     @InjectMocks
     private HubRoutePathService hubRoutePathService;
 
-    private Hub createHub(double latitude, double longitude) {
-        Hub hub = Hub.create("테스트허브", "테스트주소", latitude, longitude);
-        ReflectionTestUtils.setField(hub, "id", UUID.randomUUID());
-        return hub;
-    }
-
-    private HubRoute createRoute(Hub departure, Hub arrival, int durationSeconds) {
-        HubRoute route = HubRoute.create(departure, arrival);
-        route.update(route.getDistanceMeters(), durationSeconds);
-        return route;
-    }
-
     @Test
-    @DisplayName("출발/도착 허브가 모두 존재하면 활성 간선으로 경로 응답을 반환한다")
+    @DisplayName("출발/도착 허브가 존재하면 검증 후 최적 경로 결과를 반환한다")
     void returnsPathResponseWhenBothHubsExist() {
-        Hub hubA = createHub(37.0, 127.0);
-        Hub hubB = createHub(37.1, 127.1);
-        HubRoute route = createRoute(hubA, hubB, 100);
-        HubRouteEdge edge = HubRouteEdge.from(route);
+        UUID departureHubId = UUID.randomUUID();
+        UUID arrivalHubId = UUID.randomUUID();
+        HubRoutePathResponse expected = pathResponse(departureHubId, arrivalHubId);
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
-        when(hubRouteGraphProvider.getActiveRoutes()).thenReturn(List.of(edge));
-        when(hubRoutePathFinder.findShortestPath(List.of(edge), hubA.getId(), hubB.getId())).thenReturn(List.of(edge));
+        when(hubRoutePathProvider.getShortestPath(departureHubId, arrivalHubId)).thenReturn(expected);
 
-        HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubB.getId());
+        HubRoutePathResponse result = hubRoutePathService.findShortestPath(departureHubId, arrivalHubId);
 
-        assertThat(result.getTotalDistanceMeters()).isEqualTo(route.getDistanceMeters().longValue());
-        assertThat(result.getTotalDurationSeconds()).isEqualTo(100L);
-        assertThat(result.getSegments()).hasSize(1);
+        assertThat(result).isSameAs(expected);
+        verify(hubRepository, times(2)).existsByIdAndDeletedAtIsNull(any());
+        verify(hubRoutePathProvider).getShortestPath(departureHubId, arrivalHubId);
     }
 
     @Test
-    @DisplayName("출발 허브가 존재하지 않으면 HUB_NOT_FOUND 예외가 발생한다")
+    @DisplayName("출발 허브가 존재하지 않으면 경로 결과 캐시를 조회하지 않는다")
     void throwsNotFoundWhenDepartureHubDoesNotExist() {
         UUID departureHubId = UUID.randomUUID();
         UUID arrivalHubId = UUID.randomUUID();
@@ -81,11 +60,11 @@ class HubRoutePathServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
 
-        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
+        verifyNoInteractions(hubRoutePathProvider);
     }
 
     @Test
-    @DisplayName("도착 허브가 존재하지 않으면 HUB_NOT_FOUND 예외가 발생하고, 존재 확인은 두 번 호출된다")
+    @DisplayName("도착 허브가 존재하지 않으면 경로 결과 캐시를 조회하지 않는다")
     void throwsNotFoundWhenArrivalHubDoesNotExist() {
         UUID departureHubId = UUID.randomUUID();
         UUID arrivalHubId = UUID.randomUUID();
@@ -98,12 +77,12 @@ class HubRoutePathServiceTest {
                 .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
 
         verify(hubRepository, times(2)).existsByIdAndDeletedAtIsNull(any());
-        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
+        verifyNoInteractions(hubRoutePathProvider);
     }
 
     @Test
-    @DisplayName("동일한 허브 ID면 도착 허브 존재 확인과 활성 간선 조회를 생략하고 빈 경로 응답을 반환한다")
-    void skipsRouteSearchWhenSameHubId() {
+    @DisplayName("동일한 허브 ID면 존재만 검증하고 빈 경로 응답을 반환한다")
+    void skipsPathCacheWhenSameHubId() {
         UUID hubId = UUID.randomUUID();
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(hubId)).thenReturn(true);
@@ -116,34 +95,45 @@ class HubRoutePathServiceTest {
         assertThat(result.getTotalDurationMin()).isZero();
         assertThat(result.getSegments()).isEmpty();
 
-        verify(hubRepository, times(1)).existsByIdAndDeletedAtIsNull(hubId);
-        verifyNoInteractions(hubRouteGraphProvider, hubRoutePathFinder);
+        verify(hubRepository).existsByIdAndDeletedAtIsNull(hubId);
+        verifyNoInteractions(hubRoutePathProvider);
     }
 
     @Test
-    @DisplayName("경로 총합이 int 범위를 넘어도 long 값으로 응답한다")
-    void returnsLongPathTotals() {
-        Hub hubA = createHub(37.0, 127.0);
-        Hub hubB = createHub(37.1, 127.1);
-        Hub hubC = createHub(37.2, 127.2);
-
-        HubRoute routeAB = HubRoute.create(hubA, hubB);
-        HubRoute routeBC = HubRoute.create(hubB, hubC);
-
-        routeAB.update(1_500_000_000, 1_500_000_000);
-        routeBC.update(1_500_000_000, 1_500_000_000);
-
-        HubRouteEdge edgeAB = HubRouteEdge.from(routeAB);
-        HubRouteEdge edgeBC = HubRouteEdge.from(routeBC);
+    @DisplayName("경로 결과가 캐시에 있더라도 출발/도착 허브 존재를 먼저 검증한다")
+    void validatesHubsBeforeUsingPathCache() {
+        UUID departureHubId = UUID.randomUUID();
+        UUID arrivalHubId = UUID.randomUUID();
+        HubRoutePathResponse cached = pathResponse(departureHubId, arrivalHubId);
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
-        when(hubRouteGraphProvider.getActiveRoutes()).thenReturn(List.of(edgeAB, edgeBC));
-        when(hubRoutePathFinder.findShortestPath(List.of(edgeAB, edgeBC), hubA.getId(), hubC.getId())).thenReturn(List.of(edgeAB, edgeBC));
+        when(hubRoutePathProvider.getShortestPath(departureHubId, arrivalHubId)).thenReturn(cached);
 
-        HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubC.getId());
+        HubRoutePathResponse result = hubRoutePathService.findShortestPath(departureHubId, arrivalHubId);
 
-        assertThat(result.getTotalDistanceMeters()).isEqualTo(3_000_000_000L);
-        assertThat(result.getTotalDurationSeconds()).isEqualTo(3_000_000_000L);
-        assertThat(result.getTotalDurationMin()).isEqualTo(50_000_000L);
+        assertThat(result).isSameAs(cached);
+
+        var inOrder = inOrder(hubRepository, hubRoutePathProvider);
+        inOrder.verify(hubRepository).existsByIdAndDeletedAtIsNull(departureHubId);
+        inOrder.verify(hubRepository).existsByIdAndDeletedAtIsNull(arrivalHubId);
+        inOrder.verify(hubRoutePathProvider).getShortestPath(departureHubId, arrivalHubId);
+    }
+
+    private HubRoutePathResponse pathResponse(UUID departureHubId, UUID arrivalHubId) {
+        return HubRoutePathResponse.builder()
+                .totalDistanceMeters(100_000L)
+                .totalDurationSeconds(3_600L)
+                .totalDistanceKm(100.0)
+                .totalDurationMin(60L)
+                .segments(List.of(HubRoutePathResponse.HubRoutePathSegment.builder()
+                        .sequence(1)
+                        .fromHubId(departureHubId)
+                        .toHubId(arrivalHubId)
+                        .distanceMeters(100_000)
+                        .durationSeconds(3_600)
+                        .distanceKm(100.0)
+                        .durationMin(60)
+                        .build()))
+                .build();
     }
 }

@@ -3,6 +3,7 @@ package com.bonae.logistics.hub.presentation.dto.response;
 import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 
 import java.util.List;
 import java.util.UUID;
@@ -10,6 +11,7 @@ import java.util.stream.IntStream;
 
 @Getter
 @Builder
+@Jacksonized
 public class HubRoutePathResponse {
 
     private Long totalDistanceMeters;
@@ -45,10 +47,12 @@ public class HubRoutePathResponse {
 
     @Getter
     @Builder
+    @Jacksonized
     public static class HubRoutePathSegment {
+
         private Integer sequence;
-        private UUID fromHubId;         // departureHubId
-        private UUID toHubId;           // arrivalHubId
+        private UUID fromHubId;
+        private UUID toHubId;
         private Integer distanceMeters;
         private Integer durationSeconds;
         private Double distanceKm;
