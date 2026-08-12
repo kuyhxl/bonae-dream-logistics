@@ -4,6 +4,7 @@ import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.order.domain.entity.DeliveryStatusMapper;
 import com.bonae.logistics.order.domain.entity.Order;
 import com.bonae.logistics.order.domain.entity.OrderStatus;
 import com.bonae.logistics.order.domain.repository.OrderRepository;
@@ -157,6 +158,15 @@ public class OrderService {
         validateOwnership(order, userId, userRole, userHubId);
 
         return OrderResponseDto.from(order);
+    }
+
+    @Transactional
+    public void updateOrderStatus(UUID orderId, String deliveryStatus) {
+        Order order = orderRepository.findByIdAndDeletedAtIsNull(orderId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ORDER_NOT_FOUND));
+
+        OrderStatus mappedStatus = DeliveryStatusMapper.toOrderStatus(deliveryStatus);
+        order.updateStatus(mappedStatus);
     }
 
     @Retryable(retryFor = {BusinessException.class}, maxAttempts = 3, backoff = @Backoff(delay = 1000))

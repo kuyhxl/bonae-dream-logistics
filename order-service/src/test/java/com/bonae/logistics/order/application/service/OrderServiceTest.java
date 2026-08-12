@@ -743,4 +743,175 @@ class OrderServiceTest {
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
         }
     }
+
+    @Nested
+    @DisplayName("주문 상태 변경(내부 콜백) 테스트")
+    class UpdateOrderStatusTest {
+
+        private Order pendingOrder;
+
+        @BeforeEach
+        void setUp() {
+            pendingOrder = Order.createPending(
+                    UUID.randomUUID(), REQUESTER_COMPANY_ID, RECEIVER_COMPANY_ID,
+                    PRODUCT_ID, "마른오징어", 10, BigDecimal.valueOf(10000),
+                    LocalDateTime.now().plusDays(3), "빨리요", HUB_ID
+            );
+        }
+
+        @Test
+        @DisplayName("상태 변경 성공 - READY/HUB_WAITING → PENDING")
+        void updateStatus_success_toPending() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            orderService.updateOrderStatus(pendingOrder.getId(), "HUB_WAITING");
+
+            // then
+            assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+        }
+
+        @Test
+        @DisplayName("상태 변경 성공 - HUB_MOVING → IN_TRANSIT")
+        void updateStatus_success_toInTransit() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            orderService.updateOrderStatus(pendingOrder.getId(), "HUB_MOVING");
+
+            // then
+            assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.IN_TRANSIT);
+        }
+
+        @Test
+        @DisplayName("상태 변경 성공 - OUT_FOR_DELIVERY → IN_TRANSIT")
+        void updateStatus_success_outForDelivery_toInTransit() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            orderService.updateOrderStatus(pendingOrder.getId(), "OUT_FOR_DELIVERY");
+
+            // then
+            assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.IN_TRANSIT);
+        }
+
+        @Test
+        @DisplayName("상태 변경 성공 - DELIVERED → DELIVERED")
+        void updateStatus_success_toDelivered() {
+            // given
+            ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.IN_TRANSIT);
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            orderService.updateOrderStatus(pendingOrder.getId(), "DELIVERED");
+
+            // then
+            assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+        }
+
+        @Test
+        @DisplayName("상태 변경 성공 - CANCELLED → CANCELLED")
+        void updateStatus_success_toCancelled() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when
+            orderService.updateOrderStatus(pendingOrder.getId(), "CANCELLED");
+
+            // then
+            assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+        }
+
+        @Test
+        @DisplayName("상태 변경 실패 - 이미 DELIVERED인 주문")
+        void updateStatus_fail_alreadyDelivered() {
+            // given
+            ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.DELIVERED);
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrderStatus(pendingOrder.getId(), "HUB_MOVING")
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("상태 변경 실패 - 이미 CANCELLED인 주문")
+        void updateStatus_fail_alreadyCancelled() {
+            // given
+            ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.CANCELLED);
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrderStatus(pendingOrder.getId(), "HUB_WAITING")
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("상태 변경 실패 - IN_TRANSIT에서 PENDING으로 역행")
+        void updateStatus_fail_backwardTransition() {
+            // given
+            ReflectionTestUtils.setField(pendingOrder, "status", OrderStatus.IN_TRANSIT);
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrderStatus(pendingOrder.getId(), "HUB_WAITING")
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        @Test
+        @DisplayName("상태 변경 실패 - 매핑되지 않는 상태값")
+        void updateStatus_fail_unmappedStatus() {
+            // given
+            given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
+                    .willReturn(Optional.of(pendingOrder));
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrderStatus(pendingOrder.getId(), "UNKNOWN_STATUS")
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_INPUT);
+        }
+
+        @Test
+        @DisplayName("상태 변경 실패 - 존재하지 않는 주문")
+        void updateStatus_fail_orderNotFound() {
+            // given
+            UUID nonExistentId = UUID.randomUUID();
+            given(orderRepository.findByIdAndDeletedAtIsNull(nonExistentId))
+                    .willReturn(Optional.empty());
+
+            // when & then
+            BusinessException exception = assertThrows(
+                    BusinessException.class,
+                    () -> orderService.updateOrderStatus(nonExistentId, "HUB_MOVING")
+            );
+
+            assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.ORDER_NOT_FOUND);
+        }
+    }
 }
