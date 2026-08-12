@@ -109,7 +109,11 @@ jobs:
             SLACK_MOCK=${{ vars.SLACK_MOCK || 'true' }}
             GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
             GEMINI_MOCK=${{ vars.GEMINI_MOCK || 'true' }}
+            GEMINI_MODEL=${{ vars.GEMINI_MODEL || 'gemini-flash-latest' }}
             ENVEOF
+
+            MASTER_HASH='${{ secrets.MASTER_PASSWORD_HASH }}'
+            printf 'MASTER_PASSWORD_HASH=%s\n' "$(printf '%s' "$MASTER_HASH" | sed 's/\$/$$/g')" >> .env
 
             # 이 배포에서 올린 이미지 태그를 고정
             echo "IMAGE_TAG=${IMAGE_TAG}" >> .env
