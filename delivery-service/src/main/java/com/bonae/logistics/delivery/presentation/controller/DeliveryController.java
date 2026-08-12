@@ -2,11 +2,15 @@ package com.bonae.logistics.delivery.presentation.controller;
 
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
+import com.bonae.logistics.delivery.application.service.DeliveryAssignmentService;
 import com.bonae.logistics.delivery.application.service.DeliveryService;
 import com.bonae.logistics.delivery.auth.RoleCheck;
 import com.bonae.logistics.delivery.auth.UserRole;
+import com.bonae.logistics.delivery.presentation.dto.request.DeliveryAssignmentRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryAssignmentResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCompleteResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
@@ -38,6 +42,7 @@ import java.util.UUID;
 public class DeliveryController {
 
     private final DeliveryService deliveryService;
+    private final DeliveryAssignmentService deliveryAssignmentService;
 
     @PostMapping
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
@@ -89,5 +94,54 @@ public class DeliveryController {
             @PathVariable UUID deliveryId
     ) {
         return ResponseEntity.ok(deliveryService.cancelDelivery(deliveryId, UserRole.valueOf(userRoleHeader), username));
+    }
+
+    @PatchMapping("/{deliveryId}/complete")
+    @RoleCheck({UserRole.MASTER, UserRole.DELIVERY_MANAGER})
+    @Operation(summary = "배송 완료", description = "배송을 완료 처리합니다.")
+    public ResponseEntity<DeliveryCompleteResponse> completeDelivery(
+            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader(value = "X-User-Id", required = false) String username,
+            @PathVariable UUID deliveryId
+    ) {
+        return ResponseEntity.ok(deliveryService.completeDelivery(
+                deliveryId,
+                UserRole.valueOf(userRoleHeader),
+                username
+        ));
+    }
+
+    @PatchMapping("/{deliveryId}/assign")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
+    @Operation(summary = "배송 담당자 배정", description = "배송에 담당자를 순차 배정합니다.")
+    public ResponseEntity<DeliveryAssignmentResponse> assignDelivery(
+            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader(value = "X-User-Id", required = false) String username,
+            @PathVariable UUID deliveryId,
+            @RequestBody(required = false) DeliveryAssignmentRequest request
+    ) {
+        return ResponseEntity.ok(deliveryAssignmentService.assignDelivery(
+                deliveryId,
+                request == null ? null : request.getReason(),
+                UserRole.valueOf(userRoleHeader),
+                username
+        ));
+    }
+
+    @PatchMapping("/{deliveryId}/reassign")
+    @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
+    @Operation(summary = "배송 담당자 재배정", description = "배송 담당자를 다음 순번 담당자로 재배정합니다.")
+    public ResponseEntity<DeliveryAssignmentResponse> reassignDelivery(
+            @RequestHeader("X-User-Role") String userRoleHeader,
+            @RequestHeader(value = "X-User-Id", required = false) String username,
+            @PathVariable UUID deliveryId,
+            @RequestBody(required = false) DeliveryAssignmentRequest request
+    ) {
+        return ResponseEntity.ok(deliveryAssignmentService.reassignDelivery(
+                deliveryId,
+                request == null ? null : request.getReason(),
+                UserRole.valueOf(userRoleHeader),
+                username
+        ));
     }
 }

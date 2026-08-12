@@ -88,11 +88,11 @@ public class DeliveryManager extends BaseEntity {
     }
 
     private static void validateHubAssignment(ManagerType managerType, UUID hubId) {
-        if (managerType == ManagerType.HUB_DELIVERY && hubId != null) {
+        if (managerType == ManagerType.COMPANY_DELIVERY && hubId == null) {
             throw new BusinessException(ErrorCode.INVALID_DELIVERY_MANAGER_HUB_MAPPING);
         }
 
-        if (managerType == ManagerType.COMPANY_DELIVERY && hubId == null) {
+        if (managerType == ManagerType.HUB_DELIVERY && hubId != null) {
             throw new BusinessException(ErrorCode.INVALID_DELIVERY_MANAGER_HUB_MAPPING);
         }
     }

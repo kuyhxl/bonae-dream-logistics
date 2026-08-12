@@ -145,6 +145,14 @@ public class DeliveryRoute extends BaseEntity {
         }
     }
 
+    public void assignManager(UUID deliveryManagerId) {
+        if (this.deliveryManagerId != null) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.deliveryManagerId = requireNotNull(deliveryManagerId, "배송 담당자 ID는 필수입니다.");
+    }
+
     private static <T> T requireNotNull(T value, String detail) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, detail);

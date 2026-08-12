@@ -5,10 +5,13 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.auth.UserRole;
+import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
+import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
+import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
 import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
@@ -18,6 +21,7 @@ import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResp
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
+import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCompleteResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
@@ -36,6 +40,7 @@ public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRouteRepository deliveryRouteRepository;
+    private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final CompanyClient companyClient;
     private final HubRouteClient hubRouteClient;
     private final UserClient userClient;
@@ -107,6 +112,7 @@ public class DeliveryService {
         Delivery delivery = findDeliveryByRole(deliveryId, userRole, null, username);
 
         delivery.cancel();
+        cancelLatestAssignment(delivery.getId());
         deliveryRepository.flush();
         return DeliveryCancelResponse.from(delivery);
     }
@@ -117,8 +123,19 @@ public class DeliveryService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
 
         delivery.cancel();
+        cancelLatestAssignment(delivery.getId());
         deliveryRepository.flush();
         return DeliveryCancelResponse.from(delivery);
+    }
+
+    @Transactional
+    public DeliveryCompleteResponse completeDelivery(UUID deliveryId, UserRole userRole, String username) {
+        Delivery delivery = findDeliveryByRole(deliveryId, userRole, null, username);
+
+        delivery.completeDelivery();
+        requireActiveAssignment(delivery.getId()).markCompleted("배송 완료");
+        deliveryRepository.flush();
+        return DeliveryCompleteResponse.from(delivery);
     }
 
     @Transactional
@@ -243,5 +260,23 @@ public class DeliveryService {
 
     private BigDecimal toBigDecimal(Double value) {
         return value == null ? null : BigDecimal.valueOf(value);
+    }
+
+    private void cancelLatestAssignment(UUID deliveryId) {
+        deliveryAssignmentRepository
+                .findTopByDeliveryIdAndAssignmentStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                        deliveryId,
+                        AssignmentStatus.ASSIGNED
+                )
+                .ifPresent(assignment -> assignment.markCancelled("배송 취소"));
+    }
+
+    private DeliveryAssignment requireActiveAssignment(UUID deliveryId) {
+        return deliveryAssignmentRepository
+                .findTopByDeliveryIdAndAssignmentStatusAndDeletedAtIsNullOrderBySequenceNoDesc(
+                        deliveryId,
+                        AssignmentStatus.ASSIGNED
+                )
+                .orElseThrow(() -> new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION));
     }
 }

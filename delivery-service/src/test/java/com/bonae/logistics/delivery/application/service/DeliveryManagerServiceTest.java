@@ -56,6 +56,7 @@ class DeliveryManagerServiceTest {
         UUID deliveryManagerId = UUID.randomUUID();
         DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(deliveryManagerId)
+                .hubId(null)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
@@ -82,6 +83,7 @@ class DeliveryManagerServiceTest {
     void createDeliveryManager_duplicateSequence() {
         DeliveryManagerCreateRequest request = DeliveryManagerCreateRequest.builder()
                 .deliveryManagerId(UUID.randomUUID())
+                .hubId(null)
                 .managerType(ManagerType.HUB_DELIVERY)
                 .deliverySequence(0)
                 .build();
