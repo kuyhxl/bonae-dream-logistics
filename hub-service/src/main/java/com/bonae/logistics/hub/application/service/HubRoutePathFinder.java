@@ -11,9 +11,9 @@ import java.util.*;
 public class HubRoutePathFinder {
 
     public List<HubRouteEdge> findShortestPath(List<HubRouteEdge> activeRoutes, UUID departureHubId, UUID arrivalHubId) {
-        Objects.requireNonNull(activeRoutes, "활성 이동정보 목록은 null일 수 없습니다.");
-        Objects.requireNonNull(departureHubId, "출발 허브 ID는 null일 수 없습니다.");
-        Objects.requireNonNull(arrivalHubId, "도착 허브 ID는 null일 수 없습니다.");
+        Objects.requireNonNull(activeRoutes, "경로 탐색 전에 활성 이동정보 목록이 전달되어야 합니다.");
+        Objects.requireNonNull(departureHubId, "경로 탐색 전에 검증된 출발 허브 ID가 전달되어야 합니다.");
+        Objects.requireNonNull(arrivalHubId, "경로 탐색 전에 검증된 도착 허브 ID가 전달되어야 합니다.");
 
         // 1. 출발지와 도착지가 같으면 빈 경로 리스트 반환
         if (departureHubId.equals(arrivalHubId)) {
