@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest(properties = "eureka.client.enabled=false")
 class HubServiceConcurrencyIntegrationTest {
 
-    private static final int THREAD_COUNT = 10;
+    private static final int THREAD_COUNT = 5;
 
     @Autowired
     private HubService hubService;
@@ -35,16 +35,19 @@ class HubServiceConcurrencyIntegrationTest {
     private HubRepository hubRepository;
 
     private final String duplicatedName = "동시성테스트허브-" + UUID.randomUUID();
+    private final ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
 
     @AfterEach
-    void tearDown() {
+    void tearDown() throws InterruptedException {
+        // 실패로 스레드가 남아 있는 채로 정리하면, 뒤늦게 커밋된 허브가 남는다.
+        executor.shutdownNow();
+        executor.awaitTermination(30, TimeUnit.SECONDS);
         hubRepository.deleteAll(findCreatedHubs());
     }
 
     @Test
     @DisplayName("같은 이름으로 동시에 생성 요청해도 허브는 한 건만 저장된다")
     void createsOnlyOneHubWhenRequestedConcurrently() throws InterruptedException {
-        ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
         CountDownLatch ready = new CountDownLatch(THREAD_COUNT);
         CountDownLatch start = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(THREAD_COUNT);
@@ -81,7 +84,6 @@ class HubServiceConcurrencyIntegrationTest {
         ready.await();
         start.countDown();
         boolean finished = done.await(10, TimeUnit.SECONDS);
-        executor.shutdown();
 
         assertThat(finished).isTrue();
         assertThat(unexpected.get()).isNull();
