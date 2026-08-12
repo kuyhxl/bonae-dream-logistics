@@ -83,7 +83,8 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: 'docker-compose.yml,docker-compose.deploy.yml,scripts/'
+          # infra/postgres/init.sql은 6개 스키마를 만드는 초기화 스크립트
+          source: 'docker-compose.yml,docker-compose.deploy.yml,scripts/,infra/'
           target: '~/bonae'
 
       - name: Deploy
