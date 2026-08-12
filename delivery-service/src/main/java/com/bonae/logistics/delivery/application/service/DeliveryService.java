@@ -12,6 +12,7 @@ import com.bonae.logistics.delivery.infrastructure.client.UserClient;
 import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
+import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCancelResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
@@ -96,6 +97,30 @@ public class DeliveryService {
         delivery.cancel();
         deliveryRepository.flush();
         return DeliveryCancelResponse.from(delivery);
+    }
+
+    @Transactional
+    public DeliveryDetailResponse updateDeliveryByOrder(InternalDeliveryUpdateRequest request) {
+        Delivery delivery = deliveryRepository.findByOrderIdAndDeletedAtIsNull(request.getOrderId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        CompanyInfoClientResponse supplierCompany = companyClient.getCompany(request.getSupplierCompanyId());
+        CompanyInfoClientResponse receiverCompany = companyClient.getCompany(request.getReceiverCompanyId());
+        UserInfoClientResponse receiverUser = userClient.getUserInfo(request.getReceiverUsername());
+
+        validateCompanyMapping(supplierCompany, receiverCompany);
+
+        delivery.updateFromOrder(
+                supplierCompany.getHubId(),
+                receiverCompany.getHubId(),
+                request.getReceiverCompanyId(),
+                receiverUser.getName(),
+                receiverUser.getSlackId(),
+                receiverCompany.getAddress()
+        );
+
+        deliveryRepository.flush();
+        return DeliveryDetailResponse.from(delivery);
     }
 
     private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId, String username) {

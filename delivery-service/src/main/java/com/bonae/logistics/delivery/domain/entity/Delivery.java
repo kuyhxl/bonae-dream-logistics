@@ -119,6 +119,26 @@ public class Delivery extends BaseEntity {
         this.status = DeliveryStatus.CANCELLED;
     }
 
+    public void updateFromOrder(
+            UUID originHubId,
+            UUID destinationHubId,
+            UUID receiverCompanyId,
+            String receiverName,
+            String receiverSlackId,
+            String deliveryAddress
+    ) {
+        if (status == DeliveryStatus.DELIVERED || status == DeliveryStatus.CANCELLED) {
+            throw new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION);
+        }
+
+        this.originHubId = requireNotNull(originHubId, "출발 허브 ID는 필수입니다.");
+        this.destinationHubId = requireNotNull(destinationHubId, "도착 허브 ID는 필수입니다.");
+        this.receiverCompanyId = requireNotNull(receiverCompanyId, "수령 업체 ID는 필수입니다.");
+        this.receiverName = requireText(receiverName, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_NAME);
+        this.receiverSlackId = requireText(receiverSlackId, 50, ErrorCode.INVALID_DELIVERY_RECEIVER_SLACK_ID);
+        this.deliveryAddress = requireText(deliveryAddress, 255, ErrorCode.INVALID_DELIVERY_ADDRESS);
+    }
+
     private static <T> T requireNotNull(T value, String detail) {
         if (value == null) {
             throw new BusinessException(ErrorCode.INVALID_INPUT, detail);
