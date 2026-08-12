@@ -132,9 +132,9 @@ public class InventoryService {
         }
     }
 
-    //재고 차감/복구 결과를 응답DTO로 만들어주는 역할(1.방금 실제로 재고를 바꾼 직후 OR 2.이미 처리된 요청 재시도 경우에)
-    // 재요청: 재고를 다시 조회하지 않고, before/after는 최초 처리 시점에 저장해둔 스냅샷을 그대로 돌려준다.
-    // changedQuantity는 저장해두지 않으므로 이번 요청의 quantity를 그대로 응답에 반영한다.
+    // 재요청(멱등성 키 중복) 전용: 재고를 다시 조회해 역산하지 않고, 최초 처리 시점에 저장해둔
+    // before/after 스냅샷을 그대로 돌려준다. changedQuantity는 저장해두지 않으므로 이번 요청의
+    // quantity를 그대로 응답에 반영한다.
     private ResUpdateInventoryDto buildReplayResponse(UUID inventoryId, ReqUpdateInventoryDto reqDto,
                                                         InventoryChangeType type, UUID productId) {
         InventoryIdempotencyKey snapshot = idempotencyKeyRepository
