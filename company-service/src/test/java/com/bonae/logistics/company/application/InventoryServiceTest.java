@@ -2,6 +2,8 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.domain.entity.Company;
 import com.bonae.logistics.company.domain.entity.CompanyType;
 import com.bonae.logistics.company.domain.entity.Inventory;
@@ -11,6 +13,7 @@ import com.bonae.logistics.company.domain.entity.Product;
 import com.bonae.logistics.company.domain.repository.InventoryIdempotencyKeyRepository;
 import com.bonae.logistics.company.domain.repository.InventoryRepository;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateInventoryDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchInventoryInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateInventoryDto;
 import org.hibernate.exception.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
@@ -20,11 +23,15 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -33,6 +40,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -46,6 +54,91 @@ class InventoryServiceTest {
 
     @InjectMocks
     private InventoryService inventoryService;
+
+    @Test
+    @DisplayName("searchInventories_조건이없을때_전체재고를조회한다")
+    void searchInventories_조건이없을때_전체재고를조회한다() {
+        Product product = productWithId();
+        Inventory inventory = inventoryWithId(product, UUID.randomUUID(), 100);
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Inventory> inventoryPage = new PageImpl<>(List.of(inventory), pageRequestDto.toPageable(), 1);
+
+        when(inventoryRepository.searchByProductIdAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class))).thenReturn(inventoryPage);
+
+        PageResponseDto<ResSearchInventoryInternalDto> resDto =
+                inventoryService.searchInventories(pageRequestDto, null, null);
+
+        assertThat(resDto.getContent()).hasSize(1);
+        assertThat(resDto.getContent().get(0).getProductId()).isEqualTo(product.getId());
+        assertThat(resDto.getContent().get(0).getQuantity()).isEqualTo(100);
+        verify(inventoryRepository).searchByProductIdAndHubIdAndDeletedAtIsNull(
+                isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchInventories_productId로검색시_해당조건으로조회한다")
+    void searchInventories_productId로검색시_해당조건으로조회한다() {
+        Product product = productWithId();
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Inventory> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(inventoryRepository.searchByProductIdAndHubIdAndDeletedAtIsNull(
+                eq(product.getId()), isNull(), any(Pageable.class))).thenReturn(emptyPage);
+
+        inventoryService.searchInventories(pageRequestDto, product.getId(), null);
+
+        verify(inventoryRepository).searchByProductIdAndHubIdAndDeletedAtIsNull(
+                eq(product.getId()), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchInventories_hubId로검색시_해당조건으로조회한다")
+    void searchInventories_hubId로검색시_해당조건으로조회한다() {
+        UUID hubId = UUID.randomUUID();
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Inventory> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(inventoryRepository.searchByProductIdAndHubIdAndDeletedAtIsNull(
+                isNull(), eq(hubId), any(Pageable.class))).thenReturn(emptyPage);
+
+        inventoryService.searchInventories(pageRequestDto, null, hubId);
+
+        verify(inventoryRepository).searchByProductIdAndHubIdAndDeletedAtIsNull(
+                isNull(), eq(hubId), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchInventories_productId와hubId모두있을때_두조건으로조회한다")
+    void searchInventories_productId와hubId모두있을때_두조건으로조회한다() {
+        Product product = productWithId();
+        UUID hubId = UUID.randomUUID();
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        Page<Inventory> emptyPage = new PageImpl<>(List.of(), pageRequestDto.toPageable(), 0);
+
+        when(inventoryRepository.searchByProductIdAndHubIdAndDeletedAtIsNull(
+                eq(product.getId()), eq(hubId), any(Pageable.class))).thenReturn(emptyPage);
+
+        inventoryService.searchInventories(pageRequestDto, product.getId(), hubId);
+
+        verify(inventoryRepository).searchByProductIdAndHubIdAndDeletedAtIsNull(
+                eq(product.getId()), eq(hubId), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("searchInventories_정렬기준이허용되지않을때_예외발생")
+    void searchInventories_정렬기준이허용되지않을때_예외발생() {
+        PageRequestDto pageRequestDto = new PageRequestDto();
+        pageRequestDto.setSort("invalidField");
+
+        assertThatThrownBy(() -> inventoryService.searchInventories(pageRequestDto, null, null))
+                .isInstanceOf(BusinessException.class)
+                .extracting(exception -> ((BusinessException) exception).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_SORT_FIELD);
+
+        verify(inventoryRepository, never())
+                .searchByProductIdAndHubIdAndDeletedAtIsNull(any(), any(), any());
+    }
 
     @Test
     @DisplayName("createInventory_동일상품허브조합이없을때_재고생성성공")
@@ -341,6 +434,12 @@ class InventoryServiceTest {
         Product product = Product.create("갤럭시 스마트폰", company, new BigDecimal("1000.00"));
         ReflectionTestUtils.setField(product, "id", UUID.randomUUID());
         return product;
+    }
+
+    private Inventory inventoryWithId(Product product, UUID hubId, Integer quantity) {
+        Inventory inventory = Inventory.create(product, hubId, quantity);
+        ReflectionTestUtils.setField(inventory, "id", UUID.randomUUID());
+        return inventory;
     }
 
     private DataIntegrityViolationException duplicateKeyException(String constraintName) {

@@ -12,6 +12,12 @@
 #
 #   GATEWAY=http://localhost:8080 ./scripts/verify.sh
 #
+# 결과 분류:
+#   통과:     검증했고 기대대로 동작함
+#   실패:     검증했고 기대와 다름
+#   미구현:   기능이 아직 없어 검증 대상이 아님
+#   확인못함: 검증하려 했으나 선행 조건이 없어 확인하지 못함
+#
 # 종료 코드: 실패가 하나라도 있으면 1
 
 set -uo pipefail
@@ -25,6 +31,7 @@ SEED_PASSWORD="${SEED_PASSWORD:-Seed1234!}"
 PASS=0
 FAIL=0
 SKIP=0
+BLOCKED=0
 
 # 검증 과정에서 만든 업체는 실행이 끝나면 지움
 # 실행마다 고유한 접두사를 붙여, 동시에 돌더라도 서로의 데이터를 지우지 않는다.
@@ -33,7 +40,8 @@ VERIFY_TAG="verify-$$-$RANDOM"
 section() { printf '\n\033[36m%s\033[0m\n' "$*"; }
 pass()    { printf '  \033[32m✓\033[0m %s\n' "$*"; PASS=$((PASS + 1)); }
 failed()  { printf '  \033[31m✗\033[0m %s\n' "$*"; FAIL=$((FAIL + 1)); }
-skip()    { printf '  \033[33m-\033[0m %s\n' "$*"; SKIP=$((SKIP + 1)); }
+skip()    { printf '  \033[33m-\033[0m %s \033[2m(미구현)\033[0m\n' "$*"; SKIP=$((SKIP + 1)); }
+blocked() { printf '  \033[35m?\033[0m %s \033[2m(확인 못함)\033[0m\n' "$*"; BLOCKED=$((BLOCKED + 1)); }
 
 psql_exec() {
     docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -t -A -c "$1" 2>/dev/null
@@ -232,7 +240,7 @@ verify_level3() {
     comp=$(token_of seedcomp)
 
     if [ -z "$comp" ]; then
-        skip "COMPANY_MANAGER 토큰 없음 — 권한 검증 건너뜀"
+        blocked "COMPANY_MANAGER 토큰 발급 실패 - 권한 검증 불가"
         return
     fi
 
@@ -247,7 +255,7 @@ verify_level3() {
             -H 'Content-Type: application/json' \
             -d '{"name":"권한없는수정"}'
     else
-        skip "타 업체 데이터 없음"
+        blocked "타 업체 시드 데이터 없음 — 소유권 검증 불가"
     fi
 
     expect_status "COMPANY_MANAGER가 허브 생성 시도" 403 \
@@ -307,14 +315,17 @@ verify_level4() {
         -H 'Content-Type: application/json' \
         -d "{\"name\":\"$VERIFY_TAG-연동실패\",\"type\":\"RECEIVER\",\"hubId\":\"$(random_uuid)\",\"address\":\"$VERIFY_TAG-주소3\"}"
 
-    # order -> delivery 는 delivery-service에 내부 API가 생기면 검증을 추가한다.
-    if [ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-            -X POST "http://localhost:19006/api/internal/deliveries" \
-            -H 'Content-Type: application/json' -d '{}')" = "404" ]; then
-        skip "order → delivery (delivery 내부 API 미구현 — 계약 확정 필요)"
-    else
-        pass "delivery 내부 API 존재 — 연동 검증 추가 필요"
-    fi
+    # 엔드포인트 존재 여부만 따로 확인한다. 빈 본문에 400이 오면 "핸들러는 있다"는 뜻이지, 연동이 동작한다는 뜻이 아니다! 통과랑 섞지 않음
+    local internal_code
+    internal_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+        -X POST "http://localhost:19006/api/internal/deliveries" \
+        -H 'Content-Type: application/json' -d '{}')
+
+    case "$internal_code" in
+        404) skip "order → delivery (delivery 내부 API 미구현 — 계약 확정 필요)" ;;
+        400|422) blocked "order → delivery (내부 API 핸들러는 있으나 주문 경로가 막혀 연동 미검증)" ;;
+        *)   blocked "order → delivery (내부 API 응답 $internal_code — 연동 미검증)" ;;
+    esac
 
     skip "order → 재고 차감 (상품·재고 미구현)"
     skip "delivery → message 슬랙 알림 (담당자 배정 미구현)"
@@ -324,27 +335,62 @@ verify_level4() {
 verify_tracing() {
     section "[관측] 분산 추적"
 
+    if ! command -v python3 >/dev/null 2>&1; then
+        blocked "분산 추적 검증에 python3가 필요합니다"
+        return
+    fi
+
     local services
-    services=$(curl -s --max-time 10 'http://localhost:9411/api/v2/services' 2>/dev/null | tr ',' '\n' | wc -l | tr -d ' ')
+    services=$(curl -s --max-time 10 'http://localhost:9411/api/v2/services' 2>/dev/null \
+        | python3 -c 'import sys,json; print(len(json.load(sys.stdin)))' 2>/dev/null)
 
     if [ "${services:-0}" -ge 6 ]; then
         pass "Zipkin 등록 서비스 ${services}개"
     else
-        failed "Zipkin 등록 부족 — ${services}개"
+        failed "Zipkin 등록 부족 — ${services:-0}개"
     fi
 
-    # trace 하나(JSON 배열의 한 원소) 안에 두 서비스가 함께 있으면 연결된 것
-    # 외부 도구 없이 판별하기 위해 , trace 경계인 '],[' 로 끊어 각 덩어리를 검사한다.
+    # 하나의 trace 안에서 company-service가 hub-service의 업무 API를 호출했는지 본다
     local linked
     linked=$(curl -s --max-time 10 'http://localhost:9411/api/v2/traces?limit=50&lookback=300000' 2>/dev/null \
-        | sed 's/\],\[/\n/g' \
-        | grep 'company-service' \
-        | grep -c 'hub-service')
+        | python3 -c '
+import sys, json
+from collections import defaultdict
+
+try:
+    traces = json.load(sys.stdin)
+except Exception:
+    print(0)
+    sys.exit()
+
+def path_of(span):
+    tags = span.get("tags") or {}
+    return tags.get("http.path") or tags.get("http.url") or ""
+
+by_trace = defaultdict(list)
+for trace in traces:
+    for span in trace:
+        by_trace[span.get("traceId")].append(span)
+
+count = 0
+for spans in by_trace.values():
+    services = {(s.get("localEndpoint") or {}).get("serviceName") for s in spans}
+    if "company-service" not in services:
+        continue
+    # hub-service가 업무 API 요청을 받은 span이 같은 trace에 있어야 한다
+    for span in spans:
+        name = (span.get("localEndpoint") or {}).get("serviceName")
+        if name == "hub-service" and "/api/" in path_of(span):
+            count += 1
+            break
+
+print(count)
+' 2>/dev/null)
 
     if [ "${linked:-0}" -gt 0 ]; then
-        pass "Feign 호출이 동일 trace로 연결됨"
+        pass "Feign 호출이 동일 trace로 연결됨 (company→hub ${linked}건)"
     else
-        skip "Feign 구간 추적 끊김 (feign-micrometer 미적용 — 알려진 이슈)"
+        blocked "company→hub 구간이 동일 trace에서 확인되지 않음"
     fi
 }
 
@@ -372,11 +418,18 @@ main() {
     verify_tracing
 
     printf '\n'
-    printf '\033[36m결과\033[0m  통과 %d  실패 %d  건너뜀 %d\n' "$PASS" "$FAIL" "$SKIP"
+    printf '\033[36m결과\033[0m  통과 %d  실패 %d  미구현 %d  확인못함 %d\n' \
+        "$PASS" "$FAIL" "$SKIP" "$BLOCKED"
 
     if [ "$FAIL" -gt 0 ]; then
         printf '\033[31m실패한 항목이 있습니다.\033[0m\n'
         exit 1
+    fi
+
+    # 확인 못한 항목 표시
+    if [ "$BLOCKED" -gt 0 ]; then
+        printf '\033[32m실패 없음\033[0m — 확인하지 못한 항목이 %d건 있습니다.\n' "$BLOCKED"
+        exit 0
     fi
     printf '\033[32m모든 검증을 통과했습니다.\033[0m\n'
 }

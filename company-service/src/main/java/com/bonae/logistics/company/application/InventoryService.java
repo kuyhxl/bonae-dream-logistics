@@ -2,6 +2,8 @@ package com.bonae.logistics.company.application;
 
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.domain.entity.Inventory;
 import com.bonae.logistics.company.domain.entity.InventoryChangeType;
 import com.bonae.logistics.company.domain.entity.InventoryIdempotencyKey;
@@ -9,10 +11,12 @@ import com.bonae.logistics.company.domain.entity.Product;
 import com.bonae.logistics.company.domain.repository.InventoryIdempotencyKeyRepository;
 import com.bonae.logistics.company.domain.repository.InventoryRepository;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateInventoryDto;
+import com.bonae.logistics.company.presentation.dto.response.ResSearchInventoryInternalDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateInventoryDto;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +33,14 @@ public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
     private final InventoryIdempotencyKeyRepository idempotencyKeyRepository;
+
+    @Transactional(readOnly = true)
+    //상품ID/허브ID로 재고를 검색한다(내부전용). 두 조건 모두 선택값이며, 삭제된 재고는 결과에서 제외한다.
+    public PageResponseDto<ResSearchInventoryInternalDto> searchInventories(PageRequestDto pageRequestDto, UUID productId, UUID hubId) {
+        Page<Inventory> inventories = inventoryRepository.searchByProductIdAndHubIdAndDeletedAtIsNull(
+                productId, hubId, pageRequestDto.toPageable());
+        return PageResponseDto.from(inventories, ResSearchInventoryInternalDto::from);
+    }
 
     // 상품 생성과 함께 초기 재고를 만든다. 호출 측(ProductService)이 이미 시작한 트랜잭션 안에서 실행되어야 한다.
     // MANDATORY로 강제해 트랜잭션 없이 호출되면 재고가 독립적으로 커밋되지 않고 즉시 IllegalTransactionStateException으로 실패하도록 한다.

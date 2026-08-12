@@ -4,9 +4,12 @@ import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DeliveryRouteRepository extends JpaRepository<DeliveryRoute, UUID> {
+
+    Optional<DeliveryRoute> findByIdAndDeletedAtIsNull(UUID id);
 
     List<DeliveryRoute> findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(UUID deliveryId);
 }

@@ -3,6 +3,8 @@ package com.bonae.logistics.company.presentation.controller;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.exception.GlobalExceptionHandler;
+import com.bonae.logistics.common.response.PageRequestDto;
+import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.company.application.InventoryService;
 import com.bonae.logistics.company.presentation.dto.request.ReqUpdateInventoryDto;
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateInventoryDto;
@@ -21,7 +23,10 @@ import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -207,5 +212,45 @@ class InternalInventoryControllerTest {
                         .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_INVENTORY_TYPE"));
+    }
+
+    @Test
+    @DisplayName("GET /api/internal/inventories/search_productId_hubId_모두_생략하면_null로_전체조회한다")
+    void searchInventories_파라미터생략시_null로_조회() throws Exception {
+        PageResponseDto<?> emptyPage = PageResponseDto.builder()
+                .content(java.util.List.of())
+                .page(1).size(10).totalElements(0).totalPages(0).last(true)
+                .build();
+        when(inventoryService.searchInventories(any(PageRequestDto.class), isNull(), isNull()))
+                .thenReturn((PageResponseDto) emptyPage);
+
+        mockMvc.perform(get("/api/internal/inventories/search"))
+                .andExpect(status().isOk());
+
+        verify(inventoryService).searchInventories(any(PageRequestDto.class), isNull(), isNull());
+    }
+
+    @Test
+    @DisplayName("GET /api/internal/inventories/search_productId가_빈문자열이면_null로_전체조회한다")
+    void searchInventories_productId빈문자열_null로_조회() throws Exception {
+        PageResponseDto<?> emptyPage = PageResponseDto.builder()
+                .content(java.util.List.of())
+                .page(1).size(10).totalElements(0).totalPages(0).last(true)
+                .build();
+        when(inventoryService.searchInventories(any(PageRequestDto.class), isNull(), isNull()))
+                .thenReturn((PageResponseDto) emptyPage);
+
+        mockMvc.perform(get("/api/internal/inventories/search").param("productId", ""))
+                .andExpect(status().isOk());
+
+        verify(inventoryService).searchInventories(any(PageRequestDto.class), isNull(), isNull());
+    }
+
+    @Test
+    @DisplayName("GET /api/internal/inventories/search_productId가_UUID형식이_아니면_400을_응답한다")
+    void searchInventories_productId형식오류_400() throws Exception {
+        mockMvc.perform(get("/api/internal/inventories/search").param("productId", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_INPUT"));
     }
 }
