@@ -5,6 +5,8 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.hub.domain.entity.Hub;
 import com.bonae.logistics.hub.domain.entity.HubRoute;
 import com.bonae.logistics.hub.domain.repository.HubRepository;
+import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
+import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import com.bonae.logistics.hub.presentation.dto.response.HubRoutePathResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,9 @@ class HubRoutePathServiceTest {
 
     @Mock
     private HubRepository hubRepository;
+
+    @Mock
+    private HubRouteRepository hubRouteRepository;
 
     @Mock
     private HubRoutePathFinder hubRoutePathFinder;
@@ -52,11 +57,11 @@ class HubRoutePathServiceTest {
         Hub hubA = createHub(37.0, 127.0);
         Hub hubB = createHub(37.1, 127.1);
         HubRoute route = createRoute(hubA, hubB, 100);
+        HubRouteEdge edge = HubRouteEdge.from(route);
 
-        when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class)))
-                .thenReturn(true);
-        when(hubRoutePathFinder.findShortestPath(hubA.getId(), hubB.getId()))
-                .thenReturn(List.of(route));
+        when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
+        when(hubRouteRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(route));
+        when(hubRoutePathFinder.findShortestPath(List.of(edge), hubA.getId(), hubB.getId())).thenReturn(List.of(edge));
 
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubB.getId());
 
@@ -71,15 +76,13 @@ class HubRoutePathServiceTest {
         UUID departureHubId = UUID.randomUUID();
         UUID arrivalHubId = UUID.randomUUID();
 
-        when(hubRepository.existsByIdAndDeletedAtIsNull(departureHubId))
-                .thenReturn(false);
+        when(hubRepository.existsByIdAndDeletedAtIsNull(departureHubId)).thenReturn(false);
 
         assertThatThrownBy(() -> hubRoutePathService.findShortestPath(departureHubId, arrivalHubId))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(exception ->
-                        assertThat(((BusinessException) exception).getErrorCode())
-                                .isEqualTo(ErrorCode.HUB_NOT_FOUND)
-                );
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
+
+        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
     }
 
     @Test
@@ -93,29 +96,29 @@ class HubRoutePathServiceTest {
 
         assertThatThrownBy(() -> hubRoutePathService.findShortestPath(departureHubId, arrivalHubId))
                 .isInstanceOf(BusinessException.class)
-                .satisfies(exception ->
-                        assertThat(((BusinessException) exception).getErrorCode())
-                                .isEqualTo(ErrorCode.HUB_NOT_FOUND)
-                );
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode()).isEqualTo(ErrorCode.HUB_NOT_FOUND));
 
         verify(hubRepository, times(2)).existsByIdAndDeletedAtIsNull(any());
+        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
     }
 
     @Test
-    @DisplayName("동일한 허브 ID면 도착 허브 존재 확인은 생략되고, 빈 경로 기반 응답을 반환한다")
-    void skipsArrivalCheckWhenSameHubId() {
+    @DisplayName("동일한 허브 ID면 도착 허브 존재 확인과 활성 간선 조회를 생략하고 빈 경로 응답을 반환한다")
+    void skipsRouteSearchWhenSameHubId() {
         UUID hubId = UUID.randomUUID();
 
         when(hubRepository.existsByIdAndDeletedAtIsNull(hubId)).thenReturn(true);
-        when(hubRoutePathFinder.findShortestPath(hubId, hubId)).thenReturn(List.of());
 
         HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubId, hubId);
 
+        assertThat(result.getTotalDistanceMeters()).isZero();
+        assertThat(result.getTotalDurationSeconds()).isZero();
         assertThat(result.getTotalDistanceKm()).isEqualTo(0.0);
-        assertThat(result.getTotalDurationMin()).isEqualTo(0L);
+        assertThat(result.getTotalDurationMin()).isZero();
         assertThat(result.getSegments()).isEmpty();
 
-        verify(hubRepository, times(1)).existsByIdAndDeletedAtIsNull(any());
+        verify(hubRepository, times(1)).existsByIdAndDeletedAtIsNull(hubId);
+        verifyNoInteractions(hubRouteRepository, hubRoutePathFinder);
     }
 
     @Test
@@ -131,22 +134,17 @@ class HubRoutePathServiceTest {
         routeAB.update(1_500_000_000, 1_500_000_000);
         routeBC.update(1_500_000_000, 1_500_000_000);
 
-        when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class)))
-                .thenReturn(true);
-        when(hubRoutePathFinder.findShortestPath(hubA.getId(), hubC.getId()))
-                .thenReturn(List.of(routeAB, routeBC));
+        HubRouteEdge edgeAB = HubRouteEdge.from(routeAB);
+        HubRouteEdge edgeBC = HubRouteEdge.from(routeBC);
 
-        HubRoutePathResponse result =
-                hubRoutePathService.findShortestPath(
-                        hubA.getId(),
-                        hubC.getId()
-                );
+        when(hubRepository.existsByIdAndDeletedAtIsNull(any(UUID.class))).thenReturn(true);
+        when(hubRouteRepository.findAllByDeletedAtIsNull()).thenReturn(List.of(routeAB, routeBC));
+        when(hubRoutePathFinder.findShortestPath(List.of(edgeAB, edgeBC), hubA.getId(), hubC.getId())).thenReturn(List.of(edgeAB, edgeBC));
 
-        assertThat(result.getTotalDistanceMeters())
-                .isEqualTo(3_000_000_000L);
-        assertThat(result.getTotalDurationSeconds())
-                .isEqualTo(3_000_000_000L);
-        assertThat(result.getTotalDurationMin())
-                .isEqualTo(50_000_000L);
+        HubRoutePathResponse result = hubRoutePathService.findShortestPath(hubA.getId(), hubC.getId());
+
+        assertThat(result.getTotalDistanceMeters()).isEqualTo(3_000_000_000L);
+        assertThat(result.getTotalDurationSeconds()).isEqualTo(3_000_000_000L);
+        assertThat(result.getTotalDurationMin()).isEqualTo(50_000_000L);
     }
 }

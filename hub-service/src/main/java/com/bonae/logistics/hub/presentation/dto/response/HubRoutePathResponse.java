@@ -1,6 +1,6 @@
 package com.bonae.logistics.hub.presentation.dto.response;
 
-import com.bonae.logistics.hub.domain.entity.HubRoute;
+import com.bonae.logistics.hub.domain.vo.HubRouteEdge;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -18,20 +18,20 @@ public class HubRoutePathResponse {
     private Long totalDurationMin;
     private List<HubRoutePathSegment> segments;
 
-    public static HubRoutePathResponse from(List<HubRoute> path) {
+    public static HubRoutePathResponse from(List<HubRouteEdge> path) {
         long totalDistanceMeters = 0L;
         long totalDurationSeconds = 0L;
 
-        for (HubRoute route : path) {
-            totalDistanceMeters += route.getDistanceMeters();
-            totalDurationSeconds += route.getDurationSeconds();
+        for (HubRouteEdge edge : path) {
+            totalDistanceMeters += edge.distanceMeters();
+            totalDurationSeconds += edge.durationSeconds();
         }
 
         double totalDistanceKm = Math.round(totalDistanceMeters / 1000.0 * 10) / 10.0;
         long totalDurationMin = totalDurationSeconds / 60 + (totalDurationSeconds % 60 == 0 ? 0 : 1);
 
         List<HubRoutePathSegment> segments = IntStream.range(0, path.size())
-                .mapToObj(i -> HubRoutePathSegment.from(i + 1, path.get(i)))
+                .mapToObj(index -> HubRoutePathSegment.from(index + 1, path.get(index)))
                 .toList();
 
         return HubRoutePathResponse.builder()
@@ -54,15 +54,15 @@ public class HubRoutePathResponse {
         private Double distanceKm;
         private Integer durationMin;
 
-        public static HubRoutePathSegment from(int sequence, HubRoute hubRoute) {
+        public static HubRoutePathSegment from(int sequence, HubRouteEdge edge) {
             return HubRoutePathSegment.builder()
                     .sequence(sequence)
-                    .fromHubId(hubRoute.getDepartureHub().getId())
-                    .toHubId(hubRoute.getArrivalHub().getId())
-                    .distanceMeters(hubRoute.getDistanceMeters())
-                    .durationSeconds(hubRoute.getDurationSeconds())
-                    .distanceKm(Math.round(hubRoute.getDistanceMeters() / 1000.0 * 10) / 10.0)
-                    .durationMin((int) Math.ceil(hubRoute.getDurationSeconds() / 60.0))
+                    .fromHubId(edge.fromHubId())
+                    .toHubId(edge.toHubId())
+                    .distanceMeters(edge.distanceMeters())
+                    .durationSeconds(edge.durationSeconds())
+                    .distanceKm(Math.round(edge.distanceMeters() / 1000.0 * 10) / 10.0)
+                    .durationMin((int) Math.ceil(edge.durationSeconds() / 60.0))
                     .build();
         }
     }
