@@ -261,6 +261,7 @@ main() {
     signup "seedhub" "시드허브관리자"
     signup "seedcomp" "시드업체관리자"
     signup "seeddeli" "시드배송담당"
+    signup "seedlast" "seedlastdelivery"
     printf '\n'
 
     info "[3/6] 허브 참조 (마이그레이션이 넣은 전국 17개 중)"
@@ -280,10 +281,12 @@ main() {
     approve "$token" "seedhub"  "HUB_MANAGER"      "$hub_seoul"
     approve "$token" "seedcomp" "COMPANY_MANAGER"  ""           "$co_producer"
     approve "$token" "seeddeli" "DELIVERY_MANAGER" "$hub_seoul"
+    approve "$token" "seedlast" "DELIVERY_MANAGER" "$hub_busan"
     printf '\n'
 
     info "[6/6] 배송 담당자 등록"
     ensure_delivery_manager "$token" "seeddeli" "HUB_DELIVERY"
+    ensure_delivery_manager "$token" "seedlast" "COMPANY_DELIVERY" "$hub_busan"
     printf '\n'
 
     info "생성 결과"
