@@ -108,6 +108,71 @@ class InventoryRepositoryTest {
         assertThat(reloaded.isDeleted()).isTrue();
     }
 
+    @Test
+    @DisplayName("decreaseQuantity_충분한재고일때_차감되고1행반환")
+    void decreaseQuantity_충분한재고일때_차감되고1행반환() {
+        Product product = productRepository.save(newProduct());
+        Inventory inventory = inventoryRepository.saveAndFlush(Inventory.create(product, UUID.randomUUID(), 100));
+
+        int updatedRows = inventoryRepository.decreaseQuantity(inventory.getId(), 30);
+
+        assertThat(updatedRows).isEqualTo(1);
+        Inventory reloaded = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(reloaded.getQuantity()).isEqualTo(70);
+    }
+
+    @Test
+    @DisplayName("decreaseQuantity_재고보다많은수량요청시_0행반환하고재고는변하지않는다")
+    void decreaseQuantity_재고보다많은수량요청시_0행반환() {
+        Product product = productRepository.save(newProduct());
+        Inventory inventory = inventoryRepository.saveAndFlush(Inventory.create(product, UUID.randomUUID(), 10));
+
+        int updatedRows = inventoryRepository.decreaseQuantity(inventory.getId(), 50);
+
+        assertThat(updatedRows).isEqualTo(0);
+        Inventory reloaded = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(reloaded.getQuantity()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("decreaseQuantity_삭제된재고는_0행반환")
+    void decreaseQuantity_삭제된재고는_0행반환() {
+        Product product = productRepository.save(newProduct());
+        Inventory inventory = Inventory.create(product, UUID.randomUUID(), 100);
+        inventory.delete("tester");
+        inventory = inventoryRepository.saveAndFlush(inventory);
+
+        int updatedRows = inventoryRepository.decreaseQuantity(inventory.getId(), 10);
+
+        assertThat(updatedRows).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("increaseQuantity_정상복구되고1행반환")
+    void increaseQuantity_정상복구되고1행반환() {
+        Product product = productRepository.save(newProduct());
+        Inventory inventory = inventoryRepository.saveAndFlush(Inventory.create(product, UUID.randomUUID(), 50));
+
+        int updatedRows = inventoryRepository.increaseQuantity(inventory.getId(), 30);
+
+        assertThat(updatedRows).isEqualTo(1);
+        Inventory reloaded = inventoryRepository.findById(inventory.getId()).orElseThrow();
+        assertThat(reloaded.getQuantity()).isEqualTo(80);
+    }
+
+    @Test
+    @DisplayName("increaseQuantity_삭제된재고는_0행반환")
+    void increaseQuantity_삭제된재고는_0행반환() {
+        Product product = productRepository.save(newProduct());
+        Inventory inventory = Inventory.create(product, UUID.randomUUID(), 50);
+        inventory.delete("tester");
+        inventory = inventoryRepository.saveAndFlush(inventory);
+
+        int updatedRows = inventoryRepository.increaseQuantity(inventory.getId(), 10);
+
+        assertThat(updatedRows).isEqualTo(0);
+    }
+
     // 아래 검색 테스트들은 이 테스트가 만든 데이터끼리만 매칭되도록 각 테스트마다 새로 발급한 productId/hubId로 결과 범위를 좁힌다.
     // 실제 개발 DB(@AutoConfigureTestDatabase Replace.NONE)를 공유하는 환경이라
     // 다른 세션/수동 테스트로 남아있을 수 있는 기존 데이터와 우연히 겹쳐도 영향받지 않게 하기 위함이다.

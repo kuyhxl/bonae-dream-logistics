@@ -73,6 +73,12 @@ public class HubRoutePathFinder {
             // 현재 허브에서 이동할 수 있는 인접 허브의 누적시간을 갱신한다.
             for (HubRouteEdge edge : edges) {
                 UUID next = edge.toHubId();
+
+                // 이미 최단시간이 확정된 허브는 다시 갱신하지 않는다.
+                if (visited.contains(next)) {
+                    continue;
+                }
+
                 long newDuration = durations.get(current) + edge.durationSeconds();
                 Long knownDuration = durations.get(next);
 

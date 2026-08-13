@@ -101,8 +101,8 @@ class HubRouteServiceTest {
 
         assertThat(result.getDepartureHubId()).isEqualTo(departureHub.getId());
         assertThat(result.getArrivalHubId()).isEqualTo(arrivalHub.getId());
-        assertThat(result.getDistanceMeters()).isPositive();
-        assertThat(result.getDurationSeconds()).isPositive();
+        assertThat(result.getDistanceMeters()).isEqualTo(38_672);
+        assertThat(result.getDurationSeconds()).isEqualTo(2_321);
 
         verify(hubRouteRepository).saveAndFlush(any(HubRoute.class));
     }
