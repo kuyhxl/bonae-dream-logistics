@@ -21,9 +21,12 @@ x-app-build: &app-build
 
 services:
   # ---------- 인프라 ---------- #
+  # 인프라 3종은 x-app-common을 상속받지 않아 재시작 정책을 개별로 둔다.
+  # 없으면 컨테이너가 죽었을 때 그대로 남아, 앱만 살아 있는 상태가 된다.
   postgres:
     image: postgres:16-alpine
     container_name: bonae-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -43,6 +46,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: bonae-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     volumes:
@@ -56,6 +60,7 @@ services:
   zipkin:
     image: openzipkin/zipkin:latest
     container_name: bonae-zipkin
+    restart: unless-stopped
     ports:
       - "9411:9411"
 
