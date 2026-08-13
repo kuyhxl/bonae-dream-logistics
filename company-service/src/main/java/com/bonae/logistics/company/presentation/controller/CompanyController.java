@@ -15,6 +15,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto
 import com.bonae.logistics.common.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
@@ -55,8 +56,12 @@ public class CompanyController {
     @PostMapping
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
     @Operation(summary = "업체 생성", description = "새로운 업체(생산업체/수령업체)를 등록한다.")
-    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "업체 생성 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -78,8 +83,12 @@ public class CompanyController {
     @GetMapping
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 목록 조회", description = "업체 목록을 유형별로 필터링하여 페이징 조회한다.")
-    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -100,8 +109,12 @@ public class CompanyController {
     @GetMapping("/{companyId}")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 단건 조회", description = "업체 ID로 업체 상세 정보를 조회한다.")
-    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -121,8 +134,12 @@ public class CompanyController {
     @GetMapping("/search")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 검색", description = "업체명 키워드, 유형, 소속 허브로 업체를 검색하고 페이징하여 조회한다.")
-    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
-            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
