@@ -9,9 +9,9 @@ import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
-import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
 import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
@@ -104,7 +104,7 @@ public class DeliveryService {
                         .map(segment -> toDeliveryRoute(savedDelivery.getId(), segment))
                         .toList()
         );
-        deliveryAssignmentService.assignDelivery(savedDelivery.getId(), "배송 생성 자동 배정", UserRole.MASTER, null);
+        deliveryAssignmentService.assignOnCreateSafely(savedDelivery.getId(), "배송 생성 자동 배정");
 
         return DeliveryCreateResponse.from(savedDelivery, savedRoutes.size());
     }
@@ -226,6 +226,7 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "수령 업체 주소가 누락되어 배송지를 생성할 수 없습니다.");
         }
     }
+
     private List<HubRoutePathClientResponse.HubRoutePathSegmentClientResponse> validateRoutePath(
             UUID departureHubId,
             UUID arrivalHubId,

@@ -135,11 +135,9 @@ class DeliveryServiceTest {
         assertThat(routeCaptor.getValue())
                 .extracting(DeliveryRoute::getSequenceNo)
                 .containsExactly(1, 2);
-        verify(deliveryAssignmentService).assignDelivery(
+        verify(deliveryAssignmentService).assignOnCreateSafely(
                 savedDelivery.getId(),
-                "배송 생성 자동 배정",
-                UserRole.MASTER,
-                null
+                "배송 생성 자동 배정"
         );
     }
 
@@ -198,11 +196,9 @@ class DeliveryServiceTest {
         ArgumentCaptor<List<DeliveryRoute>> routeCaptor = ArgumentCaptor.forClass(List.class);
         verify(deliveryRouteRepository).saveAll(routeCaptor.capture());
         assertThat(routeCaptor.getValue()).isEmpty();
-        verify(deliveryAssignmentService).assignDelivery(
+        verify(deliveryAssignmentService).assignOnCreateSafely(
                 deliveryCaptor.getValue().getId(),
-                "배송 생성 자동 배정",
-                UserRole.MASTER,
-                null
+                "배송 생성 자동 배정"
         );
     }
 
