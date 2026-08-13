@@ -61,6 +61,7 @@ public enum ErrorCode{
     // 인벤토리
     STOCK_SHORTAGE(HttpStatus.CONFLICT, "재고가 부족합니다. "),
     INVENTORY_DUPLICATED(HttpStatus.CONFLICT, "중복된 재고입니다."),
+    INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "재고를 찾을 수 없습니다."),
     INVALID_QUANTITY(HttpStatus.BAD_REQUEST, "허용되지 않는 수량입니다."),
     INVALID_INVENTORY_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 재고 유형입니다."),
     INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "동시 수정으로 데이터 충돌"),
