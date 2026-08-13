@@ -14,6 +14,7 @@ import com.bonae.logistics.hub.presentation.dto.request.HubUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubListItemResponse;
 import com.bonae.logistics.hub.presentation.dto.response.HubResponse;
+import com.bonae.logistics.hub.presentation.dto.response.HubSummaryResponse;
 import lombok.RequiredArgsConstructor;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.cache.annotation.CacheEvict;
@@ -148,6 +149,26 @@ public class HubService {
         Hub hub = hubRepository.findByIdAndDeletedAtIsNull(hubId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.HUB_NOT_FOUND));
         return HubResponse.from(hub);
+    }
+
+    // 내부 API(GET /api/internal/hubs)용 활성 허브 이름 일괄 조회, 하나라도 없으면 전체 실패
+    @Transactional(readOnly = true)
+    public List<HubSummaryResponse> getHubsByIds(List<UUID> hubIds) {
+        if (hubIds == null || hubIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
+        List<UUID> uniqueHubIds = hubIds.stream().distinct().toList();
+
+        List<Hub> hubs = hubRepository.findAllByIdInAndDeletedAtIsNull(uniqueHubIds);
+
+        if (hubs.size() != uniqueHubIds.size()) {
+            throw new BusinessException(ErrorCode.HUB_NOT_FOUND);
+        }
+
+        return hubs.stream()
+                .map(HubSummaryResponse::from)
+                .toList();
     }
 
     // DB 제약조건명으로 중복 종류(이름/주소)를 구분해 BusinessException으로 변환 매칭 안 되면 원본 예외 그대로 반환
