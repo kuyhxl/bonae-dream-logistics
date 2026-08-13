@@ -28,6 +28,10 @@ PG_USER="${PG_USER:-bonae}"
 PG_DB="${PG_DB:-bonae}"
 SEED_PASSWORD="${SEED_PASSWORD:-Seed1234!}"
 
+# 승인 API가 MASTER를 부여할 수 없어, 시드는 마이그레이션 기준 계정을 MASTER로 쓴다
+MASTER_USERNAME="${MASTER_USERNAME:-master01}"
+MASTER_PASSWORD="${MASTER_PASSWORD:-Master1234!}"
+
 # 아래 주소들은 로컬에서만 호스트에 열려있음
 # 배포 환경은 8080이랑 9411 외 포트를 열지 않으므로, 빈 값으로 넘기면 "확인못함"으로 처리해버림
 #   EUREKA_URL= DELIVERY_INTERNAL_URL= ./scripts/verify.sh
@@ -92,10 +96,19 @@ expect_field() {
     fi
 }
 
+# MASTER 계정만 비밀번호가 달라 계정별로 골라 쓴다.
+password_of() {
+    if [ "$1" = "$MASTER_USERNAME" ]; then
+        printf '%s' "$MASTER_PASSWORD"
+    else
+        printf '%s' "$SEED_PASSWORD"
+    fi
+}
+
 login() {
     curl -s --max-time 20 -X POST "$GATEWAY/api/auth/login" \
         -H 'Content-Type: application/json' \
-        -d "{\"username\":\"$1\",\"password\":\"$SEED_PASSWORD\"}"
+        -d "{\"username\":\"$1\",\"password\":\"$(password_of "$1")\"}"
 }
 
 token_of() {
@@ -129,8 +142,10 @@ require_ready() {
     fi
     pass "게이트웨이 응답"
 
-    if [ -z "$(psql_exec "SELECT 1 FROM user_service.p_users WHERE username='seedmaster' LIMIT 1;")" ]; then
-        failed "시드 데이터가 없습니다. ./scripts/seed-api.sh 를 먼저 실행하세요."
+    # 시드가 승인까지 끝냈는지 확인한다. 회원가입만 되고 승인이 실패하면
+    # 레벨 3의 권한 분기가 엉뚱하게 실패하므로 여기서 먼저 걸러낸다.
+    if [ -z "$(psql_exec "SELECT 1 FROM user_service.p_users WHERE username='seedcomp' AND status='APPROVED' LIMIT 1;")" ]; then
+        failed "승인된 시드 데이터가 없습니다. ./scripts/seed-api.sh 를 먼저 실행하세요."
         exit 1
     fi
     pass "시드 데이터 존재"
@@ -179,7 +194,7 @@ verify_level2() {
     section "[레벨 2] 인증 — 통과해야 할 것"
 
     local token
-    token=$(token_of seedmaster)
+    token=$(token_of "$MASTER_USERNAME")
     if [ -z "$token" ]; then
         failed "MASTER 로그인 실패 — 이후 검증을 건너뜁니다"
         return 1
@@ -203,7 +218,7 @@ verify_level2() {
     # createdBy가 hacker면 위조가 통과한 것이다.
     local hub_id
     hub_id=$(psql_exec "SELECT id FROM hub_service.p_hubs WHERE name='서울특별시 센터' LIMIT 1;")
-    expect_field "위조 X-User-Id 무시" "createdBy" "seedmaster" \
+    expect_field "위조 X-User-Id 무시" "createdBy" "$MASTER_USERNAME" \
         -X POST "$GATEWAY/api/companies" \
         -H "Authorization: Bearer $token" \
         -H "X-User-Id: hacker" \
@@ -213,7 +228,7 @@ verify_level2() {
     section "[레벨 2] 로그아웃 및 토큰 재발급"
 
     local body access refresh
-    body=$(login seedmaster)
+    body=$(login "$MASTER_USERNAME")
     access=$(printf '%s' "$body" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')
     refresh=$(printf '%s' "$body" | sed -n 's/.*"refreshToken":"\([^"]*\)".*/\1/p')
 
@@ -227,7 +242,7 @@ verify_level2() {
     expect_status "로그아웃된 토큰 차단" 401 \
         "$GATEWAY/api/hubs" -H "Authorization: Bearer $access"
 
-    body=$(login seedmaster)
+    body=$(login "$MASTER_USERNAME")
     refresh=$(printf '%s' "$body" | sed -n 's/.*"refreshToken":"\([^"]*\)".*/\1/p')
 
     expect_status "토큰 재발급" 200 \
@@ -247,7 +262,7 @@ verify_level3() {
     section "[레벨 3] 권한 분기"
 
     local master comp
-    master=$(token_of seedmaster)
+    master=$(token_of "$MASTER_USERNAME")
     comp=$(token_of seedcomp)
 
     if [ -z "$comp" ]; then
@@ -308,7 +323,7 @@ verify_level4() {
     section "[레벨 4] 서비스 간 연동"
 
     local master hub_id
-    master=$(token_of seedmaster)
+    master=$(token_of "$MASTER_USERNAME")
     hub_id=$(psql_exec "SELECT id FROM hub_service.p_hubs WHERE name='부산광역시 센터' LIMIT 1;")
 
     # 업체 생성이 201이면 company -> hub Feign 호출이 성공한 것이다.
