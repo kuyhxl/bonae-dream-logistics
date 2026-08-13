@@ -3,6 +3,7 @@ package com.bonae.logistics.user.presentation.dto.request;
 import com.bonae.logistics.common.exception.BusinessException;
 import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.user.domain.entity.Status;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import org.springframework.util.StringUtils;
@@ -12,9 +13,14 @@ import java.util.Locale;
 // UserSearchCondition과 같은 이유로(잘못된 값 바인딩 시 500 방지) 문자열로 받아 직접 변환한다.
 @Getter
 @Setter
+@Schema(description = "가입 요청 검색 조건")
 public class SignupRequestSearchCondition {
 
+    @Schema(description = "아이디 또는 이름 검색어. 공백만 입력하면 조건 없음으로 처리한다.", example = "혜림")
     private String keyword;
+
+    @Schema(description = "가입 상태. 생략하면 아직 처리되지 않은 PENDING만 조회한다.",
+            allowableValues = {"PENDING", "APPROVED", "REJECTED"}, example = "PENDING")
     private String status;
 
     public String getKeyword() {
