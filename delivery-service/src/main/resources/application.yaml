@@ -37,6 +37,20 @@ spring:
   jackson:
     time-zone: Asia/Seoul
 
+  cloud:
+    openfeign:
+      client:
+        config:
+          company-service:
+            connect-timeout: 2000
+            read-timeout: 5000
+          hub-service:
+            connect-timeout: 2000
+            read-timeout: 5000
+          user-service:
+            connect-timeout: 2000
+            read-timeout: 5000
+
 eureka:
   client:
     service-url:
