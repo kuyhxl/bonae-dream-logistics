@@ -20,6 +20,11 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      # 기본값(60초)이면 Redis 장애 시 요청 하나가 60초씩 스레드를 붙잡아
+      # 커넥션 풀이 마르고, fail-open으로 살려둔 다른 API까지 밀린다.
+      # 짧게 끊어 빠르게 실패시킨다. (게이트웨이와 동일한 값)
+      timeout: 300ms
+      connect-timeout: 300ms
 
   jpa:
     hibernate:

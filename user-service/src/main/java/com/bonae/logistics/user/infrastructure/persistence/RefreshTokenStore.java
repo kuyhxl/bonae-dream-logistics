@@ -20,8 +20,17 @@ public class RefreshTokenStore {
 
     private final StringRedisTemplate redisTemplate;
 
+    /*
+     * 리프레시 토큰은 Redis에만 보관하므로, 저장이 실패하면 재발급이 불가능한 상태가 된다.
+     * 로그인을 성공으로 응답할 수 없어 503으로 알린다. (조회 실패와 같은 처리)
+     */
     public void save(String username, String refreshToken, long ttlMillis) {
-        redisTemplate.opsForValue().set(KEY_PREFIX + username, refreshToken, Duration.ofMillis(ttlMillis));
+        try {
+            redisTemplate.opsForValue().set(KEY_PREFIX + username, refreshToken, Duration.ofMillis(ttlMillis));
+        } catch (DataAccessException e) { // redis 연결 실패
+            log.error("Redis 저장 실패 - username={}", username, e);
+            throw new BusinessException(ErrorCode.SERVICE_UNAVAILABLE);
+        }
     }
 
     public Optional<String> find(String username) {
@@ -33,7 +42,15 @@ public class RefreshTokenStore {
         }
     }
 
+    /*
+     * 삭제 실패는 로그아웃을 막지 않는다. 액세스 토큰은 블랙리스트로 이미 차단되고,
+     * 남은 리프레시 토큰도 TTL이 지나면 사라지기 때문이다. (TokenBlacklistStore와 같은 판단)
+     */
     public void delete(String username) {
-        redisTemplate.delete(KEY_PREFIX + username);
+        try {
+            redisTemplate.delete(KEY_PREFIX + username);
+        } catch (DataAccessException e) {
+            log.error("Redis 삭제 실패 - username={}", username, e);
+        }
     }
 }
