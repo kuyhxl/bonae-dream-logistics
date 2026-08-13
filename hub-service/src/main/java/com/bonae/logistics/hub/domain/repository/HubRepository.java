@@ -7,11 +7,16 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface HubRepository extends JpaRepository<Hub, UUID> {
     Optional<Hub> findByIdAndDeletedAtIsNull(UUID id);
+
+    List<Hub> findAllByIdInAndDeletedAtIsNull(Collection<UUID> ids);
+
     boolean existsByNameAndDeletedAtIsNull(String name);
     boolean existsByAddressAndDeletedAtIsNull(String address);
 
