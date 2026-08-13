@@ -33,6 +33,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -195,6 +196,25 @@ class DeliveryAssignmentServiceTest {
 
         assertThat(response.getDeliveryManagerId()).isEqualTo(secondManager.getId());
         assertThat(delivery.getDeliveryManagerId()).isEqualTo(secondManager.getId());
+    }
+
+    @Test
+    @DisplayName("assign on create safely does not fail delivery creation when no manager exists")
+    void assignOnCreateSafely_ignoresManagerNotAvailable() {
+        Delivery delivery = createDelivery();
+
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(delivery.getId())).thenReturn(Optional.of(delivery));
+        when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(delivery.getId()))
+                .thenReturn(List.of());
+        when(deliveryManagerRepository.findAllByHubIdAndManagerTypeAndDeletedAtIsNullOrderByDeliverySequenceAsc(
+                delivery.getDestinationHubId(),
+                ManagerType.COMPANY_DELIVERY
+        )).thenReturn(List.of());
+
+        assertThatCode(() -> deliveryAssignmentService.assignOnCreateSafely(delivery.getId(), "auto assign"))
+                .doesNotThrowAnyException();
+        assertThat(delivery.getDeliveryManagerId()).isNull();
+        verify(deliveryAssignmentRepository, times(0)).save(any(DeliveryAssignment.class));
     }
 
     @Test

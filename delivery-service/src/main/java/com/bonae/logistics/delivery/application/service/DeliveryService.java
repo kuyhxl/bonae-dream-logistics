@@ -175,8 +175,11 @@ public class DeliveryService {
         try {
             Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                     .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
-            List<DeliveryRoute> routes = deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId);
-            messageClient.createAiDispatch(buildAiDispatchRequest(delivery, routes.isEmpty() ? savedRoutes : routes, receiverUser, request));
+            List<DeliveryRoute> routes =
+                    deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId);
+            messageClient.createAiDispatch(
+                    buildAiDispatchRequest(delivery, routes.isEmpty() ? savedRoutes : routes, receiverUser, request)
+            );
         } catch (Exception e) {
             log.warn("AI dispatch 연동 실패, 배송 생성은 유지 deliveryId={}, orderId={}",
                     deliveryId, request.getOrderId(), e);

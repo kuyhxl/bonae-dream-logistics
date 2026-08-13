@@ -42,7 +42,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 
 import java.lang.reflect.Field;
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -52,10 +51,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -195,6 +192,10 @@ class DeliveryServiceTest {
         assertThat(savedRoutesRef.get())
                 .extracting(DeliveryRoute::getSequenceNo)
                 .containsExactly(1, 2);
+        verify(deliveryAssignmentService).assignOnCreateSafely(
+                savedDelivery.getId(),
+                "배송 생성 자동 배정"
+        );
 
         ArgumentCaptor<AiDispatchClientRequest> aiRequestCaptor = ArgumentCaptor.forClass(AiDispatchClientRequest.class);
         verify(messageClient).createAiDispatch(aiRequestCaptor.capture());
@@ -288,8 +289,15 @@ class DeliveryServiceTest {
 
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
         assertThat(result.getRouteCount()).isZero();
-
         assertThat(savedDeliveryRef.get().getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
+
+        ArgumentCaptor<List<DeliveryRoute>> routeCaptor = ArgumentCaptor.forClass(List.class);
+        verify(deliveryRouteRepository).saveAll(routeCaptor.capture());
+        assertThat(routeCaptor.getValue()).isEmpty();
+        verify(deliveryAssignmentService).assignOnCreateSafely(
+                savedDeliveryRef.get().getId(),
+                "배송 생성 자동 배정"
+        );
         verify(messageClient).createAiDispatch(any(AiDispatchClientRequest.class));
     }
 
