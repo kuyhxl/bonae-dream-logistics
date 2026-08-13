@@ -266,14 +266,13 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("배송 생성 요청 시 dueDate와 remarks가 requestNote로 조립되어 전달된다")
-        void create_deliveryRequest_buildsRequestNoteFromDueDateAndRemarks() {
+        @DisplayName("배송 생성 요청 시 productName, quantity, dueDate가 개별 필드로 전달된다")
+        void create_deliveryRequest_sendsIndividualFields() {
             // given
             given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
             given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
                     .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
-            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(),
-                    argThat(note -> note != null && note.contains(requestDto.remarks()))))
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -281,8 +280,13 @@ class OrderServiceTest {
             orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
 
             // then
-            verify(retryHelper).createDeliveryWithRetry(any(), any(), any(), any(),
-                    argThat(note -> note != null && note.contains(requestDto.remarks())));
+            verify(retryHelper).createDeliveryWithRetry(
+                    any(),
+                    eq(USER_ID),
+                    eq(requestDto),
+                    eq(productInfoResponseDto),
+                    any()
+            );
         }
     }
 
