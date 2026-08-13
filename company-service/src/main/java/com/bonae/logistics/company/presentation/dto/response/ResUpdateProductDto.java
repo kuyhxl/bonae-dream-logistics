@@ -1,6 +1,7 @@
 package com.bonae.logistics.company.presentation.dto.response;
 
 import com.bonae.logistics.company.domain.entity.Product;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -10,12 +11,24 @@ import java.util.UUID;
 
 @Getter
 @Builder
+@Schema(description = "상품 수정 응답")
 public class ResUpdateProductDto {
+    @Schema(description = "상품 ID")
     private UUID productId;
+
+    @Schema(description = "상품명")
     private String name;
+
+    @Schema(description = "업체 ID")
     private UUID companyId;
+
+    @Schema(description = "가격")
     private BigDecimal price;
+
+    @Schema(description = "수정 일시")
     private LocalDateTime updatedAt;
+
+    @Schema(description = "수정자")
     private String updatedBy;
 
     public static ResUpdateProductDto from(Product product) {
