@@ -66,7 +66,6 @@ public enum ErrorCode{
     INVALID_INVENTORY_TYPE(HttpStatus.BAD_REQUEST, "지원하지 않는 재고 유형입니다."),
     INVENTORY_VERSION_CONFLICT(HttpStatus.CONFLICT, "동시 수정으로 데이터 충돌"),
     DUPLICATE_INVENTORY_UPDATE(HttpStatus.CONFLICT, "동일한 재고 변경에 중복 처리"),
-    INVENTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "재고 정보를 찾을 수 없습니다."),
 
     // 주문
     ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "주문을 찾을 수 없습니다."),
