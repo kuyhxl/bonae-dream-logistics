@@ -8,6 +8,7 @@ import com.bonae.logistics.hub.domain.repository.HubRepository;
 import com.bonae.logistics.hub.domain.repository.HubRouteRepository;
 import com.bonae.logistics.hub.presentation.dto.request.HubUpdateRequest;
 import com.bonae.logistics.hub.presentation.dto.response.HubDetailResponse;
+import com.bonae.logistics.hub.presentation.dto.response.HubSummaryResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -111,5 +112,41 @@ class HubServiceTest {
         assertThat(hub.getDeletedBy()).isEqualTo("master03");
         assertThat(route.isDeleted()).isTrue();
         assertThat(route.getDeletedBy()).isEqualTo("master03");
+    }
+
+    @Test
+    @DisplayName("활성 허브 ID 목록을 조회하면 허브 ID와 이름을 반환한다")
+    void returnsHubSummariesWhenAllHubsExist() {
+        Hub firstHub = createHub("서울특별시 센터", "서울특별시 송파구 송파대로 55", 37.4742027808565, 127.123621185562);
+        Hub secondHub = createHub("경기 남부 센터", "경기도 이천시 덕평로 257-21", 37.1896213142136, 127.375050006958);
+        List<UUID> hubIds = List.of(firstHub.getId(), secondHub.getId());
+
+        when(hubRepository.findAllByIdInAndDeletedAtIsNull(hubIds))
+                .thenReturn(List.of(firstHub, secondHub));
+
+        List<HubSummaryResponse> result = hubService.getHubsByIds(hubIds);
+
+        assertThat(result).hasSize(2);
+        assertThat(result).extracting(HubSummaryResponse::getHubId)
+                .containsExactlyInAnyOrder(firstHub.getId(), secondHub.getId());
+        assertThat(result).extracting(HubSummaryResponse::getHubName)
+                .containsExactlyInAnyOrder(firstHub.getName(), secondHub.getName());
+    }
+
+    @Test
+    @DisplayName("요청한 허브 중 하나라도 조회되지 않으면 HUB_NOT_FOUND 예외가 발생한다")
+    void throwsHubNotFoundWhenAnyHubDoesNotExist() {
+        Hub hub = createHub("서울특별시 센터", "서울특별시 송파구 송파대로 55", 37.4742027808565, 127.123621185562);
+        List<UUID> hubIds = List.of(hub.getId(), UUID.randomUUID());
+
+        when(hubRepository.findAllByIdInAndDeletedAtIsNull(hubIds))
+                .thenReturn(List.of(hub));
+
+        assertThatThrownBy(() -> hubService.getHubsByIds(hubIds))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(exception ->
+                        assertThat(((BusinessException) exception).getErrorCode())
+                                .isEqualTo(ErrorCode.HUB_NOT_FOUND)
+                );
     }
 }

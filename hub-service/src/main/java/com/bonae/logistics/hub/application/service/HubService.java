@@ -27,9 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -160,7 +158,7 @@ public class HubService {
             throw new BusinessException(ErrorCode.INVALID_INPUT);
         }
 
-        Set<UUID> uniqueHubIds = new LinkedHashSet<>(hubIds);
+        List<UUID> uniqueHubIds = hubIds.stream().distinct().toList();
 
         List<Hub> hubs = hubRepository.findAllByIdInAndDeletedAtIsNull(uniqueHubIds);
 
