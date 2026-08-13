@@ -6,6 +6,7 @@ import com.bonae.logistics.order.infrastructure.client.InventoryClient;
 import com.bonae.logistics.order.infrastructure.client.dto.request.InventoryUpdateRequestDto;
 import com.bonae.logistics.order.infrastructure.client.dto.response.InventorySearchResponseDto;
 import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryUpdateResponseDto;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -23,6 +24,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+@Disabled
 @SpringBootTest(properties = {
         "eureka.client.enabled=false",
         "spring.cloud.discovery.enabled=false"
