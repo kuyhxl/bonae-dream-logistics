@@ -7,7 +7,7 @@
 #
 # 전국 17개 허브와 이동경로는 hub-service의 마이그레이션이 넣는 기준 데이터이므로 여기서는 참조만
 #
-# 승인 처리와 역할·소속 부여는 해당 API가 아직 없어 그 부분만 DB를 직접 갱신한다!
+# 승인·역할·소속 부여도 승인 API(PATCH /api/users/{userId}/approval)로 처리한다
 #
 # 사용법:
 #   ./scripts/seed-api.sh                 # 기본 (게이트웨이 localhost:8080)
@@ -25,6 +25,10 @@ PG_DB="${PG_DB:-bonae}"
 # 비밀번호는 대소문자·숫자·특수문자를 포함한 8~15자여야 한다.
 SEED_PASSWORD="Seed1234!"
 
+# 승인 API는 MASTER를 부여할 수 없어, 마이그레이션이 넣어둔 기준 MASTER 계정으로 승인한다.
+MASTER_USERNAME="${MASTER_USERNAME:-master01}"
+MASTER_PASSWORD="${MASTER_PASSWORD:-Master1234!}"
+
 PASS=0
 FAIL=0
 
@@ -34,7 +38,8 @@ ok()    { printf '  \033[32m✓\033[0m %s\n' "$*" >&2; PASS=$((PASS + 1)); }
 warn()  { printf '  \033[33m!\033[0m %s\n' "$*" >&2; }
 fail()  { printf '  \033[31m✗\033[0m %s\n' "$*" >&2; FAIL=$((FAIL + 1)); }
 
-# psql 실행. 승인 처리처럼 아직 API가 없는 작업에만 사용한다.
+# psql 실행. 조회 전용이다. 응답 본문에 없는 id(사용자, 허브)를 찾는 데만 쓰고
+# 데이터 변경은 모두 API를 거친다.
 psql_exec() {
     docker exec "$PG_CONTAINER" psql -U "$PG_USER" -d "$PG_DB" -t -A -c "$1" 2>/dev/null
 }
@@ -58,10 +63,9 @@ require_services() {
     ok "게이트웨이 응답 확인"
 }
 
-# 회원가입 -> 승인 -> 역할 부여까지 처리한다.
-# 승인/역할 부여 API가 아직 없어 이 부분만 DB를 직접 갱신한다.
-signup_and_approve() {
-    local username=$1 name=$2 role=$3 hub_id=${4:-} company_id=${5:-}
+# 회원가입만 처리한다. 승인은 승인자 토큰이 필요해 별도 함수로 분리했다.
+signup() {
+    local username=$1 name=$2
 
     local body code
     body=$(curl -s -w '\n%{http_code}' -X POST "$GATEWAY/api/auth/signup" \
@@ -70,32 +74,64 @@ signup_and_approve() {
     code=$(printf '%s' "$body" | tail -n1)
 
     if [ "$code" = "201" ]; then
-        ok "회원가입: $username ($role)"
+        ok "회원가입: $username"
     elif [ "$code" = "409" ]; then
         warn "이미 존재: $username — 기존 계정을 재사용합니다"
     else
         fail "회원가입 실패: $username (HTTP $code)"
         return 1
     fi
+}
 
-    # 승인 + 역할/소속 부여
-    local set_clause="status='APPROVED', role='$role', approved_by='seedscript', approved_at=now()"
+# 승인 API로 상태·역할·소속을 한 번에 확정한다.
+# 이 호출이 성공하면 인가(@RoleCheck), 헤더 전파, user -> hub/company Feign 검증
+approve() {
+    local token=$1 username=$2 role=$3 hub_id=${4:-} company_id=${5:-}
+
+    local user_id
+    user_id=$(psql_exec "SELECT id FROM user_service.p_users WHERE username='$username' LIMIT 1;")
+    if [ -z "$user_id" ]; then
+        fail "승인 실패: $username 사용자를 찾을 수 없습니다"
+        return 1
+    fi
+
+    # 이미 승인된 계정은 엔티티가 중복 처리를 막으므로 재실행 시 건너뛴다.
+    local status
+    status=$(psql_exec "SELECT status FROM user_service.p_users WHERE id='$user_id';")
+    if [ "$status" = "APPROVED" ]; then
+        warn "이미 승인됨: $username — 승인 호출을 건너뜁니다"
+        return 0
+    fi
+
+    # 역할에 따라 필요한 소속만 담는다. null을 보내면 서비스가 조합을 검증한다.
+    local affiliation=""
     if [ -n "$hub_id" ]; then
-        set_clause="$set_clause, hub_id='$hub_id'"
+        affiliation=",\"hubId\":\"$hub_id\""
     fi
     if [ -n "$company_id" ]; then
-        set_clause="$set_clause, company_id='$company_id'"
+        affiliation="$affiliation,\"companyId\":\"$company_id\""
     fi
 
-    psql_exec "UPDATE user_service.p_users SET $set_clause WHERE username='$username';" >/dev/null
-    ok "승인 및 역할 부여: $username -> $role"
+    local body code
+    body=$(curl -s -w '\n%{http_code}' -X PATCH "$GATEWAY/api/users/$user_id/approval" \
+        -H "Authorization: Bearer $token" \
+        -H 'Content-Type: application/json' \
+        -d "{\"approvalStatus\":\"APPROVED\",\"role\":\"$role\"$affiliation}")
+    code=$(printf '%s' "$body" | tail -n1)
+
+    if [ "$code" = "200" ]; then
+        ok "승인 및 역할 부여: $username -> $role"
+    else
+        fail "승인 실패: $username -> $role (HTTP $code)"
+        return 1
+    fi
 }
 
 login() {
-    local username=$1
+    local username=$1 password=${2:-$SEED_PASSWORD}
     curl -s -X POST "$GATEWAY/api/auth/login" \
         -H 'Content-Type: application/json' \
-        -d "{\"username\":\"$username\",\"password\":\"$SEED_PASSWORD\"}" \
+        -d "{\"username\":\"$username\",\"password\":\"$password\"}" \
         | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p'
 }
 
@@ -207,19 +243,24 @@ main() {
     require_services
     printf '\n'
 
-    info "[1/6] 사용자 생성"
-    # 첫 MASTER는 이후 모든 생성 작업의 주체가 된다
-    signup_and_approve "seedmaster" "시드마스터" "MASTER" || exit 1
-    printf '\n'
-
-    info "[2/6] 로그인 및 토큰 발급"
+    info "[1/6] MASTER 토큰 발급"
+    # 승인 API는 MASTER 역할을 부여할 수 없다(권한 상승 방지). 그래서 시드 MASTER를
+    # 새로 만들지 않고, user-service 마이그레이션(V3)이 넣어둔 master01을 승인자로 쓴다.
     local token
-    token=$(login "seedmaster")
+    token=$(login "$MASTER_USERNAME" "$MASTER_PASSWORD")
     if [ -z "$token" ]; then
-        fail "로그인 실패 — 이후 단계를 진행할 수 없습니다"
+        fail "$MASTER_USERNAME 로그인 실패 — 이후 단계를 진행할 수 없습니다"
+        warn ".env의 MASTER_PASSWORD_HASH가 비어 있으면 계정이 만들어지지 않습니다."
+        warn "값을 채운 뒤 docker compose down -v 후 재기동하세요."
         exit 1
     fi
-    ok "MASTER 토큰 발급 완료"
+    ok "MASTER 토큰 발급 완료 ($MASTER_USERNAME)"
+    printf '\n'
+
+    info "[2/6] 사용자 회원가입"
+    signup "seedhub" "시드허브관리자"
+    signup "seedcomp" "시드업체관리자"
+    signup "seeddeli" "시드배송담당"
     printf '\n'
 
     info "[3/6] 허브 참조 (마이그레이션이 넣은 전국 17개 중)"
@@ -234,10 +275,11 @@ main() {
     co_receiver=$(ensure_company "$token" "시드 수령업체" "RECEIVER" "$hub_busan" "부산광역시 해운대구 시드로 202") || exit 1
     printf '\n'
 
-    info "[5/6] 역할별 사용자 생성"
-    signup_and_approve "seedhub" "시드허브관리자" "HUB_MANAGER" "$hub_seoul"
-    signup_and_approve "seedcomp" "시드업체관리자" "COMPANY_MANAGER" "" "$co_producer"
-    signup_and_approve "seeddeli" "시드배송담당" "DELIVERY_MANAGER" "$hub_seoul"
+    # 업체가 있어야 COMPANY_MANAGER의 소속을 확정할 수 있어 승인은 업체 생성 뒤에 한다.
+    info "[5/6] 승인 및 역할·소속 부여 (승인 API)"
+    approve "$token" "seedhub"  "HUB_MANAGER"      "$hub_seoul"
+    approve "$token" "seedcomp" "COMPANY_MANAGER"  ""           "$co_producer"
+    approve "$token" "seeddeli" "DELIVERY_MANAGER" "$hub_seoul"
     printf '\n'
 
     info "[6/6] 배송 담당자 등록"
@@ -251,14 +293,14 @@ main() {
     printf '  시드 수령업체   : %s\n' "$co_receiver"
     printf '\n'
     printf '  계정 (비밀번호 공통: %s)\n' "$SEED_PASSWORD"
-    printf '    seedmaster / MASTER\n'
     printf '    seedhub    / HUB_MANAGER      (서울특별시 센터 소속)\n'
     printf '    seedcomp   / COMPANY_MANAGER  (시드 생산업체 소속)\n'
     printf '    seeddeli   / DELIVERY_MANAGER (서울특별시 센터 소속)\n'
+    printf '    %s   / MASTER            (마이그레이션 기준 계정, 비밀번호 %s)\n' "$MASTER_USERNAME" "$MASTER_PASSWORD"
     printf '\n'
     printf '  토큰 발급 예시:\n'
     printf "    curl -s -X POST %s/api/auth/login -H 'Content-Type: application/json' \\\\\n" "$GATEWAY"
-    printf '      -d %s\n' "'{\"username\":\"seedmaster\",\"password\":\"$SEED_PASSWORD\"}'"
+    printf '      -d %s\n' "'{\"username\":\"$MASTER_USERNAME\",\"password\":\"$MASTER_PASSWORD\"}'"
     printf '\n'
 
     if [ "$FAIL" -gt 0 ]; then

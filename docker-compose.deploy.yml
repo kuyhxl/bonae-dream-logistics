@@ -22,10 +22,10 @@ x-app-limits: &app-limits
 
 services:
   # 레지스트리 서버라 힙이 작아도 충분함
+  # 대시보드로 서비스 등록 현황을 봐야 해 8761은 열어둔다.
   eureka-server:
     image: ghcr.io/${IMAGE_PREFIX}/eureka-server:${IMAGE_TAG}
     build: !reset null
-    ports: !reset []
     deploy:
       resources:
         limits:

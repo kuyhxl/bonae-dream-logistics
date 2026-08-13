@@ -25,6 +25,15 @@ spring:
       server:
         webflux:
           routes:
+            # 루트는 매핑된 라우트가 없어 스프링 기본 오류 페이지가 노출된다.
+            # 서버 상태를 바로 확인할 수 있도록 헬스체크로 넘기게 한다!
+            - id: root-redirect
+              uri: no://op
+              predicates:
+                - Path=/
+              filters:
+                - RedirectTo=302, /actuator/health
+
             # API Route
             - id: user-service
               uri: lb://user-service
@@ -146,3 +155,4 @@ auth:
     - /*-service/v3/api-docs
     - /actuator/health
     - /actuator/health/**
+    - /
