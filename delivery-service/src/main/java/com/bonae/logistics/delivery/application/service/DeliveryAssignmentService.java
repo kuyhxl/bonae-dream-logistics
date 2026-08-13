@@ -17,6 +17,7 @@ import com.bonae.logistics.delivery.infrastructure.client.UserClient;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryAssignmentResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 @RequiredArgsConstructor
 public class DeliveryAssignmentService {
 
@@ -42,21 +44,7 @@ public class DeliveryAssignmentService {
             String username
     ) {
         Delivery delivery = getDestinationHubAssignableDelivery(deliveryId, userRole, username);
-        assignHubRouteManagers(delivery);
-        DeliveryManager nextManager = getNextCompanyDeliveryManager(delivery, null);
-        int nextSequence = deliveryAssignmentRepository.findTopByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoDesc(deliveryId)
-                .map(assignment -> assignment.getSequenceNo() + 1)
-                .orElse(1);
-
-        delivery.assignManager(nextManager.getId());
-        DeliveryAssignment deliveryAssignment = DeliveryAssignment.create(
-                delivery.getId(),
-                nextManager.getId(),
-                nextSequence,
-                reason
-        );
-
-        return DeliveryAssignmentResponse.from(deliveryAssignmentRepository.save(deliveryAssignment));
+        return assignDeliveryInternal(delivery, reason, null);
     }
 
     @Transactional
@@ -91,6 +79,18 @@ public class DeliveryAssignmentService {
         return DeliveryAssignmentResponse.from(deliveryAssignmentRepository.save(nextAssignment));
     }
 
+    public void assignOnCreateSafely(UUID deliveryId, String reason) {
+        Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+
+        try {
+            assignDeliveryInternal(delivery, reason, null);
+        } catch (BusinessException e) {
+            log.warn("배송 생성 시 자동 배정 실패, 수동 배정 필요 deliveryId={}, errorCode={}",
+                    deliveryId, e.getErrorCode(), e);
+        }
+    }
+
     private Delivery getDestinationHubAssignableDelivery(UUID deliveryId, UserRole userRole, String username) {
         Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
@@ -109,6 +109,28 @@ public class DeliveryAssignmentService {
         }
 
         return delivery;
+    }
+
+    private DeliveryAssignmentResponse assignDeliveryInternal(
+            Delivery delivery,
+            String reason,
+            UUID excludedManagerId
+    ) {
+        assignHubRouteManagers(delivery);
+        DeliveryManager nextManager = getNextCompanyDeliveryManager(delivery, excludedManagerId);
+        int nextSequence = deliveryAssignmentRepository.findTopByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoDesc(delivery.getId())
+                .map(assignment -> assignment.getSequenceNo() + 1)
+                .orElse(1);
+
+        delivery.assignManager(nextManager.getId());
+        DeliveryAssignment deliveryAssignment = DeliveryAssignment.create(
+                delivery.getId(),
+                nextManager.getId(),
+                nextSequence,
+                reason
+        );
+
+        return DeliveryAssignmentResponse.from(deliveryAssignmentRepository.save(deliveryAssignment));
     }
 
     private DeliveryManager getNextCompanyDeliveryManager(Delivery delivery, UUID excludedManagerId) {
