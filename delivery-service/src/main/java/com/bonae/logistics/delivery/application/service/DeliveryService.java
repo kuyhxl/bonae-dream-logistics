@@ -41,6 +41,7 @@ public class DeliveryService {
     private final DeliveryRepository deliveryRepository;
     private final DeliveryRouteRepository deliveryRouteRepository;
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
+    private final DeliveryAssignmentService deliveryAssignmentService;
     private final CompanyClient companyClient;
     private final HubRouteClient hubRouteClient;
     private final UserClient userClient;
@@ -103,6 +104,7 @@ public class DeliveryService {
                         .map(segment -> toDeliveryRoute(savedDelivery.getId(), segment))
                         .toList()
         );
+        deliveryAssignmentService.assignDelivery(savedDelivery.getId(), "배송 생성 자동 배정", UserRole.MASTER, null);
 
         return DeliveryCreateResponse.from(savedDelivery, savedRoutes.size());
     }
