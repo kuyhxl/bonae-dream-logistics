@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-@FeignClient(name = "company-service")
+@FeignClient(name = "company-service", contextId = "inventoryClient")
 public interface InventoryClient {
 
     @GetMapping("/api/internal/inventories/search")
