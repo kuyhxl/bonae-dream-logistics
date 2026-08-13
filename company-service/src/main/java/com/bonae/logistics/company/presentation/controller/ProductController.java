@@ -15,6 +15,8 @@ import com.bonae.logistics.company.presentation.dto.response.ResSearchProductDto
 import com.bonae.logistics.company.presentation.dto.response.ResUpdateProductDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.Parameters;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -46,11 +48,20 @@ import java.util.UUID;
 @Tag(name = "Product", description = "상품 관리 API")
 public class ProductController {
 
+    private static final String REQUESTER_HEADER_NOTE =
+            "게이트웨이가 JWT를 검증한 뒤 주입한다. 클라이언트가 직접 보낸 값은 게이트웨이에서 제거된다.";
+
     private final ProductService productService;
 
     @GetMapping("/search")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "상품 검색", description = "상품명 키워드와 업체로 상품을 검색하고 페이징하여 조회한다.")
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -69,6 +80,12 @@ public class ProductController {
     @GetMapping("/{productId}")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "상품 단건 조회", description = "상품 ID로 상품 상세 정보를 조회한다.")
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -101,7 +118,9 @@ public class ProductController {
                     examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResCreateProductDto> createProduct(
+            @Parameter(description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
             @RequestHeader("X-User-Role") String userRole,
+            @Parameter(description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
             @RequestHeader("X-User-Id") String username,
             @Valid @RequestBody ReqCreateProductDto reqDto) {
         ResCreateProductDto resDto = productService.createProduct(reqDto, UserRole.valueOf(userRole), username);
@@ -111,6 +130,12 @@ public class ProductController {
     @GetMapping
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "상품 목록 조회", description = "상품 목록을 페이징하여 조회한다.")
+    @Parameters({
+            @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class)),
+            @Parameter(name = "X-User-Id", in = ParameterIn.HEADER, required = true,
+                    description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
+    })
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -136,7 +161,9 @@ public class ProductController {
                     examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<Void> deleteProduct(
+            @Parameter(description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
             @RequestHeader("X-User-Role") String userRole,
+            @Parameter(description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
             @RequestHeader("X-User-Id") String username,
             @Parameter(description = "상품 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID productId) {
         productService.deleteProduct(productId, UserRole.valueOf(userRole), username);
@@ -160,7 +187,9 @@ public class ProductController {
                     examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResUpdateProductDto> updateProduct(
+            @Parameter(description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
             @RequestHeader("X-User-Role") String userRole,
+            @Parameter(description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
             @RequestHeader("X-User-Id") String username,
             @Parameter(description = "상품 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID productId,
             @Valid @RequestBody ReqUpdateProductDto reqDto) {
