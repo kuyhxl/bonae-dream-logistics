@@ -11,10 +11,7 @@ import com.bonae.logistics.order.infrastructure.client.DeliveryClient;
 import com.bonae.logistics.order.infrastructure.client.InventoryClient;
 import com.bonae.logistics.order.infrastructure.client.ProductClient;
 import com.bonae.logistics.order.infrastructure.client.SlackClient;
-import com.bonae.logistics.order.infrastructure.client.dto.response.DeliveryCreateResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryDeductResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.InventoryRestoreResponseDto;
-import com.bonae.logistics.order.infrastructure.client.dto.response.ProductInfoResponseDto;
+import com.bonae.logistics.order.infrastructure.client.dto.response.*;
 import com.bonae.logistics.order.infrastructure.config.AlertProperties;
 import com.bonae.logistics.order.presentation.dto.request.OrderCreateRequestDto;
 import com.bonae.logistics.order.presentation.dto.request.OrderSearchCondition;
@@ -48,11 +45,7 @@ import static org.mockito.Mockito.*;
 class OrderServiceTest {
 
     @Mock private OrderRepository orderRepository;
-    @Mock private ProductClient productClient;
-    @Mock private InventoryClient inventoryClient;
-    @Mock private DeliveryClient deliveryClient;
-    @Mock private SlackClient slackClient;
-    @Mock private AlertProperties alertProperties;
+    @Mock private OrderExternalCallRetryHelper retryHelper;
 
     @InjectMocks private OrderService orderService;
 
@@ -91,10 +84,10 @@ class OrderServiceTest {
         @DisplayName("주문 생성 성공")
         void create_success() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -105,11 +98,10 @@ class OrderServiceTest {
             assertThat(response).isNotNull();
             assertThat(response.status()).isEqualTo("PENDING");
 
-            verify(productClient).getProductInfo(PRODUCT_ID);
-            verify(inventoryClient).deductStock(eq(PRODUCT_ID), any());
-            verify(deliveryClient).createDelivery(any());
+            verify(retryHelper).getProductInfoWithRetry(PRODUCT_ID);
+            verify(retryHelper).deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt());
+            verify(retryHelper).createDeliveryWithRetry(any(), any(), any(), any(), any());
             verify(orderRepository).save(any(Order.class));
-            verifyNoInteractions(slackClient);
         }
 
         @Test
@@ -119,7 +111,7 @@ class OrderServiceTest {
             ProductInfoResponseDto deletedProduct = new ProductInfoResponseDto(
                     PRODUCT_ID, "삭제된상품", SUPPLIER_COMPANY_ID, BigDecimal.TEN, true
             );
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(deletedProduct);
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(deletedProduct);
 
             // when
             BusinessException exception = assertThrows(
@@ -129,15 +121,17 @@ class OrderServiceTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.PRODUCT_NOT_FOUND);
-            verifyNoInteractions(inventoryClient, deliveryClient, orderRepository);
+            verify(retryHelper, never()).deductStockWithRetry(any(), any(), anyInt());
+            verify(retryHelper, never()).createDeliveryWithRetry(any(), any(), any(), any(), any());
+            verifyNoInteractions(orderRepository);
         }
 
         @Test
         @DisplayName("주문 생성 실패 - 재고 부족일 경우")
         void create_fail_stockShortage() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
                     .willThrow(new BusinessException(ErrorCode.STOCK_SHORTAGE));
 
             // when
@@ -148,20 +142,21 @@ class OrderServiceTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.STOCK_SHORTAGE);
-            verifyNoInteractions(deliveryClient, orderRepository);
+            verify(retryHelper, never()).createDeliveryWithRetry(any(), any(), any(), any(), any());
+            verifyNoInteractions(orderRepository);
         }
 
         @Test
         @DisplayName("주문 생성 실패 - 배송 생성 실패 시 재고 복원(보상 트랜잭션) 수행")
         void create_fail_deliveryFailed_thenRestoreStock() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willThrow(new BusinessException(ErrorCode.COMPANY_NOT_FOUND));
-            given(inventoryClient.restoreStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryRestoreResponseDto(PRODUCT_ID, 100));
+            given(retryHelper.restoreStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 90, 10, 100, "RESTORE", null));
 
             // when
             BusinessException exception = assertThrows(
@@ -171,7 +166,7 @@ class OrderServiceTest {
 
             // then
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMPANY_NOT_FOUND);
-            verify(inventoryClient, times(1)).restoreStock(eq(PRODUCT_ID), any());
+            verify(retryHelper, times(1)).restoreStockWithRetry(any(), eq(PRODUCT_ID), anyInt());
             verifyNoInteractions(orderRepository);
         }
 
@@ -179,12 +174,12 @@ class OrderServiceTest {
         @DisplayName("주문 생성 실패 - 배송 생성 및 재고 복원이 모두 실패하면 원래 에러가 전파된다")
         void create_fail_deliveryAndRestoreBothFailed() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willThrow(new BusinessException(ErrorCode.SERVICE_UNAVAILABLE));
-            given(inventoryClient.restoreStock(eq(PRODUCT_ID), any()))
+            given(retryHelper.restoreStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
                     .willThrow(new BusinessException(ErrorCode.SERVICE_UNAVAILABLE));
 
             // when & then
@@ -200,10 +195,10 @@ class OrderServiceTest {
         @DisplayName("주문 생성 성공 - 요청업체(requesterCompanyId)가 없는 경우도 허용")
         void create_success_withoutRequesterCompanyId() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -219,10 +214,29 @@ class OrderServiceTest {
         @DisplayName("배송 생성 요청 시 supplierCompanyId는 상품의 companyId를 사용한다")
         void create_deliveryRequest_usesProductCompanyIdAsSupplier() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), eq(productInfoResponseDto), any()))
+                    .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
+            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
+
+            // when
+            orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
+
+            // then — createDeliveryWithRetry에 넘어간 productInfo의 companyId가 맞는지 검증
+            verify(retryHelper).createDeliveryWithRetry(any(), any(), any(),
+                    argThat(info -> info.companyId().equals(SUPPLIER_COMPANY_ID)), any());
+        }
+
+        @Test
+        @DisplayName("배송 생성 요청 시 receiverUsername(userId)이 그대로 전달된다")
+        void create_deliveryRequest_usesUserIdAsReceiverUsername() {
+            // given
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), eq(USER_ID), any(), any(), any()))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -230,39 +244,17 @@ class OrderServiceTest {
             orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
 
             // then
-            verify(deliveryClient).createDelivery(argThat(request ->
-                    request.supplierCompanyId().equals(SUPPLIER_COMPANY_ID)
-            ));
-        }
-
-        @Test
-        @DisplayName("배송 생성 요청 시 receiverUsername은 요청자의 userId를 사용한다")
-        void create_deliveryRequest_usesUserIdAsReceiverUsername() {
-            // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
-                    .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
-            given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
-
-            // when
-            orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
-
-            // then — "주문자 = 수령자" 전제로 userId가 receiverUsername 자리에 그대로 들어가는지 검증
-            verify(deliveryClient).createDelivery(argThat(request ->
-                    request.receiverUsername().equals(USER_ID)
-            ));
+            verify(retryHelper).createDeliveryWithRetry(any(), eq(USER_ID), any(), any(), any());
         }
 
         @Test
         @DisplayName("주문 생성 성공 시 배송 응답의 arrivalHubId가 hubId로 저장된다")
         void create_success_storesHubIdFromDeliveryResponse() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(), any()))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -274,13 +266,14 @@ class OrderServiceTest {
         }
 
         @Test
-        @DisplayName("배송 생성 요청 시 dueDate와 remarks가 requestNote로 조립된다")
+        @DisplayName("배송 생성 요청 시 dueDate와 remarks가 requestNote로 조립되어 전달된다")
         void create_deliveryRequest_buildsRequestNoteFromDueDateAndRemarks() {
             // given
-            given(productClient.getProductInfo(PRODUCT_ID)).willReturn(productInfoResponseDto);
-            given(inventoryClient.deductStock(eq(PRODUCT_ID), any()))
-                    .willReturn(new InventoryDeductResponseDto(PRODUCT_ID, 90));
-            given(deliveryClient.createDelivery(any()))
+            given(retryHelper.getProductInfoWithRetry(PRODUCT_ID)).willReturn(productInfoResponseDto);
+            given(retryHelper.deductStockWithRetry(any(), eq(PRODUCT_ID), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 100, 10, 90, "DECREASE", null));
+            given(retryHelper.createDeliveryWithRetry(any(), any(), any(), any(),
+                    argThat(note -> note != null && note.contains(requestDto.remarks()))))
                     .willReturn(new DeliveryCreateResponseDto(DELIVERY_ID, "HUB_WAITING", null, HUB_ID, 3));
             given(orderRepository.save(any(Order.class))).willAnswer(invocation -> invocation.getArgument(0));
 
@@ -288,9 +281,8 @@ class OrderServiceTest {
             orderService.createOrder(requestDto, REQUESTER_COMPANY_ID, USER_ID);
 
             // then
-            verify(deliveryClient).createDelivery(argThat(request ->
-                    request.requestNote() != null && request.requestNote().contains(requestDto.remarks())
-            ));
+            verify(retryHelper).createDeliveryWithRetry(any(), any(), any(), any(),
+                    argThat(note -> note != null && note.contains(requestDto.remarks())));
         }
     }
 
@@ -314,17 +306,17 @@ class OrderServiceTest {
         void cancel_success_master() {
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
-            willDoNothing().given(deliveryClient).cancelDelivery(any());
-            given(inventoryClient.restoreStock(any(), any()))
-                    .willReturn(new InventoryRestoreResponseDto(PRODUCT_ID, 100));
+            willDoNothing().given(retryHelper).cancelDeliveryWithRetry(any());
+            given(retryHelper.restoreStockWithRetry(any(), any(), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 90, 10, 100, "RESTORE", null));
 
             // when
-            orderService.cancelOrder(pendingOrder.getId(), "admin", "MASTER", null);   // 순서/개수 수정
+            orderService.cancelOrder(pendingOrder.getId(), "admin", "MASTER", null);
 
             // then
             assertThat(pendingOrder.getStatus()).isEqualTo(OrderStatus.CANCELLED);
-            verify(deliveryClient).cancelDelivery(any());
-            verify(inventoryClient).restoreStock(eq(PRODUCT_ID), any());
+            verify(retryHelper).cancelDeliveryWithRetry(any());
+            verify(retryHelper).restoreStockWithRetry(any(), eq(PRODUCT_ID), anyInt());
         }
 
         @Test
@@ -332,9 +324,9 @@ class OrderServiceTest {
         void cancel_success_hubManager_ownHub() {
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
-            willDoNothing().given(deliveryClient).cancelDelivery(any());
-            given(inventoryClient.restoreStock(any(), any()))
-                    .willReturn(new InventoryRestoreResponseDto(PRODUCT_ID, 100));
+            willDoNothing().given(retryHelper).cancelDeliveryWithRetry(any());
+            given(retryHelper.restoreStockWithRetry(any(), any(), anyInt()))
+                    .willReturn(new InventoryUpdateResponseDto(null, PRODUCT_ID, 90, 10, 100, "RESTORE", null));
 
             // when
             orderService.cancelOrder(pendingOrder.getId(), "hub01", "HUB_MANAGER", HUB_ID);
@@ -356,7 +348,7 @@ class OrderServiceTest {
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
-            verifyNoInteractions(deliveryClient, inventoryClient);
+            verifyNoInteractions(retryHelper);
         }
 
         @Test
@@ -392,7 +384,7 @@ class OrderServiceTest {
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
-            verifyNoInteractions(deliveryClient, inventoryClient);
+            verifyNoInteractions(retryHelper);
         }
 
         @Test
@@ -416,14 +408,14 @@ class OrderServiceTest {
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
             willThrow(new BusinessException(ErrorCode.INVALID_STATUS_TRANSITION))
-                    .given(deliveryClient).cancelDelivery(any());
+                    .given(retryHelper).cancelDeliveryWithRetry(any());
 
             assertThrows(
                     BusinessException.class,
                     () -> orderService.cancelOrder(pendingOrder.getId(), "admin", "MASTER", null)
             );
 
-            verifyNoInteractions(inventoryClient);
+            verify(retryHelper, never()).restoreStockWithRetry(any(), any(), anyInt());
         }
     }
 
@@ -450,7 +442,7 @@ class OrderServiceTest {
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
-            willDoNothing().given(deliveryClient).updateDelivery(any());
+            willDoNothing().given(retryHelper).notifyDeliveryUpdateWithRetry(any(), any());
 
             // when
             OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "admin", request, "MASTER", null);
@@ -458,7 +450,7 @@ class OrderServiceTest {
             // then
             assertThat(response.dueDate()).isEqualTo(newDueDate);
             assertThat(response.remarks()).isEqualTo("변경된 요청사항");
-            verify(deliveryClient).updateDelivery(any());
+            verify(retryHelper).notifyDeliveryUpdateWithRetry(any(), any());
         }
 
         @Test
@@ -469,7 +461,7 @@ class OrderServiceTest {
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
-            willDoNothing().given(deliveryClient).updateDelivery(any());   // 이것도 추가 필요! (아래 설명)
+            willDoNothing().given(retryHelper).notifyDeliveryUpdateWithRetry(any(), any());
 
             // when
             OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "admin", request, "MASTER", null);
@@ -486,7 +478,7 @@ class OrderServiceTest {
 
             given(orderRepository.findByIdAndDeletedAtIsNull(pendingOrder.getId()))
                     .willReturn(Optional.of(pendingOrder));
-            willDoNothing().given(deliveryClient).updateDelivery(any());
+            willDoNothing().given(retryHelper).notifyDeliveryUpdateWithRetry(any(), any());
 
             // when
             OrderResponseDto response = orderService.updateOrder(pendingOrder.getId(), "hub01", request, "HUB_MANAGER", HUB_ID);
@@ -510,6 +502,7 @@ class OrderServiceTest {
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
+            verifyNoInteractions(retryHelper);
         }
 
         @Test
@@ -527,6 +520,7 @@ class OrderServiceTest {
             );
 
             assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATUS_TRANSITION);
+            verifyNoInteractions(retryHelper);
         }
 
         @Test
