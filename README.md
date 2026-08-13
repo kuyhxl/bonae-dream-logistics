@@ -168,7 +168,7 @@
 6개 서비스, 14개 테이블로 구성됩니다. 각 서비스는 **자기 스키마에만** 접속하며, 타 서비스 참조는 **FK 없이 UUID 컬럼만** 보관하고 검증은 API 호출로 처리합니다. 모든 테이블은 audit 6종(`created_at/by`, `updated_at/by`, `deleted_at/by`)을 포함하고 삭제는 전부 논리 삭제입니다.
 
 <div align="center">
-  <img src="docs/images/bonae_dream_msa_erd_v4.png" alt="MSA 테이블 관계도 (ERD)" width="960">
+  <img src="docs/images/bonae_dream_msa_erd_v5.png" alt="MSA 테이블 관계도 (ERD)" width="960">
 </div>
 
 ---
