@@ -59,6 +59,9 @@ class DeliveryServiceTest {
     private DeliveryAssignmentRepository deliveryAssignmentRepository;
 
     @Mock
+    private DeliveryAssignmentService deliveryAssignmentService;
+
+    @Mock
     private CompanyClient companyClient;
 
     @Mock
@@ -132,6 +135,12 @@ class DeliveryServiceTest {
         assertThat(routeCaptor.getValue())
                 .extracting(DeliveryRoute::getSequenceNo)
                 .containsExactly(1, 2);
+        verify(deliveryAssignmentService).assignDelivery(
+                savedDelivery.getId(),
+                "배송 생성 자동 배정",
+                UserRole.MASTER,
+                null
+        );
     }
 
     @Test
@@ -189,6 +198,12 @@ class DeliveryServiceTest {
         ArgumentCaptor<List<DeliveryRoute>> routeCaptor = ArgumentCaptor.forClass(List.class);
         verify(deliveryRouteRepository).saveAll(routeCaptor.capture());
         assertThat(routeCaptor.getValue()).isEmpty();
+        verify(deliveryAssignmentService).assignDelivery(
+                deliveryCaptor.getValue().getId(),
+                "배송 생성 자동 배정",
+                UserRole.MASTER,
+                null
+        );
     }
 
     @Test
