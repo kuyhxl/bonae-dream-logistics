@@ -50,6 +50,9 @@ spring:
           user-service:
             connect-timeout: 2000
             read-timeout: 5000
+          message-service:
+            connect-timeout: 2000
+            read-timeout: 5000
 
 eureka:
   client:

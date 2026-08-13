@@ -9,14 +9,20 @@ import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
+import com.bonae.logistics.delivery.domain.entity.ManagerType;
+import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
-import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
+import com.bonae.logistics.delivery.infrastructure.client.HubClient;
 import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
+import com.bonae.logistics.delivery.infrastructure.client.MessageClient;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
+import com.bonae.logistics.delivery.infrastructure.client.dto.AiDispatchClientRequest;
 import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.DeliveryManagerClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.HubRoutePathClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.HubSummaryClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
@@ -26,14 +32,20 @@ import com.bonae.logistics.delivery.presentation.dto.response.DeliveryCreateResp
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryDetailResponse;
 import com.bonae.logistics.delivery.presentation.dto.response.DeliveryListItemResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DeliveryService {
@@ -43,7 +55,9 @@ public class DeliveryService {
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final DeliveryAssignmentService deliveryAssignmentService;
     private final CompanyClient companyClient;
+    private final HubClient hubClient;
     private final HubRouteClient hubRouteClient;
+    private final MessageClient messageClient;
     private final UserClient userClient;
 
     @Transactional(readOnly = true)
@@ -104,7 +118,8 @@ public class DeliveryService {
                         .map(segment -> toDeliveryRoute(savedDelivery.getId(), segment))
                         .toList()
         );
-        deliveryAssignmentService.assignDelivery(savedDelivery.getId(), "배송 생성 자동 배정", UserRole.MASTER, null);
+        deliveryAssignmentService.assignOnCreateSafely(savedDelivery.getId(), "배송 생성 자동 배정");
+        dispatchAiDispatchSafely(savedDelivery.getId(), savedRoutes, receiverUser, request);
 
         return DeliveryCreateResponse.from(savedDelivery, savedRoutes.size());
     }
@@ -149,6 +164,134 @@ public class DeliveryService {
 
         deliveryRepository.flush();
         return DeliveryDetailResponse.from(delivery);
+    }
+
+    private void dispatchAiDispatchSafely(
+            UUID deliveryId,
+            List<DeliveryRoute> savedRoutes,
+            UserInfoClientResponse receiverUser,
+            DeliveryCreateRequest request
+    ) {
+        try {
+            Delivery delivery = deliveryRepository.findByIdAndDeletedAtIsNull(deliveryId)
+                    .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_NOT_FOUND));
+            List<DeliveryRoute> routes = deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(deliveryId);
+            messageClient.createAiDispatch(buildAiDispatchRequest(delivery, routes.isEmpty() ? savedRoutes : routes, receiverUser, request));
+        } catch (Exception e) {
+            log.warn("AI dispatch 연동 실패, 배송 생성은 유지 deliveryId={}, orderId={}",
+                    deliveryId, request.getOrderId(), e);
+        }
+    }
+
+    private AiDispatchClientRequest buildAiDispatchRequest(
+            Delivery delivery,
+            List<DeliveryRoute> routes,
+            UserInfoClientResponse receiverUser,
+            DeliveryCreateRequest request
+    ) {
+        List<UUID> intermediateHubIds = extractWaypointHubIds(routes);
+        Map<UUID, String> hubNameMap = getHubNameMap(buildHubNameQueryIds(delivery.getOriginHubId(), intermediateHubIds));
+
+        return AiDispatchClientRequest.builder()
+                .orderId(delivery.getOrderId())
+                .orderNo(null)
+                .ordererName(receiverUser.getName())
+                .ordererSlackId(receiverUser.getSlackId())
+                .productName(request.getProductName())
+                .quantity(request.getQuantity())
+                .dueDate(request.getDueDate())
+                .requestNote(delivery.getRequestNote())
+                .originHubName(requireHubName(hubNameMap, delivery.getOriginHubId()))
+                .waypointHubNames(intermediateHubIds.stream()
+                        .map(hubId -> requireHubName(hubNameMap, hubId))
+                        .toList())
+                .destinationAddress(delivery.getDeliveryAddress())
+                .totalDurationMin(calculateTotalDurationMin(routes))
+                .managerSlackId(resolveManagerSlackId(delivery, routes))
+                .build();
+    }
+
+    private String resolveManagerSlackId(Delivery delivery, List<DeliveryRoute> routes) {
+        if (routes.isEmpty()) {
+            UUID companyManagerId = delivery.getDeliveryManagerId();
+            if (companyManagerId == null) {
+                throw new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE);
+            }
+
+            return userClient.getDeliveryManagers(delivery.getDestinationHubId(), ManagerType.COMPANY_DELIVERY)
+                    .stream()
+                    .filter(manager -> companyManagerId.equals(manager.getUserId()))
+                    .map(DeliveryManagerClientResponse::getSlackId)
+                    .filter(slackId -> slackId != null && !slackId.isBlank())
+                    .findFirst()
+                    .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE));
+        }
+
+        UUID routeManagerId = routes.get(0).getDeliveryManagerId();
+        if (routeManagerId == null) {
+            throw new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE);
+        }
+
+        return userClient.getDeliveryManagers(null, ManagerType.HUB_DELIVERY)
+                .stream()
+                .filter(manager -> routeManagerId.equals(manager.getUserId()))
+                .map(DeliveryManagerClientResponse::getSlackId)
+                .filter(slackId -> slackId != null && !slackId.isBlank())
+                .findFirst()
+                .orElseThrow(() -> new BusinessException(ErrorCode.DELIVERY_MANAGER_NOT_AVAILABLE));
+    }
+
+    private Map<UUID, String> getHubNameMap(List<UUID> hubIds) {
+        if (hubIds.isEmpty()) {
+            return Map.of();
+        }
+
+        List<HubSummaryClientResponse> hubs = hubClient.getHubsByIds(hubIds);
+        Map<UUID, String> hubNameMap = new LinkedHashMap<>();
+        for (HubSummaryClientResponse hub : hubs) {
+            hubNameMap.put(hub.getHubId(), hub.getHubName());
+        }
+
+        for (UUID hubId : hubIds) {
+            if (!hubNameMap.containsKey(hubId)) {
+                throw new BusinessException(ErrorCode.HUB_NOT_FOUND);
+            }
+        }
+
+        return hubNameMap;
+    }
+
+    private List<UUID> buildHubNameQueryIds(UUID originHubId, List<UUID> waypointHubIds) {
+        List<UUID> hubIds = new ArrayList<>();
+        hubIds.add(originHubId);
+        hubIds.addAll(waypointHubIds);
+        return hubIds;
+    }
+
+    private List<UUID> extractWaypointHubIds(List<DeliveryRoute> routes) {
+        if (routes.size() <= 1) {
+            return List.of();
+        }
+
+        return routes.stream()
+                .limit(routes.size() - 1L)
+                .map(DeliveryRoute::getToHubId)
+                .toList();
+    }
+
+    private String requireHubName(Map<UUID, String> hubNameMap, UUID hubId) {
+        String hubName = hubNameMap.get(hubId);
+        if (hubName == null || hubName.isBlank()) {
+            throw new BusinessException(ErrorCode.HUB_NOT_FOUND);
+        }
+        return hubName;
+    }
+
+    private Integer calculateTotalDurationMin(List<DeliveryRoute> routes) {
+        return routes.stream()
+                .map(DeliveryRoute::getDurationMin)
+                .filter(Objects::nonNull)
+                .reduce(0, Integer::sum);
     }
 
     private Delivery findDeliveryByRole(UUID deliveryId, UserRole userRole, UUID companyId, String username) {
@@ -226,6 +369,7 @@ public class DeliveryService {
             throw new BusinessException(ErrorCode.INVALID_INPUT, "수령 업체 주소가 누락되어 배송지를 생성할 수 없습니다.");
         }
     }
+
     private List<HubRoutePathClientResponse.HubRoutePathSegmentClientResponse> validateRoutePath(
             UUID departureHubId,
             UUID arrivalHubId,
