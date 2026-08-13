@@ -23,8 +23,9 @@ RUN chmod +x gradlew && ./gradlew :${MODULE}:dependencies --no-daemon || true
 
 COPY . .
 
+# 실행 권한 없이 커밋된 환경에서도 빌드되도록 다시 부여한다.
 # 테스트는 제외
-RUN ./gradlew :${MODULE}:bootJar --no-daemon -x test
+RUN chmod +x gradlew && ./gradlew :${MODULE}:bootJar --no-daemon -x test
 
 # bootJar만 골라낸다
 RUN cp $(ls /workspace/${MODULE}/build/libs/*.jar | grep -v plain) /workspace/app.jar
