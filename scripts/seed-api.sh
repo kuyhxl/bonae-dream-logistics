@@ -261,7 +261,7 @@ main() {
     signup "seedhub" "시드허브관리자"
     signup "seedcomp" "시드업체관리자"
     signup "seeddeli" "시드배송담당"
-    signup "seedlast" "seedlastdelivery"
+    signup "seedlast" "시드업체배송"
     printf '\n'
 
     info "[3/6] 허브 참조 (마이그레이션이 넣은 전국 17개 중)"
@@ -298,7 +298,8 @@ main() {
     printf '  계정 (비밀번호 공통: %s)\n' "$SEED_PASSWORD"
     printf '    seedhub    / HUB_MANAGER      (서울특별시 센터 소속)\n'
     printf '    seedcomp   / COMPANY_MANAGER  (시드 생산업체 소속)\n'
-    printf '    seeddeli   / DELIVERY_MANAGER (서울특별시 센터 소속)\n'
+    printf '    seeddeli   / DELIVERY_MANAGER (서울특별시 센터 소속, 허브 배송)\n'
+    printf '    seedlast   / DELIVERY_MANAGER (부산광역시 센터 소속, 업체 배송)\n'
     printf '    %s   / MASTER            (마이그레이션 기준 계정, 비밀번호 %s)\n' "$MASTER_USERNAME" "$MASTER_PASSWORD"
     printf '\n'
     printf '  토큰 발급 예시:\n'
