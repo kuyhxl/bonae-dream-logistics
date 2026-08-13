@@ -77,7 +77,9 @@ public class OrderExternalCallRetryHelper {
                 productInfo.companyId(),
                 request.receiverCompanyId(),
                 userId,
-                productInfoText,
+                productInfo.name(),     // productName
+                request.quantity(),     // quantity
+                request.dueDate(),
                 requestNote
         ));
     }
