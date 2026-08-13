@@ -44,6 +44,7 @@
 - [시드 데이터](#-시드-데이터)
 - [전체 컨테이너 실행](#-전체-컨테이너-실행)
 - [API 문서 (Swagger)](#-api-문서-swagger)
+- [배포](#-배포)
 - [포트 목록](#-포트-목록)
 
 ---
@@ -105,7 +106,8 @@
 | 인증 / 인가 | Spring Security + JWT, BCrypt             |
 | 분산 추적 | Zipkin + Micrometer Tracing (Brave)       |
 | API 문서 | Springdoc OpenAPI (Swagger UI)            |
-| AI / 알림 | Spring AI + Gemini API, Slack Webhook     |
+| AI / 알림 | Gemini API, Slack Web API (Bot Token)     |
+| CI / CD | GitHub Actions, GHCR, AWS EC2             |
 
 ---
 
@@ -199,24 +201,30 @@ docker compose up -d --build   # 전체 서비스 기동이 먼저 필요합니�
 
 게이트웨이를 경유해 **실제 REST API를 호출**하므로, 데이터가 만들어지는 과정에서 JWT 인증·권한 검증·헤더 전파·서비스 간 Feign 호출이 함께 검증됩니다. **스크립트가 끝까지 성공 ->  통합 동작을 확인**
 
-> 💡 승인 처리와 역할·소속 부여는 아직 해당 API가 없어 이 부분만 DB를 직접 갱신합니다. 승인 API가 생기면 API 호출로 교체할 예정입니다.
+승인과 역할·소속 부여도 **승인 API(`PATCH /api/users/{userId}/approval`)로 처리**합니다. DB를 직접 갱신하지 않으므로 이 단계에서 인가(`@RoleCheck`)와 user -> hub/company Feign 검증까지 함께 확인됩니다.
 
-### 생성되는 계정
+> 💡 스크립트가 `psql`을 쓰는 곳은 **조회뿐**입니다. 응답 본문에 없는 사용자·허브 ID를 찾는 용도이며, 데이터 변경은 전부 API를 거칩니다.
 
-비밀번호는 모두 `Seed1234!` 입니다.
+### 계정
+
+시드 스크립트가 만드는 계정의 비밀번호는 모두 `Seed1234!` 입니다.
 
 | 계정 | 역할 | 소속 |
 |---|---|---|
-| `seedmaster` | MASTER | - |
 | `seedhub` | HUB_MANAGER | 서울특별시 센터 |
 | `seedcomp` | COMPANY_MANAGER | 시드 생산업체 |
 | `seeddeli` | DELIVERY_MANAGER | 서울특별시 센터 |
+
+승인은 `master01`(비밀번호 `Master1234!`)이 수행합니다. `user-service`의 마이그레이션(`V3`)이 만드는 **기준 MASTER 계정**으로, 시드 스크립트와 무관하게 항상 존재합니다.
+
+> ⚠️ 승인 API는 **MASTER 역할을 부여할 수 없습니다**(권한 상승 방지!). 그래서 시드 MASTER를 새로 만들지 않고 `master01`을 승인자로 사용합니다.
+
 
 ```bash
 # 토큰 발급 예시
 curl -s -X POST localhost:8080/api/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"seedmaster","password":"Seed1234!"}'
+  -d '{"username":"master01","password":"Master1234!"}'
 ```
 
 > ⚠️ 로컬 개발 전용 계정입니다. **여러 번 실행해도 안전**하며(이미 있으면 재사용), 허브를 포함해 기존 데이터를 변경하지 않습니다.
@@ -240,7 +248,16 @@ curl -s -X POST localhost:8080/api/auth/login \
 | 레벨 4 | 서비스 간 Feign 연동                                                                                 |
 | 관측 | Zipkin 트레이스 수집                                                                                 |
 
-아직 구현되지 않은 항목은 **건너뜀(`-`)** 으로 표시되며 실패로 집계되지 않습니다.
+결과는 네 가지로 구분되며, **통과로 뭉뚱그리지 않습니다.**
+
+| 표시 | 의미 |
+|---|---|
+| **통과** | 검증했고 기대대로 동작함 |
+| **실패** | 검증했고 기대와 다름 (종료 코드 1) |
+| **미구현** | 기능이 아직 없어 검증 대상이 아님 (정상) |
+| **확인못함** | 검증하려 했으나 선행 조건이 없어 확인하지 못함 (검증 공백) |
+
+`확인못함`이 있으면 "모두 통과"로 표기하지 않아, 검증 공백이 초록불에 가려지지 않습니다.
 
 > 💡 검증 과정에서 만든 업체는 **실행이 끝나면 자동으로 삭제**됩니다. 중간에 중단해도 남지 않으며(`trap`), 실행마다 고유 태그를 쓰므로 시드 데이터나 직접 만든 데이터는 건드리지 않습니다.
 
@@ -303,6 +320,46 @@ docker compose up -d postgres redis zipkin   # 인프라만
 | 서비스 직접 접속 (예: user) | http://localhost:19001/swagger-ui.html |
 
 > 🔒 서비스 간 내부 API(`/api/internal/**`)는 공개 문서에서 제외됩니다.
+
+---
+
+## 🚢 배포
+
+GitHub Actions에서 이미지를 빌드해 **GHCR**에 올리고, EC2는 그 이미지를 받아 교체합니다. EC2에서 직접 빌드하지 않으므로 배포 중 서비스 중단이 짧습니다.
+
+```
+Actions(Deploy 수동 실행) -> 8개 모듈 병렬 빌드 → GHCR push -> EC2가 pull -> 컨테이너 교체 -> 게이트웨이 헬스체크
+```
+
+### 실행 방법
+
+**Actions -> Deploy -> Run workflow** 에서 배포할 브랜치(기본 `dev`)를 지정해 실행합니다.
+
+> ⚠️ 자동 배포가 아닙니다. `dev`에 머지해도 서버에 반영되지 않으며, 위 워크플로를 직접 실행해야 합니다.
+
+### 운영 환경 포트
+
+로컬과 달리 **게이트웨이(8080)와 관측용 UI 두 개만** 호스트에 노출됩니다.
+
+| 대상 | 로컬 | 운영      |
+|---|---|-----------|
+| Gateway | 8080 | **8080**  |
+| Zipkin | 9411 | **9411**  |
+| Eureka 대시보드 | 8761 | **8761**  |
+| 서비스 6개 | 19001~19006 | 미개방    |
+| PostgreSQL / Redis | 15432 / 6379 | 미개방    |
+
+서비스 포트가 열려 있으면 게이트웨이를 우회한 직접 호출이 가능해져 인증이 무의미해짐
+
+### 서버에서 검증 실행
+
+배포 시 `scripts/`도 함께 전송되므로 서버에서 시드·검증을 실행할 수 있습니다. 운영 환경은 닫힌 포트가 있어 해당 항목을 비워서 넘깁니다.
+
+```bash
+cd ~/bonae
+./scripts/seed-api.sh
+EUREKA_URL= DELIVERY_INTERNAL_URL= ./scripts/verify.sh
+```
 
 ---
 
