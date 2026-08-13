@@ -54,9 +54,9 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<PageResponseDto<ResSearchProductDto>> searchProducts(
             @ParameterObject @ModelAttribute PageRequestDto pageRequestDto,
@@ -72,11 +72,11 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "404", description = "존재하지 않거나 삭제된 상품 (PRODUCT_NOT_FOUND)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResGetProductDto> getProduct(
             @Parameter(description = "상품 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID productId) {
@@ -90,15 +90,15 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "상품 생성 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음. HUB_MANAGER/COMPANY_MANAGER가 자신의 허브·업체가 아닌 상품을 생성하려는 경우 등 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "400", description = "요청값 검증 실패 / 잘못된 가격 또는 수량 (INVALID_INPUT, INVALID_PRICE, INVALID_QUANTITY)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"INVALID_QUANTITY\",\"message\":\"허용되지 않는 수량입니다.\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"INVALID_QUANTITY\",\"message\":\"허용되지 않는 수량입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 업체 / 허브 (COMPANY_NOT_FOUND, HUB_NOT_FOUND)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"COMPANY_NOT_FOUND\",\"message\":\"업체를 찾을 수 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"COMPANY_NOT_FOUND\",\"message\":\"업체를 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "409", description = "동일 업체 내 상품명 중복 (PRODUCT_DUPLICATED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResCreateProductDto> createProduct(
             @RequestHeader("X-User-Role") String userRole,
@@ -114,9 +114,9 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<PageResponseDto<ResGetProductListDto>> getProducts(@ParameterObject @ModelAttribute PageRequestDto pageRequestDto) {
         PageResponseDto<ResGetProductListDto> resDto = productService.getProducts(pageRequestDto);
@@ -129,11 +129,11 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "204", description = "삭제 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음. HUB_MANAGER가 자신의 허브 소속이 아닌 상품을 삭제하려는 경우 등 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 상품 / 업체 / 사용자 (PRODUCT_NOT_FOUND, COMPANY_NOT_FOUND, USER_NOT_FOUND)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<Void> deleteProduct(
             @RequestHeader("X-User-Role") String userRole,
@@ -149,15 +149,15 @@ public class ProductController {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "403", description = "권한 없음. HUB_MANAGER/COMPANY_MANAGER가 자신의 허브·업체가 아닌 상품을 수정하려는 경우 등 (FORBIDDEN)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"FORBIDDEN\",\"message\":\"해당 작업을 수행할 권한이 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "400", description = "수정할 필드 없음 / 빈 상품명 / 잘못된 가격 (INVALID_INPUT, INVALID_PRICE)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"INVALID_PRICE\",\"message\":\"허용되지 않는 가격입니다.\"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"INVALID_PRICE\",\"message\":\"허용되지 않는 가격입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "404", description = "존재하지 않는 상품 / 업체 / 사용자 (PRODUCT_NOT_FOUND, COMPANY_NOT_FOUND, USER_NOT_FOUND)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \"}"))),
+                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_NOT_FOUND\",\"message\":\"상품을 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}"))),
             @ApiResponse(responseCode = "409", description = "동일 업체 내 상품명 중복 (PRODUCT_DUPLICATED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
-                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\"}")))
+                    examples = @ExampleObject(value = "{\"code\":\"PRODUCT_DUPLICATED\",\"message\":\"이미 존재하는 상품입니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResUpdateProductDto> updateProduct(
             @RequestHeader("X-User-Role") String userRole,
