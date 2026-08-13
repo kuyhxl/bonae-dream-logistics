@@ -15,6 +15,7 @@ import com.bonae.logistics.company.presentation.dto.response.ResUpdateCompanyDto
 import com.bonae.logistics.common.response.ErrorResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -46,11 +47,16 @@ import java.util.UUID;
 @Tag(name = "Company", description = "업체 관리 API")
 public class CompanyController {
 
+    private static final String REQUESTER_HEADER_NOTE =
+            "게이트웨이가 JWT를 검증한 뒤 주입한다. 클라이언트가 직접 보낸 값은 게이트웨이에서 제거된다.";
+
     private final CompanyService companyService;
 
     @PostMapping
     @RoleCheck({UserRole.MASTER, UserRole.HUB_MANAGER})
     @Operation(summary = "업체 생성", description = "새로운 업체(생산업체/수령업체)를 등록한다.")
+    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "업체 생성 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -72,6 +78,8 @@ public class CompanyController {
     @GetMapping
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 목록 조회", description = "업체 목록을 유형별로 필터링하여 페이징 조회한다.")
+    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -92,6 +100,8 @@ public class CompanyController {
     @GetMapping("/{companyId}")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 단건 조회", description = "업체 ID로 업체 상세 정보를 조회한다.")
+    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -111,6 +121,8 @@ public class CompanyController {
     @GetMapping("/search")
     @RoleCheck({UserRole.MASTER, UserRole.COMPANY_MANAGER, UserRole.HUB_MANAGER, UserRole.DELIVERY_MANAGER})
     @Operation(summary = "업체 검색", description = "업체명 키워드, 유형, 소속 허브로 업체를 검색하고 페이징하여 조회한다.")
+    @Parameter(name = "X-User-Role", in = ParameterIn.HEADER, required = true,
+            description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공"),
             @ApiResponse(responseCode = "401", description = "인증 실패 (UNAUTHORIZED)", content = @Content(schema = @Schema(implementation = ErrorResponse.class),
@@ -148,7 +160,9 @@ public class CompanyController {
                     examples = @ExampleObject(value = "{\"code\":\"COMPANY_DUPLICATED\",\"message\":\"이미 동일한 업체명과 주소로 등록된 업체가 존재합니다.\",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<ResUpdateCompanyDto> updateCompany(
+            @Parameter(description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
             @RequestHeader("X-User-Role") String userRole,
+            @Parameter(description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
             @RequestHeader("X-User-Id") String username,
             @Parameter(description = "업체 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID companyId,
             @Valid @RequestBody ReqUpdateCompanyDto reqDto) {
@@ -170,7 +184,9 @@ public class CompanyController {
                     examples = @ExampleObject(value = "{\"code\":\"COMPANY_NOT_FOUND\",\"message\":\"업체를 찾을 수 없습니다. \",\"traceId\":\"6a1f3c9d2e4b5a10\"}")))
     })
     public ResponseEntity<Void> deleteCompany(
+            @Parameter(description = "요청자 역할. " + REQUESTER_HEADER_NOTE, schema = @Schema(implementation = UserRole.class))
             @RequestHeader("X-User-Role") String userRole,
+            @Parameter(description = "요청자 아이디. " + REQUESTER_HEADER_NOTE, example = "seedhub")
             @RequestHeader("X-User-Id") String username,
             @Parameter(description = "업체 ID", example = "3b1c3a78-2b73-4501-bf16-feec87fc98c4") @PathVariable UUID companyId) {
         companyService.deleteCompany(companyId, UserRole.valueOf(userRole), username);
