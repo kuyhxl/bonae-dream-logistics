@@ -5,19 +5,25 @@ import com.bonae.logistics.common.exception.ErrorCode;
 import com.bonae.logistics.common.response.PageRequestDto;
 import com.bonae.logistics.common.response.PageResponseDto;
 import com.bonae.logistics.delivery.auth.UserRole;
+import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
 import com.bonae.logistics.delivery.domain.entity.Delivery;
 import com.bonae.logistics.delivery.domain.entity.DeliveryAssignment;
 import com.bonae.logistics.delivery.domain.entity.DeliveryRoute;
 import com.bonae.logistics.delivery.domain.entity.DeliveryStatus;
-import com.bonae.logistics.delivery.domain.entity.AssignmentStatus;
-import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
+import com.bonae.logistics.delivery.domain.entity.ManagerType;
 import com.bonae.logistics.delivery.domain.repository.DeliveryAssignmentRepository;
+import com.bonae.logistics.delivery.domain.repository.DeliveryRepository;
 import com.bonae.logistics.delivery.domain.repository.DeliveryRouteRepository;
 import com.bonae.logistics.delivery.infrastructure.client.CompanyClient;
+import com.bonae.logistics.delivery.infrastructure.client.HubClient;
 import com.bonae.logistics.delivery.infrastructure.client.HubRouteClient;
+import com.bonae.logistics.delivery.infrastructure.client.MessageClient;
 import com.bonae.logistics.delivery.infrastructure.client.UserClient;
+import com.bonae.logistics.delivery.infrastructure.client.dto.AiDispatchClientRequest;
 import com.bonae.logistics.delivery.infrastructure.client.dto.CompanyInfoClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.DeliveryManagerClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.HubRoutePathClientResponse;
+import com.bonae.logistics.delivery.infrastructure.client.dto.HubSummaryClientResponse;
 import com.bonae.logistics.delivery.infrastructure.client.dto.UserInfoClientResponse;
 import com.bonae.logistics.delivery.presentation.dto.request.DeliveryCreateRequest;
 import com.bonae.logistics.delivery.presentation.dto.request.InternalDeliveryUpdateRequest;
@@ -36,13 +42,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.PageImpl;
 
 import java.lang.reflect.Field;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,7 +75,13 @@ class DeliveryServiceTest {
     private CompanyClient companyClient;
 
     @Mock
+    private HubClient hubClient;
+
+    @Mock
     private HubRouteClient hubRouteClient;
+
+    @Mock
+    private MessageClient messageClient;
 
     @Mock
     private UserClient userClient;
@@ -74,7 +90,7 @@ class DeliveryServiceTest {
     private DeliveryService deliveryService;
 
     @Test
-    @DisplayName("create delivery stores request note and routes")
+    @DisplayName("create delivery stores request note, routes, and dispatches AI request")
     void createDelivery_success() {
         DeliveryCreateRequest request = createRequest();
         CompanyInfoClientResponse supplierCompany = createCompanyInfo(
@@ -102,15 +118,61 @@ class DeliveryServiceTest {
                 supplierCompany.getHubId(),
                 receiverCompany.getHubId()
         );
+        UUID hubManager1Id = UUID.randomUUID();
+        UUID hubManager2Id = UUID.randomUUID();
+        UUID companyManagerId = UUID.randomUUID();
 
         when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
         when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
         when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
         when(hubRouteClient.getShortestPath(supplierCompany.getHubId(), receiverCompany.getHubId())).thenReturn(routePath);
+        AtomicReference<Delivery> savedDeliveryRef = new AtomicReference<>();
+        AtomicReference<List<DeliveryRoute>> savedRoutesRef = new AtomicReference<>();
         when(deliveryRepository.saveAndFlush(any(Delivery.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Delivery savedDelivery = invocation.getArgument(0);
+                    savedDeliveryRef.set(savedDelivery);
+                    return savedDelivery;
+                });
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(any()))
+                .thenAnswer(invocation -> Optional.of(savedDeliveryRef.get()));
         when(deliveryRouteRepository.saveAll(any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    List<DeliveryRoute> savedRoutes = invocation.getArgument(0);
+                    savedRoutesRef.set(savedRoutes);
+                    return savedRoutes;
+                });
+        when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(any()))
+                .thenAnswer(invocation -> savedRoutesRef.get());
+        when(hubClient.getHubsByIds(any())).thenReturn(List.of(
+                HubSummaryClientResponse.builder()
+                        .hubId(supplierCompany.getHubId())
+                        .hubName("서울 허브")
+                        .build(),
+                HubSummaryClientResponse.builder()
+                        .hubId(routePath.getSegments().get(0).getToHubId())
+                        .hubName("대전 허브")
+                        .build()
+        ));
+        when(userClient.getDeliveryManagers(null, ManagerType.HUB_DELIVERY)).thenReturn(List.of(
+                DeliveryManagerClientResponse.builder()
+                        .userId(hubManager1Id)
+                        .slackId("U-HUB-1")
+                        .build(),
+                DeliveryManagerClientResponse.builder()
+                        .userId(hubManager2Id)
+                        .slackId("U-HUB-2")
+                        .build()
+        ));
+
+        doAnswer(invocation -> {
+            Delivery delivery = savedDeliveryRef.get();
+            List<DeliveryRoute> routes = savedRoutesRef.get();
+            delivery.assignManager(companyManagerId);
+            routes.get(0).assignManager(hubManager1Id);
+            routes.get(1).assignManager(hubManager2Id);
+            return null;
+        }).when(deliveryAssignmentService).assignOnCreateSafely(any(), any());
 
         DeliveryCreateResponse result = deliveryService.createDelivery(request);
 
@@ -120,25 +182,36 @@ class DeliveryServiceTest {
         assertThat(result.getArrivalHubId()).isEqualTo(receiverCompany.getHubId());
         assertThat(result.getRouteCount()).isEqualTo(2);
 
-        ArgumentCaptor<Delivery> deliveryCaptor = ArgumentCaptor.forClass(Delivery.class);
-        verify(deliveryRepository).saveAndFlush(deliveryCaptor.capture());
-        Delivery savedDelivery = deliveryCaptor.getValue();
+        Delivery savedDelivery = savedDeliveryRef.get();
         assertThat(savedDelivery.getRequestNote()).isEqualTo("Deliver before 3 PM");
         assertThat(savedDelivery.getReceiverName()).isEqualTo("Receiver User");
         assertThat(savedDelivery.getReceiverSlackId()).isEqualTo("U08ABCD1234");
         assertThat(savedDelivery.getDeliveryAddress()).isEqualTo("Busan Address");
-        assertThat(savedDelivery.getStatus()).isEqualTo(DeliveryStatus.HUB_WAITING);
 
-        ArgumentCaptor<List<DeliveryRoute>> routeCaptor = ArgumentCaptor.forClass(List.class);
-        verify(deliveryRouteRepository).saveAll(routeCaptor.capture());
-        assertThat(routeCaptor.getValue()).hasSize(2);
-        assertThat(routeCaptor.getValue())
+        assertThat(savedRoutesRef.get()).hasSize(2);
+        assertThat(savedRoutesRef.get())
                 .extracting(DeliveryRoute::getSequenceNo)
                 .containsExactly(1, 2);
         verify(deliveryAssignmentService).assignOnCreateSafely(
                 savedDelivery.getId(),
                 "배송 생성 자동 배정"
         );
+
+        ArgumentCaptor<AiDispatchClientRequest> aiRequestCaptor = ArgumentCaptor.forClass(AiDispatchClientRequest.class);
+        verify(messageClient).createAiDispatch(aiRequestCaptor.capture());
+        AiDispatchClientRequest aiRequest = aiRequestCaptor.getValue();
+        assertThat(aiRequest.getOrderId()).isEqualTo(savedDelivery.getOrderId());
+        assertThat(aiRequest.getOrdererName()).isEqualTo("Receiver User");
+        assertThat(aiRequest.getOrdererSlackId()).isEqualTo("U08ABCD1234");
+        assertThat(aiRequest.getProductName()).isEqualTo("Dried squid");
+        assertThat(aiRequest.getQuantity()).isEqualTo(50);
+        assertThat(aiRequest.getDueDate()).isEqualTo(LocalDateTime.of(2026, 8, 20, 15, 0));
+        assertThat(aiRequest.getRequestNote()).isEqualTo("Deliver before 3 PM");
+        assertThat(aiRequest.getOriginHubName()).isEqualTo("서울 허브");
+        assertThat(aiRequest.getWaypointHubNames()).containsExactly("대전 허브");
+        assertThat(aiRequest.getDestinationAddress()).isEqualTo("Busan Address");
+        assertThat(aiRequest.getTotalDurationMin()).isEqualTo(30);
+        assertThat(aiRequest.getManagerSlackId()).isNotBlank();
     }
 
     @Test
@@ -175,31 +248,134 @@ class DeliveryServiceTest {
                 .segments(List.of())
                 .build();
 
+        UUID companyManagerId = UUID.randomUUID();
+        AtomicReference<Delivery> savedDeliveryRef = new AtomicReference<>();
         when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
         when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
         when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
         when(hubRouteClient.getShortestPath(sameHubId, sameHubId)).thenReturn(routePath);
         when(deliveryRepository.saveAndFlush(any(Delivery.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
+                .thenAnswer(invocation -> {
+                    Delivery savedDelivery = invocation.getArgument(0);
+                    savedDeliveryRef.set(savedDelivery);
+                    return savedDelivery;
+                });
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(any()))
+                .thenAnswer(invocation -> Optional.of(savedDeliveryRef.get()));
         when(deliveryRouteRepository.saveAll(any()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(any()))
+                .thenReturn(List.of());
+        when(hubClient.getHubsByIds(any())).thenReturn(List.of(
+                HubSummaryClientResponse.builder()
+                        .hubId(sameHubId)
+                        .hubName("서울 허브")
+                        .build()
+        ));
+        when(userClient.getDeliveryManagers(sameHubId, ManagerType.COMPANY_DELIVERY)).thenReturn(List.of(
+                DeliveryManagerClientResponse.builder()
+                        .userId(companyManagerId)
+                        .slackId("U-COMPANY-1")
+                        .build()
+        ));
+
+        doAnswer(invocation -> {
+            Delivery delivery = savedDeliveryRef.get();
+            delivery.assignManager(companyManagerId);
+            return null;
+        }).when(deliveryAssignmentService).assignOnCreateSafely(any(), any());
 
         DeliveryCreateResponse result = deliveryService.createDelivery(request);
 
         assertThat(result.getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
         assertThat(result.getRouteCount()).isZero();
-
-        ArgumentCaptor<Delivery> deliveryCaptor = ArgumentCaptor.forClass(Delivery.class);
-        verify(deliveryRepository).saveAndFlush(deliveryCaptor.capture());
-        assertThat(deliveryCaptor.getValue().getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
+        assertThat(savedDeliveryRef.get().getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
 
         ArgumentCaptor<List<DeliveryRoute>> routeCaptor = ArgumentCaptor.forClass(List.class);
         verify(deliveryRouteRepository).saveAll(routeCaptor.capture());
         assertThat(routeCaptor.getValue()).isEmpty();
         verify(deliveryAssignmentService).assignOnCreateSafely(
-                deliveryCaptor.getValue().getId(),
+                savedDeliveryRef.get().getId(),
                 "배송 생성 자동 배정"
         );
+        verify(messageClient).createAiDispatch(any(AiDispatchClientRequest.class));
+    }
+
+    @Test
+    @DisplayName("create delivery keeps success when AI dispatch fails")
+    void createDelivery_aiDispatchFailureDoesNotRollback() {
+        DeliveryCreateRequest request = createRequest();
+        UUID sameHubId = UUID.randomUUID();
+        CompanyInfoClientResponse supplierCompany = createCompanyInfo(
+                sameHubId,
+                "Supplier Company",
+                "SUPPLIER",
+                "Seoul Address"
+        );
+        CompanyInfoClientResponse receiverCompany = createCompanyInfo(
+                sameHubId,
+                "Receiver Company",
+                "RECEIVER",
+                "Seoul Address"
+        );
+        UserInfoClientResponse receiverUser = createUserInfo(
+                UUID.randomUUID(),
+                "receiver01",
+                "Receiver User",
+                "U08ABCD1234",
+                "COMPANY_MANAGER",
+                null,
+                receiverCompany.getCompanyId()
+        );
+        HubRoutePathClientResponse routePath = HubRoutePathClientResponse.builder()
+                .totalDistanceMeters(0L)
+                .totalDurationSeconds(0L)
+                .totalDistanceKm(0.0)
+                .totalDurationMin(0L)
+                .segments(List.of())
+                .build();
+
+        UUID companyManagerId = UUID.randomUUID();
+        AtomicReference<Delivery> savedDeliveryRef = new AtomicReference<>();
+        when(companyClient.getCompany(request.getSupplierCompanyId())).thenReturn(supplierCompany);
+        when(companyClient.getCompany(request.getReceiverCompanyId())).thenReturn(receiverCompany);
+        when(userClient.getUserInfo(request.getReceiverUsername())).thenReturn(receiverUser);
+        when(hubRouteClient.getShortestPath(sameHubId, sameHubId)).thenReturn(routePath);
+        when(deliveryRepository.saveAndFlush(any(Delivery.class)))
+                .thenAnswer(invocation -> {
+                    Delivery savedDelivery = invocation.getArgument(0);
+                    savedDeliveryRef.set(savedDelivery);
+                    return savedDelivery;
+                });
+        when(deliveryRepository.findByIdAndDeletedAtIsNull(any()))
+                .thenAnswer(invocation -> Optional.of(savedDeliveryRef.get()));
+        when(deliveryRouteRepository.saveAll(any()))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(deliveryRouteRepository.findAllByDeliveryIdAndDeletedAtIsNullOrderBySequenceNoAsc(any()))
+                .thenReturn(List.of());
+        when(hubClient.getHubsByIds(any())).thenReturn(List.of(
+                HubSummaryClientResponse.builder()
+                        .hubId(sameHubId)
+                        .hubName("서울 허브")
+                        .build()
+        ));
+        when(userClient.getDeliveryManagers(sameHubId, ManagerType.COMPANY_DELIVERY)).thenReturn(List.of(
+                DeliveryManagerClientResponse.builder()
+                        .userId(companyManagerId)
+                        .slackId("U-COMPANY-1")
+                        .build()
+        ));
+        doAnswer(invocation -> {
+            Delivery delivery = savedDeliveryRef.get();
+            delivery.assignManager(companyManagerId);
+            return null;
+        }).when(deliveryAssignmentService).assignOnCreateSafely(any(), any());
+        doThrow(new RuntimeException("message failure"))
+                .when(messageClient).createAiDispatch(any(AiDispatchClientRequest.class));
+
+        DeliveryCreateResponse result = deliveryService.createDelivery(request);
+
+        assertThat(result.getStatus()).isEqualTo(DeliveryStatus.OUT_FOR_DELIVERY);
     }
 
     @Test
@@ -436,7 +612,9 @@ class DeliveryServiceTest {
             setField(request, "supplierCompanyId", UUID.randomUUID());
             setField(request, "receiverCompanyId", UUID.randomUUID());
             setField(request, "receiverUsername", "receiver01");
-            setField(request, "productInfo", "Dried squid 50 boxes");
+            setField(request, "productName", "Dried squid");
+            setField(request, "quantity", 50);
+            setField(request, "dueDate", LocalDateTime.of(2026, 8, 20, 15, 0));
             setField(request, "requestNote", "Deliver before 3 PM");
             return request;
         } catch (Exception e) {
@@ -456,6 +634,7 @@ class DeliveryServiceTest {
     }
 
     private HubRoutePathClientResponse createRoutePath(UUID departureHubId, UUID arrivalHubId) {
+        UUID waypointHubId = UUID.randomUUID();
         return HubRoutePathClientResponse.builder()
                 .totalDistanceMeters(3000L)
                 .totalDurationSeconds(1800L)
@@ -465,7 +644,7 @@ class DeliveryServiceTest {
                         HubRoutePathClientResponse.HubRoutePathSegmentClientResponse.builder()
                                 .sequence(1)
                                 .fromHubId(departureHubId)
-                                .toHubId(UUID.randomUUID())
+                                .toHubId(waypointHubId)
                                 .distanceMeters(1000)
                                 .durationSeconds(600)
                                 .distanceKm(1.0)
@@ -473,7 +652,7 @@ class DeliveryServiceTest {
                                 .build(),
                         HubRoutePathClientResponse.HubRoutePathSegmentClientResponse.builder()
                                 .sequence(2)
-                                .fromHubId(UUID.randomUUID())
+                                .fromHubId(waypointHubId)
                                 .toHubId(arrivalHubId)
                                 .distanceMeters(2000)
                                 .durationSeconds(1200)
