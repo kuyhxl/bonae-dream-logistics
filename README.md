@@ -50,6 +50,7 @@
 - [배포](#-배포)
 - [포트 목록](#-포트-목록)
 - [참고 문서](#-참고-문서)
+  - [발표 자료 (PDF)](docs/i게되네_보내드림_발표자료.pdf)
 
 ---
 
@@ -467,6 +468,8 @@ EUREKA_URL= DELIVERY_INTERNAL_URL= ./scripts/verify.sh
 ---
 
 ## 📚 참고 문서
+
+#### [발표 자료 (PDF)](docs/i게되네_보내드림_발표자료.pdf)
 
 #### [팀 노션 (기획 · 설계 · 회의록)](https://app.notion.com/p/3adfc4e83ead816eacf9dd00695024e8?source=copy_link)
 
